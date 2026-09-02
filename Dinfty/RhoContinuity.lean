@@ -2,66 +2,15 @@ import Dinfty.CodeB
 
 open GluingTowerLibrary SierpinskiApplication
 
-/-!
-# What "continuous" can mean for `ρ`
-
-`TheoremAData` asks for `Continuous rho` against a topology `CoreIFS.topCore`
-that the framework leaves free.  This module settles which topologies are
-available, and fixes the notion the rest of the development should use.
-
-## 1.  Every order-derived topology is ruled out
-
-The obvious candidate is the Scott topology of `B`, restricted to `𝒦`.  It does
-not work, and neither does any other topology built from the order, because they
-all share one feature: **their open sets are upward closed**.  That is fatal
-here, for a reason that comes from the note's own requirements:
-
-* Theorem ESCAPE says `Fix σ_A = {⊥}`, so in particular `σ_A ⊥ = ⊥`;
-* hence `codeB (A,A,A,…) = ⊥`, so **`⊥ ∈ 𝒦`**;
-* and `ρ ⊥ = v_A`, because `codeGamma (A,A,A,…)` is a fixed point of `f_A`.
-
-Now `⊥` is below everything, so the only upward-closed set containing it is all
-of `𝒦`.  If `ρ` were continuous, the preimage of `Γ ∖ {v_B}` would be an open set
-containing `⊥`, hence all of `𝒦`, hence `ρ` would miss `v_B` — contradicting
-surjectivity.  That is `no_continuous_rho_of_upwardClosed`.
-
-So the Scott, Alexandrov and upper topologies are all unavailable, and the
-failure is not an artefact of the rebuilt `σ`: it follows from `σ_A ⊥ = ⊥`
-alone, which Theorem ESCAPE forces.
-
-## 2.  The notion that is left
-
-What the construction actually supplies is suprema of increasing chains — every
-theorem in `CodeB` is stated with `IsLUB` — so the notion of continuity native
-to this development is:
-
-```lean
-ChainContinuous f  :=  every increasing chain in 𝒦 whose supremum lies in 𝒦
-                       has `f`-image converging to `f` of the supremum
-```
-
-This is sequential Scott-to-metric continuity, and it is *not* refuted by the
-argument above: `⊥` sits at the bottom of chains rather than needing small
-neighbourhoods.
-
-## 3.  What remains
-
-`ChainContinuous rho` reduces, by the prefix estimate
-`Gasket.dist_coding_le_of_prefix`, to a purely combinatorial statement about the
-order on `𝒦`: increasing chains have addresses that agree on longer and longer
-prefixes with the address of their supremum (`AddressesConverge`).  That
-reduction is `chainContinuous_of_addressesConverge`, and `AddressesConverge` is
-the one open statement left on the `Γ`/`ρ` side.
--/
-
+-- [D-2881] §What-continuous-can-mean
 open Set Filter Topology
 
 namespace RhoContinuity
 
 open PhiIterateTower PhiBilimit SigmaRebuild CodeB
 
-/-! ## 1.  `⊥` is in the attractor, and `ρ` sends it to the `A`-vertex -/
-
+-- [D-2882] §1-is-in-the-attractor-and-sends
+-- [D-2883] codeGamma_constA
 theorem codeGamma_constA : Gasket.codeGamma (fun _ => 0) = Gasket.gA := by
   refine Gasket.fA_fixed_unique ?_
   have h : Gasket.cons 0 (fun _ => (0 : Fin 3)) = (fun _ => (0 : Fin 3)) := by
@@ -73,21 +22,19 @@ theorem codeGamma_constA : Gasket.codeGamma (fun _ => 0) = Gasket.gA := by
   rw [h] at h2
   exact h2.symm
 
+-- [D-2884] rho_bot_eq
 theorem rho_bot_eq : rho ⟨(⊥ : B), bot_mem_attractor⟩ = Gasket.gA := by
   have h1 : (⟨(⊥ : B), bot_mem_attractor⟩ : Attractor)
       = ⟨codeB (fun _ => 0), codeB_mem_attractor _⟩ := Subtype.ext codeB_constA.symm
   rw [h1, rho_codeB]
   exact codeGamma_constA
 
-/-! ## 2.  No topology with upward-closed opens can work -/
-
-/-- The defining feature of every order-derived topology (Scott, Alexandrov,
-upper): open sets are upward closed. -/
+-- [D-2885] §2-No-topology-with-upward-closed-opens-can-work
+-- [D-2886] UpwardClosedOpens
 def UpwardClosedOpens (τ : TopologicalSpace Attractor) : Prop :=
   ∀ U : Set Attractor, IsOpen[τ] U → ∀ a ∈ U, ∀ b : Attractor, (a : B) ≤ (b : B) → b ∈ U
 
-/-- **The refutation.**  With `ρ ⊥ = v_A` and `ρ` surjective, no topology whose
-opens are upward closed makes `ρ` continuous. -/
+-- [D-2887] no_continuous_rho_of_upwardClosed
 theorem no_continuous_rho_of_upwardClosed (τ : TopologicalSpace Attractor)
     (hup : UpwardClosedOpens τ) (hcont : Continuous[τ, _] rho) : False := by
   have hopen : IsOpen[τ] (rho ⁻¹' {Gasket.gB}ᶜ) :=
@@ -101,26 +48,22 @@ theorem no_continuous_rho_of_upwardClosed (τ : TopologicalSpace Attractor)
     hup _ hopen _ hbot a bot_le
   exact hmem ha
 
-/-! ## 3.  The notion this development actually supplies -/
-
-/-- **Chain continuity.**  Increasing chains in `𝒦` whose supremum lies in `𝒦`
-have images converging to the image of the supremum.  Every theorem in `CodeB`
-is stated with `IsLUB`, so this is the notion native to the construction. -/
+-- [D-2888] §3-The-notion-this-development-actually-supplies
+-- [D-2889] ChainContinuous
 def ChainContinuous (f : Attractor → Gasket.Gamma) : Prop :=
   ∀ (x : ℕ → Attractor), Monotone (fun n => ((x n : B)))
     → ∀ c : Attractor, IsLUB (Set.range fun n => ((x n : B))) (c : B)
     → Tendsto (fun n => f (x n)) atTop (𝓝 (f c))
 
-/-- The combinatorial residue: an increasing chain's addresses agree with the
-supremum's address on arbitrarily long prefixes. -/
+-- [D-2890] AddressesConverge
 def AddressesConverge : Prop :=
   ∀ (w : ℕ → (ℕ → Fin 3)) (v : ℕ → Fin 3),
     Monotone (fun n => codeB (w n))
     → IsLUB (Set.range fun n => codeB (w n)) (codeB v)
     → ∀ k : ℕ, ∃ N : ℕ, ∀ n, N ≤ n → ∀ i, i < k → (w n) i = v i
 
-/-! ## 4.  The reduction -/
-
+-- [D-2891] §4-The-reduction
+-- [D-2892] dist_rho_le_of_prefix
 theorem dist_rho_le_of_prefix {u v : ℕ → Fin 3} {k : ℕ} (h : ∀ i, i < k → u i = v i) :
     dist (rho ⟨codeB u, codeB_mem_attractor u⟩) (rho ⟨codeB v, codeB_mem_attractor v⟩)
       ≤ 2 * (2⁻¹ : ℝ) ^ k := by
@@ -128,13 +71,10 @@ theorem dist_rho_le_of_prefix {u v : ℕ → Fin 3} {k : ℕ} (h : ∀ i, i < k 
   show dist (Gasket.coding u) (Gasket.coding v) ≤ _
   exact Gasket.dist_coding_le_of_prefix (fun i hi => h i hi)
 
-/-- **`ChainContinuous rho` is exactly `AddressesConverge`.**  Everything
-analytic has been discharged; what is left is combinatorics of the order on
-`𝒦`. -/
+-- [D-2893] chainContinuous_of_addressesConverge
 theorem chainContinuous_of_addressesConverge (h : AddressesConverge) :
     ChainContinuous rho := by
   intro x hmono c hc
-  -- name the addresses
   obtain ⟨v, hv⟩ := c.2
   have hxaddr : ∀ n, ∃ u, codeB u = (x n : B) := fun n => (x n).2
   choose w hw using hxaddr

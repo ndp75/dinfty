@@ -1,26 +1,3 @@
-/-
-  ProdAut — order-automorphisms of a product poset decompose.
-
-  Self-contained (Mathlib only) and imported by `GluingTowerLibrary`, so the
-  rigidity section can use it.  This is what replaced the assumed
-  Sabidussi/Vizing prime-factorisation theorem: for the tower's actual use the
-  object is a product POSET and the map is an ORDER-automorphism, and in that
-  setting the decomposition is elementary.
-
-  Three ingredients:
-    * the axes of `A x B` are order-definable from the atoms (`axisA_iff`);
-    * every point is the join of its two shadows (`isLUB_pair`) -- no lattice
-      structure needed;
-    * order-isomorphisms preserve joins.
-  Plus a cardinality obstruction (`card_axis_obstruction`) which, via the up-set
-  identities, rules out an automorphism exchanging the two atom classes whenever
-  `0 < |B| < |A|`.
-
-  Provenance: developed 2026-08-29 in `Dinfty/{AxisObstruction, ProdDecomposition,
-  AxiomRetirement}.lean` (kept, now redundant) and consolidated here so that
-  `GluingTowerLibrary` can import it without a cycle.
--/
-
 import Mathlib.Order.Basic
 import Mathlib.Order.Lattice
 import Mathlib.Order.BoundedOrder.Basic
@@ -53,8 +30,7 @@ open scoped Classical
 
 namespace ProdAut
 
-/-- **The arithmetic core.**  With `nP` and `nP − 1` coprime, `nJ · (nP − 1)` is
-divisible by `nP` only if `nJ` is — impossible for `0 < nJ < nP`. -/
+-- [D-0018] card_axis_obstruction
 theorem card_axis_obstruction {nJ nP nUp : ℕ} (h1 : 0 < nJ) (h2 : nJ < nP)
     (_h3 : nUp ≤ nJ) : nJ * (nP - 1) ≠ nUp * nP := by
   intro heq
@@ -71,25 +47,22 @@ theorem card_axis_obstruction {nJ nP nUp : ℕ} (h1 : 0 < nJ) (h2 : nJ < nP)
   have h5 := Nat.le_of_dvd h1 h4
   omega
 
-/-- Restated at the tower's numbers: the two axes of `J(P) × Pᵒᵖ` can never have
-matching atom up-set sizes, because `0 < |J(P)| < |P|` at every level. -/
+-- [D-0019] axes_never_match
 theorem axes_never_match {nJ nP nUp : ℕ} (hpos : 0 < nJ) (hsize : nJ < nP)
     (hup : nUp ≤ nJ) : nJ * (nP - 1) ≠ nUp * nP :=
   card_axis_obstruction hpos hsize hup
 
 variable {A B : Type*} [PartialOrder A] [OrderBot A] [PartialOrder B] [OrderBot B]
 
-/-! ## Step 1 — the axes, from the atoms -/
-
+-- [D-0020] §Step-1-the-axes-from-the-atoms
+-- [D-0021] prod_le_iff
 theorem prod_le_iff (p q : A × B) : p ≤ q ↔ p.1 ≤ q.1 ∧ p.2 ≤ q.2 := Iff.rfl
 
-/-- A `B`-atom lies below `x` exactly when it lies below `x.2`; the `A`
-coordinate imposes nothing. -/
+-- [D-0022] botB_le_iff
 theorem botB_le_iff (b : B) (x : A × B) : ((⊥ : A), b) ≤ x ↔ b ≤ x.2 :=
   ⟨fun h => h.2, fun h => ⟨bot_le, h⟩⟩
 
-/-- **The `A`-axis is order-definable**: it is the set of points with no
-`B`-atom below them. -/
+-- [D-0023] axisA_iff
 theorem axisA_iff [IsAtomic B] (x : A × B) :
     (∀ b : B, IsAtom b → ¬ (((⊥ : A), b) : A × B) ≤ x) ↔ x.2 = ⊥ := by
   constructor
@@ -101,10 +74,11 @@ theorem axisA_iff [IsAtomic B] (x : A × B) :
     rw [botB_le_iff, h] at hle
     exact hb.1 (le_bot_iff.mp hle)
 
-/-- Dually for the `B`-axis. -/
+-- [D-0024] botA_le_iff
 theorem botA_le_iff (a : A) (x : A × B) : ((a, (⊥ : B)) : A × B) ≤ x ↔ a ≤ x.1 :=
   ⟨fun h => h.1, fun h => ⟨h, bot_le⟩⟩
 
+-- [D-0025] axisB_iff
 theorem axisB_iff [IsAtomic A] (x : A × B) :
     (∀ a : A, IsAtom a → ¬ ((a, (⊥ : B)) : A × B) ≤ x) ↔ x.1 = ⊥ := by
   constructor
@@ -116,9 +90,8 @@ theorem axisB_iff [IsAtomic A] (x : A × B) :
     rw [botA_le_iff, h] at hle
     exact ha.1 (le_bot_iff.mp hle)
 
-/-! ## Step 2 — every point is the join of its two shadows -/
-
-/-- True in any product of posets with bottoms; no lattice needed. -/
+-- [D-0026] §Step-2-every-point-is-the-join-of-its-two
+-- [D-0027] isLUB_pair
 theorem isLUB_pair (a : A) (b : B) :
     IsLUB {((a, (⊥ : B)) : A × B), (((⊥ : A), b) : A × B)} ((a, b) : A × B) := by
   constructor
@@ -129,11 +102,8 @@ theorem isLUB_pair (a : A) (b : B) :
     exact ⟨(hu (Set.mem_insert _ _)).1,
            (hu (Set.mem_insert_of_mem _ rfl)).2⟩
 
-/-! ## Step 3 — decomposition -/
-
-/-- **The propagation §25 was missing.**  If `φ` carries each axis into itself,
-it decomposes — because every point is the join of its two shadows and an
-order-isomorphism preserves joins. -/
+-- [D-0028] §Step-3-decomposition
+-- [D-0029] prod_decomposition_of_axis_preserving
 theorem prod_decomposition_of_axis_preserving (φ : (A × B) ≃o (A × B))
     (hA : ∀ a : A, (φ (a, (⊥ : B))).2 = ⊥)
     (hB : ∀ b : B, (φ ((⊥ : A), b)).1 = ⊥)
@@ -161,16 +131,14 @@ theorem prod_decomposition_of_axis_preserving (φ : (A × B) ≃o (A × B))
              (hu (Set.mem_insert_of_mem _ rfl)).2⟩
   exact h.unique h2
 
-/-! ## Closing the loop: no atom crossing ⟹ axes preserved ⟹ decomposition -/
-
+-- [D-0030] §Closing-the-loop-no-atom-crossing-axes-preserved
+-- [D-0031] prod_eq_bot_iff
 theorem prod_eq_bot_iff (x : A × B) : x = ⊥ ↔ x.1 = ⊥ ∧ x.2 = ⊥ := by
   constructor
   · rintro rfl; exact ⟨rfl, rfl⟩
   · intro h; exact Prod.ext_iff.mpr ⟨h.1, h.2⟩
 
-/-- If `φ.symm` keeps `B`-atoms on the `B`-axis, then `φ` keeps the `A`-axis on
-the `A`-axis.  (A `B`-atom under `φ` would have to come from something below the
-`A`-axis, which forces it to be `⊥`.) -/
+-- [D-0032] axisA_preserved
 theorem axisA_preserved [IsAtomic B] (φ : (A × B) ≃o (A × B))
     (hsym : ∀ b : B, IsAtom b → (φ.symm (((⊥ : A), b) : A × B)).1 = ⊥)
     (a : A) : (φ ((a, (⊥ : B)) : A × B)).2 = ⊥ := by
@@ -186,7 +154,7 @@ theorem axisA_preserved [IsAtomic B] (φ : (A × B) ≃o (A × B))
     rwa [φ.apply_symm_apply, φ.map_bot] at this
   exact hb.1 (congrArg Prod.snd this)
 
-/-- Dual. -/
+-- [D-0033] axisB_preserved
 theorem axisB_preserved [IsAtomic A] (φ : (A × B) ≃o (A × B))
     (hsym : ∀ a : A, IsAtom a → (φ.symm ((a, (⊥ : B)) : A × B)).2 = ⊥)
     (b : B) : (φ (((⊥ : A), b) : A × B)).1 = ⊥ := by
@@ -202,8 +170,7 @@ theorem axisB_preserved [IsAtomic A] (φ : (A × B) ≃o (A × B))
     rwa [φ.apply_symm_apply, φ.map_bot] at this
   exact ha.1 (congrArg Prod.fst this)
 
-/-- **The full statement.**  No atom crossing (for `φ.symm`, in both directions)
-implies the decomposition.  Sabidussi/Vizing appears nowhere. -/
+-- [D-0034] prod_decomposition_of_no_crossing
 theorem prod_decomposition_of_no_crossing [IsAtomic A] [IsAtomic B]
     (φ : (A × B) ≃o (A × B))
     (hB : ∀ b : B, IsAtom b → (φ.symm (((⊥ : A), b) : A × B)).1 = ⊥)
@@ -215,35 +182,35 @@ theorem prod_decomposition_of_no_crossing [IsAtomic A] [IsAtomic B]
 variable {A B : Type*} [PartialOrder A] [OrderBot A] [Fintype A]
   [PartialOrder B] [OrderBot B] [Fintype B]
 
-/-! ## Up-sets of the two atom classes -/
-
-/-- `(κ, ⊥) ≤ x` constrains only the first coordinate. -/
+-- [D-0035] §Up-sets-of-the-two-atom-classes
+-- [D-0036] upAatomEquiv
 def upAatomEquiv (k : A) : {x : A × B // (k, (⊥ : B)) ≤ x} ≃ {a : A // k ≤ a} × B where
   toFun z := (⟨z.1.1, z.2.1⟩, z.1.2)
   invFun p := ⟨(p.1.1, p.2), ⟨p.1.2, bot_le⟩⟩
   left_inv z := by cases z; rfl
   right_inv p := by cases p; rfl
 
-/-- `(⊥, b) ≤ x` constrains only the second coordinate. -/
+-- [D-0037] upBatomEquiv
 def upBatomEquiv (b : B) : {x : A × B // ((⊥ : A), b) ≤ x} ≃ A × {b' : B // b ≤ b'} where
   toFun z := (z.1.1, ⟨z.1.2, z.2.2⟩)
   invFun p := ⟨(p.1, p.2.1), ⟨bot_le, p.2.2⟩⟩
   left_inv z := by cases z; rfl
   right_inv p := by cases p; rfl
 
+-- [D-0038] card_up_Aatom
 theorem card_up_Aatom (k : A) :
     Fintype.card {x : A × B // (k, (⊥ : B)) ≤ x}
       = Fintype.card {a : A // k ≤ a} * Fintype.card B := by
   rw [Fintype.card_congr (upAatomEquiv (B := B) k), Fintype.card_prod]
 
+-- [D-0039] card_up_Batom
 theorem card_up_Batom (b : B) :
     Fintype.card {x : A × B // ((⊥ : A), b) ≤ x}
       = Fintype.card A * Fintype.card {b' : B // b ≤ b'} := by
   rw [Fintype.card_congr (upBatomEquiv (A := A) b), Fintype.card_prod]
 
-/-! ## The unique atom's up-set is everything but `⊥` -/
-
-/-- In an atomic order with a unique atom, `κ ≤ a` exactly when `a ≠ ⊥`. -/
+-- [D-0040] §The-unique-atom-s-up-set-is-everything
+-- [D-0041] le_uniqueAtom_iff
 theorem le_uniqueAtom_iff [IsAtomic A] {k : A} (hk : IsAtom k)
     (huniq : ∀ k' : A, IsAtom k' → k' = k) (a : A) : k ≤ a ↔ a ≠ ⊥ := by
   constructor
@@ -254,6 +221,7 @@ theorem le_uniqueAtom_iff [IsAtomic A] {k : A} (hk : IsAtom k)
     · exact absurd h ha
     · rw [← huniq k' hk']; exact hle
 
+-- [D-0042] card_up_uniqueAtom
 theorem card_up_uniqueAtom [IsAtomic A] {k : A} (hk : IsAtom k)
     (huniq : ∀ k' : A, IsAtom k' → k' = k) :
     Fintype.card {a : A // k ≤ a} = Fintype.card A - 1 := by
@@ -263,10 +231,8 @@ theorem card_up_uniqueAtom [IsAtomic A] {k : A} (hk : IsAtom k)
   rw [← h2]
   exact Fintype.card_congr (Equiv.subtypeEquivRight h)
 
-/-! ## No crossing, from cardinality -/
-
-/-- **The two atom classes cannot be exchanged.**  An order-isomorphism preserves
-up-set cardinality, and §25's arithmetic says the two sizes never agree. -/
+-- [D-0043] §No-crossing-from-cardinality
+-- [D-0044] up_card_ne
 theorem up_card_ne [IsAtomic A] {k : A} (hk : IsAtom k)
     (huniq : ∀ k' : A, IsAtom k' → k' = k)
     (hpos : 0 < Fintype.card B) (hsize : Fintype.card B < Fintype.card A) (b : B) :
@@ -282,9 +248,8 @@ theorem up_card_ne [IsAtomic A] {k : A} (hk : IsAtom k)
     _ = Fintype.card A * Fintype.card {b' : B // b ≤ b'} := heq
     _ = Fintype.card {b' : B // b ≤ b'} * Fintype.card A := by ring
 
-
-/-! ## Two facts Mathlib does not have: atoms in a product, atoms under an iso -/
-
+-- [D-0045] §Two-facts-Mathlib-does-not-have-atoms
+-- [D-0046] prod_ne_bot_iff
 theorem prod_ne_bot_iff (p : A × B) : p ≠ ⊥ ↔ (p.1 ≠ ⊥ ∨ p.2 ≠ ⊥) := by
   constructor
   · intro h
@@ -293,7 +258,7 @@ theorem prod_ne_bot_iff (p : A × B) : p ≠ ⊥ ↔ (p.1 ≠ ⊥ ∨ p.2 ≠ �
     exact h (Prod.ext hc.1 hc.2)
   · rintro (h | h) hb <;> rw [hb] at h <;> exact h rfl
 
-/-- `IsAtom` in a product: an atom lives on exactly one axis. -/
+-- [D-0047] prod_isAtom_iff
 theorem prod_isAtom_iff (p : A × B) :
     IsAtom p ↔ (IsAtom p.1 ∧ p.2 = ⊥) ∨ (p.1 = ⊥ ∧ IsAtom p.2) := by
   obtain ⟨a, b⟩ := p
@@ -334,7 +299,7 @@ theorem prod_isAtom_iff (p : A × B) :
         (fun hcon => hlt.ne (Prod.ext hc hcon))
       exact Prod.ext hc (hb.2 d hdb)
 
-/-- Order-isomorphisms preserve atoms. -/
+-- [D-0048] orderIso_isAtom
 theorem orderIso_isAtom (φ : (A × B) ≃o (A × B)) {p : A × B} (hp : IsAtom p) :
     IsAtom (φ p) := by
   refine ⟨fun h => hp.1 (φ.injective (h.trans φ.map_bot.symm)), ?_⟩
@@ -346,9 +311,8 @@ theorem orderIso_isAtom (φ : (A × B) ≃o (A × B)) {p : A × B} (hp : IsAtom 
   have := congrArg φ h2
   rwa [φ.apply_symm_apply, φ.map_bot] at this
 
-/-! ## Assembly: no crossing, then decomposition -/
-
-/-- Order-isomorphisms transport up-sets. -/
+-- [D-0049] §Assembly-no-crossing-then-decomposition
+-- [D-0050] upEquivOfOrderIso
 def upEquivOfOrderIso (φ : (A × B) ≃o (A × B)) (p : A × B) :
     {x : A × B // p ≤ x} ≃ {y : A × B // φ p ≤ y} where
   toFun z := ⟨φ z.1, φ.monotone z.2⟩
@@ -358,12 +322,12 @@ def upEquivOfOrderIso (φ : (A × B) ≃o (A × B)) (p : A × B) :
   left_inv z := Subtype.ext (φ.symm_apply_apply z.1)
   right_inv z := Subtype.ext (φ.apply_symm_apply z.1)
 
+-- [D-0051] card_up_eq
 theorem card_up_eq (φ : (A × B) ≃o (A × B)) (p : A × B) :
     Fintype.card {x : A × B // p ≤ x} = Fintype.card {y : A × B // φ p ≤ y} :=
   Fintype.card_congr (upEquivOfOrderIso φ p)
 
-/-- **`B`-atoms stay on the `B`-axis.**  Their image is an atom; landing on the
-`A`-axis would equate the two up-set cardinalities, which `up_card_ne` forbids. -/
+-- [D-0052] no_crossing_B
 theorem no_crossing_B [IsAtomic A] [IsAtomic B] {k : A} (hk : IsAtom k)
     (huniq : ∀ k' : A, IsAtom k' → k' = k)
     (hpos : 0 < Fintype.card B) (hsize : Fintype.card B < Fintype.card A)
@@ -379,7 +343,7 @@ theorem no_crossing_B [IsAtomic A] [IsAtomic B] {k : A} (hk : IsAtom k)
     rw [this, ← card_up_eq φ]
   · exact hbot
 
-/-- **`A`-atoms stay on the `A`-axis.**  Same argument, other side. -/
+-- [D-0053] no_crossing_A
 theorem no_crossing_A [IsAtomic A] [IsAtomic B] {k : A} (hk : IsAtom k)
     (huniq : ∀ k' : A, IsAtom k' → k' = k)
     (hpos : 0 < Fintype.card B) (hsize : Fintype.card B < Fintype.card A)
@@ -396,8 +360,7 @@ theorem no_crossing_A [IsAtomic A] [IsAtomic B] {k : A} (hk : IsAtom k)
         = (((⊥ : A), (φ ((a, (⊥ : B)) : A × B)).2) : A × B) := by rw [← hbot]
     rw [hka, card_up_eq φ ((a, (⊥ : B)) : A × B), heq]
 
-/-- **The decomposition, from cardinality hypotheses alone.**  This is the whole
-of obligation #2's mathematics, with Sabidussi/Vizing nowhere in it. -/
+-- [D-0054] prod_decomposition_of_card
 theorem prod_decomposition_of_card [IsAtomic A] [IsAtomic B] {k : A} (hk : IsAtom k)
     (huniq : ∀ k' : A, IsAtom k' → k' = k)
     (hpos : 0 < Fintype.card B) (hsize : Fintype.card B < Fintype.card A)

@@ -1,13 +1,3 @@
-/-
-  SierpinskiApplication — the real `D∞` tower / Sierpiński-gasket application,
-  built on top of `GluingTowerLibrary`. Extracted and condensed from
-  `02 Formalization.lean` (the full ~26,842-line research record, kept
-  unmodified alongside this file); see that file for full research history,
-  proof attempts, and session-by-session status notes behind every
-  declaration below (comments here are condensed to one line per
-  declaration).
--/
-
 import Dinfty.GluingTowerLibrary
 import Dinfty.MigrationCloseout
 import Mathlib.SetTheory.Cardinal.Continuum
@@ -21,42 +11,21 @@ open GluingTowerLibrary
 
 namespace SierpinskiApplication
 
-
 section RecursiveTower
 
--- Bundle a `Type` at each tower level together with the four instance classes `EndP`/`GlueCar`/`GluingTower` all consume — `DecidableEq`, `Lattice`, `BoundedOrder`, `Fintype`
+-- [D-0770] TowerLevel
 structure TowerLevel : Type (u + 1) where
   carrier : Type u
   dec : DecidableEq carrier
   lat : Lattice carrier
   bdd : BoundedOrder carrier
   fin : Fintype carrier
-  /-- **Pass 8, new field.** A bare existence-of-two-distinct-points
-      fact — deliberately NOT stated as `(⊥ : carrier) ≠ ⊤` directly,
-      since that would need `Bot`/`Top` instances in scope while
-      elaborating THIS field's type, which the preceding `lat`/`bdd`
-      fields don't automatically provide inside a structure definition
-      (they're later FIELDS, not local instances, at the point the
-      structure itself is declared). `Nontrivial` needs no order
-      structure at all, and `bot_ne_top_of_nontrivial` (§1) converts it
-      to the `⊥ ≠ ⊤` fact `towerLevelSucc`/`D_marked_point_nondegenerate`
-      actually need, once `lat`/`bdd` ARE in scope via `letI`. This is
-      what closes `towerLevelSucc`'s three `sorry`s below: nondegeneracy
-      of `OrderHom.id : EndP prev.carrier` no longer needs to be assumed
-      at each step, it's derived from `prev.nontriv` and propagated
-      forward via `glueCar_nontrivial` (§2.5, itself unconditional). -/
   nontriv : Nontrivial carrier
-  /-- **Normalization (2026-08-27).**  The middle basepoint `L`, carried as
-      data, with its two nondegeneracy facts.  The tower's marked point is
-      `constHom mid` (see `markedPt`), not `OrderHom.id`: it is the
-      convention the vault's own `Phi_tri_v2` uses, and the only one under
-      which `Phi` has a morphism action (obstruction (T),
-      `Dinfty/TripointedObstruction.lean`). -/
   mid : carrier
   mid_ne_bot : letI := lat; letI := bdd; mid ≠ (⊥ : carrier)
   mid_ne_top : letI := lat; letI := bdd; mid ≠ (⊤ : carrier)
 
--- Base level: `D 0 = Fin 3` (`⊥=0`, `m=1`, `⊤=2`; companion Definition 1.1/1.2's `D_0`, the 3-chain `T<L<R`).
+-- [D-0771] towerLevel0
 noncomputable def towerLevel0 : TowerLevel where
   carrier := Fin 3
   dec := inferInstance
@@ -68,10 +37,7 @@ noncomputable def towerLevel0 : TowerLevel where
   mid_ne_bot := by decide
   mid_ne_top := by decide
 
--- Successor level: `D (k+1) := Φ(EndP (D k))`, marked point `constHom prev.mid`
--- — the `const_L` normalization (Finding Updates 22/24).  The next level's own
--- middle basepoint is `tag_B` of that marked point, matching `Φ_tri_v2`'s own
--- `L_{Φ(H)} = tag_B(L_H)`.
+-- [D-0772] towerLevelSucc
 noncomputable def towerLevelSucc (prev : TowerLevel) : TowerLevel :=
   letI := prev.dec
   letI := prev.lat
@@ -92,80 +58,78 @@ noncomputable def towerLevelSucc (prev : TowerLevel) : TowerLevel :=
     bdd := glueBoundedOrder (constHom prev.mid) hm hmt hbt
     fin := inferInstance
     nontriv := glueCar_nontrivial (constHom prev.mid) hm hmt hbt
-    -- **tag-`A`, not `tag_B`** (Noah's decision, 2026-08-27).  `midM_unique` /
-    -- `tagA_of_hdown_at_mid` show `hdown` alone forces the next basepoint onto
-    -- copy `A`; `tag_B` fails it at `y = mid`.  `midM prev.mid = tag_A (constHom
-    -- prev.mid)` is the glue seam `a.L ~ b.T`, so this is not outside
-    -- Ratnayake's scheme — it is the other point their own gluing names.
     mid := midM prev.mid
     mid_ne_bot := midM_ne_bot prev.mid_ne_bot prev.mid_ne_top hbtPrev
     mid_ne_top := midM_ne_top prev.mid_ne_bot prev.mid_ne_top hbtPrev }
 
-/-- The full recursive tower of bundled levels, `ℕ → TowerLevel`. -/
+-- [D-0773] towerLevel
 noncomputable def towerLevel : ℕ → TowerLevel
   | 0 => towerLevel0
   | k + 1 => towerLevelSucc (towerLevel k)
 
--- `D : ℕ → Type`, the actual tower object the companion note calls `D_k` (working notes: `D_k^F`) — projecting the carrier out of `towerLevel`.
--- (pass 8 FIX: `Type u`, not `Type`, is what the previous version of this line declared — but a real compile confirms `towerLevel`'s recursion pins its universe to a CONCRETE `0` (inherited from `towerLevel0`'s `carrier := Fin 3 : Type 0`)
+-- [D-0774] D
 @[reducible] noncomputable def D (k : ℕ) : Type := (towerLevel k).carrier
 
+-- [D-0775] instDecidableEqD
 noncomputable instance instDecidableEqD (k : ℕ) : DecidableEq (D k) := (towerLevel k).dec
+-- [D-0776] instLatticeD
 noncomputable instance instLatticeD (k : ℕ) : Lattice (D k) := (towerLevel k).lat
+-- [D-0777] instBoundedOrderD
 noncomputable instance instBoundedOrderD (k : ℕ) : BoundedOrder (D k) := (towerLevel k).bdd
+-- [D-0778] instFintypeD
 noncomputable instance instFintypeD (k : ℕ) : Fintype (D k) := (towerLevel k).fin
+-- [D-0779] instNontrivialD
 noncomputable instance instNontrivialD (k : ℕ) : Nontrivial (D k) := (towerLevel k).nontriv
 
--- The middle basepoint of level `k`, projected out of `towerLevel`.
+-- [D-0780] dMid
 noncomputable def dMid (k : ℕ) : D k := (towerLevel k).mid
 
+-- [D-0781] dMid_ne_bot
 theorem dMid_ne_bot (k : ℕ) : dMid k ≠ (⊥ : D k) := (towerLevel k).mid_ne_bot
+-- [D-0782] dMid_ne_top
 theorem dMid_ne_top (k : ℕ) : dMid k ≠ (⊤ : D k) := (towerLevel k).mid_ne_top
 
--- **The tower's marked point**, normalized: the CONSTANT at level `k`'s middle
--- basepoint.  `D (k+1)` is `GlueCar (EndP (D k)) (markedPt k)` definitionally.
+-- [D-0783] markedPt
 noncomputable def markedPt (k : ℕ) : EndP (D k) := constHom (dMid k)
 
+-- [D-0784] markedPt_apply
 @[simp] theorem markedPt_apply (k : ℕ) (x : D k) : markedPt k x = dMid k := rfl
 
+-- [D-0785] markedPt_ne_bot
 theorem markedPt_ne_bot (k : ℕ) : markedPt k ≠ (⊥ : EndP (D k)) := by
   intro h
   have hb : (⊥ : EndP (D k)) = constHom (⊥ : D k) := by ext x; rfl
   exact dMid_ne_bot k (constHom_injective (h.trans hb))
 
+-- [D-0786] markedPt_ne_top
 theorem markedPt_ne_top (k : ℕ) : markedPt k ≠ (⊤ : EndP (D k)) := fun h =>
   dMid_ne_top k (constHom_injective (h.trans endP_top_eq_constHom_top))
 
--- Sanity check available even without a toolchain run: `D 0` and `D 1` should be defeq (up to the `TowerLevel` bundling) to the same concrete objects the §2.5 `PhiSanityChecks` section already builds and confirms by `decide` (`Fin 3`; `Fin 3
-
--- **`D 0 = Fin 3` has a unique atom/coatom, both `= 1`** — the base case of `realUniqueAtomCoatom` below, and the companion vault's Lemma UAC's `k=0` instance made concrete.
+-- [D-0787] finThreeUniqueAtomCoatom
 instance finThreeUniqueAtomCoatom : UniqueAtomCoatom (Fin 3) where
   unique_atom := existsUnique_atom_of_least_nonzero (a := (1 : Fin 3)) (by decide) (by decide)
   unique_coatom :=
     existsUnique_coatom_of_greatest_ne_top (a := (1 : Fin 3)) (by decide) (by decide)
 
--- Nondegeneracy of the marked point `OrderHom.id : EndP (D k)`, used at every step of the tower's recursion — restated here in terms of `D k` directly (rather than `towerLevelSucc`'s abstract `prev`) so `realUniqueAtomCoatom` below can cite it.
+-- [D-0788] D_marked_point_nondegenerate
 theorem D_marked_point_nondegenerate (k : ℕ) :
     (markedPt k) ≠ ⊥ ∧ (markedPt k) ≠ ⊤ ∧
     (⊥ : EndP (D k)) ≠ (⊤ : EndP (D k)) :=
   have hbt : (⊥ : D k) ≠ ⊤ := bot_ne_top_of_nontrivial
   ⟨markedPt_ne_bot k, markedPt_ne_top k, endP_bot_ne_top hbt⟩
 
--- **Pass 25**: every `D k` has a genuine THIRD point beyond `⊥`/`⊤` — `D k` is never the degenerate 2-element lattice.
+-- [D-0789] D_has_interior_point
 theorem D_has_interior_point : ∀ k, ∃ x : D k, x ≠ ⊥ ∧ x ≠ ⊤
   | 0 => ⟨(1 : Fin 3),
       (fun heq => absurd (show (1 : Fin 3) = 0 from heq) (by decide)),
       (fun heq => absurd (show (1 : Fin 3) = 2 from heq) (by decide))⟩
   | k + 1 => by
-      -- Simpler than the `m = id` version: `glueA m x` is interior for ANY
-      -- `x ≠ ⊥` (`glueA_injective` below, `glueA_ne_top` above), so `x := m`
-      -- works with no `canon` computation at all.
       have h := D_marked_point_nondegenerate k
       exact ⟨glueA (markedPt k) (markedPt k),
         fun hc => h.1 (glueA_injective (markedPt k) hc),
         glueA_ne_top (markedPt k) h.1 h.2.1 h.2.2 (markedPt k)⟩
 
--- **Lemma UAC, assembled for the real tower** (companion vault §3): `D` has a unique atom/coatom at every level — `GluingTower.uac`'s field, for the real `D`, formalized (modulo open `sorry`s below) rather than assumed.
+-- [D-0790] realUniqueAtomCoatom
 noncomputable def realUniqueAtomCoatom : ∀ k, UniqueAtomCoatom (D k)
   | 0 => finThreeUniqueAtomCoatom
   | k + 1 =>
@@ -182,9 +146,6 @@ noncomputable def realUniqueAtomCoatom : ∀ k, UniqueAtomCoatom (D k)
           congrArg (· (⊤ : D k)) hc
         rw [endPBot_apply, cospikeHom_apply_of_ne _ hbtDk.symm] at h1
         exact hbtDk h1
-      -- Easier than the `m = id` version, which had to case-split on whether
-      -- `coatomOf (D k) = ⊥`: `coatomOf (EndP _) = cospikeHom (coatomOf _)`
-      -- sends `⊤` to `⊤`, while a constant sends it to `mid ≠ ⊤`.
       have hcm : coatomOf (EndP (D k)) ≠ markedPt k := by
         rw [heq]
         intro hc
@@ -196,21 +157,20 @@ noncomputable def realUniqueAtomCoatom : ∀ k, UniqueAtomCoatom (D k)
 
 end RecursiveTower
 
--- `GluingTower.base0_rigid` for the real tower: `D 0` is definitionally `Fin 3`, so this is `finThree_rigid` directly.
+-- [D-0791] D0_rigid
 theorem D0_rigid : Subsingleton (D 0 ≃o D 0) := finThree_rigid
 
--- **Pass 26**: `D k`'s own top has a unique down-cover, for every `k` — `hasUniqueDownCover_top` applied at `P := D k` via `realUniqueAtomCoatom k`.
+-- [D-0792] D_top_hasUniqueDownCover
 theorem D_top_hasUniqueDownCover (k : ℕ) : HasUniqueDownCover (⊤ : D k) :=
   letI := realUniqueAtomCoatom k
   hasUniqueDownCover_top
 
-/-- Dual: `D k`'s own bottom has a unique up-cover, for every `k`
-    (`uc_{D_k}(⊥) = 1`, the other half of pass 23's Claim A). -/
+-- [D-0793] D_bot_hasUniqueUpCover
 theorem D_bot_hasUniqueUpCover (k : ℕ) : HasUniqueUpCover (⊥ : D k) :=
   letI := realUniqueAtomCoatom k
   hasUniqueUpCover_bot
 
--- **Pass 27 — Claim B (SKEL-DEG general-`k`, pass 23's second induction), toolchain-verified**: every `D k` has a join-irreducible element distinct from its own top.
+-- [D-0794] D_has_second_joinIrred
 theorem D_has_second_joinIrred : ∀ k, ∃ y : D k, JoinIrred (D k) y ∧ y ≠ (⊤ : D k)
   | 0 => by
       show ∃ y : Fin 3, JoinIrred (Fin 3) y ∧ y ≠ (⊤ : Fin 3)
@@ -228,13 +188,7 @@ theorem D_has_second_joinIrred : ∀ k, ∃ y : D k, JoinIrred (D k) y ∧ y ≠
           (constHom y) hcy_ji,
         glueA_ne_top (markedPt k) h.1 h.2.1 h.2.2 (constHom y)⟩
 
--- **`|J(D(k+1))|` cardinality, real tower**: instantiates the general
--- `card_joinIrred_glueCar_endP_id` (`GluingTowerLibrary.lean`) at `P := D k`
--- — `D(k+1)` is literally `GlueCar(EndP(D k), id)` (`towerLevelSucc`'s own
--- definition), so this is a direct application, not a re-derivation.
-
--- Every `D k` has at least 3 elements (`⊥`, an interior point, `⊤`, all
--- distinct) — the side condition `card_joinIrred_D_succ` needs.
+-- [D-0795] D_card_ge_three
 theorem D_card_ge_three (k : ℕ) : 3 ≤ Fintype.card (D k) := by
   obtain ⟨x, hxb, hxt⟩ := D_has_interior_point k
   have hbt : (⊥ : D k) ≠ ⊤ := bot_ne_top_of_nontrivial
@@ -246,11 +200,7 @@ theorem D_card_ge_three (k : ℕ) : 3 ≤ Fintype.card (D k) := by
         rw [← Finset.card_univ]
         exact Finset.card_le_card (Finset.subset_univ _)
 
--- The normalized marked point is join-irreducible at every level: `1 : Fin 3`
--- is, and `JoinIrred` transfers exactly across both `constHom`
--- (`joinIrred_constHom_iff`) and `tag_A` (`joinIrred_glueA_iff`).  Under the
--- superseded `tag_B` basepoint this went through `joinIrred_glueB_iff`; the
--- tag-`A` route is the same shape and needs one hypothesis fewer.
+-- [D-0796] D_mid_joinIrred
 theorem D_mid_joinIrred : ∀ k, JoinIrred (D k) (dMid k)
   | 0 => by
       show JoinIrred (Fin 3) (1 : Fin 3)
@@ -262,16 +212,7 @@ theorem D_mid_joinIrred : ∀ k, JoinIrred (D k) (dMid k)
       exact (joinIrred_glueA_iff (markedPt k) h.1 h.2.1 h.2.2 (constHom (dMid k))).mpr
         ((joinIrred_constHom_iff (dMid k)).mpr (D_mid_joinIrred k))
 
-/-- **`D_n -> D_{n+1}` join-irreducible count, normalized tower**:
-    `|J(D(k+1))| = 3·|J(D k)|·|D k| − 2`.
-
-    **The one arithmetic change the normalization causes.**  Under the old
-    marked point `id` the count was `− 1` (`card_joinIrred_glueCar_endP_id`),
-    because `id` is never join-irreducible.  A constant at a join-irreducible
-    point always is, so copy `C` loses one more element and the general
-    `card_joinIrred_glueCar_gen_of_joinIrred` applies instead.  Sanity check
-    at `k = 0` (`|J(D_0)| = 2`, `|D_0| = 3`): `3·2·3 − 2 = 16`, one fewer
-    than the `id` tower's 17. -/
+-- [D-0797] card_joinIrred_D_succ
 theorem card_joinIrred_D_succ (k : ℕ) :
     Fintype.card {x : D (k + 1) // JoinIrred (D (k + 1)) x} =
       3 * Fintype.card {x : D k // JoinIrred (D k) x} * Fintype.card (D k) - 2 := by
@@ -280,32 +221,11 @@ theorem card_joinIrred_D_succ (k : ℕ) :
   exact card_joinIrred_glueCar_endP_constHom (dMid k) (dMid_ne_bot k) (dMid_ne_top k)
     hbt (D_card_ge_three k) (D_mid_joinIrred k)
 
-/- **`D_deg_g2_ne_deg_l` DELETED (2026-08-27, normalization migration).**
-Its content: separate the skeleton points `g2 = tag_A(⊤)` and `l = tag_B(m)`
-by down-cover degree, `1` vs `2`, using that `id` is "wide"
-(`not_hasUniqueDownCover_id_of_ne`).  Under the normalized marked point
-`constHom mid` that separation is FALSE: `hasUniqueDownCover_constHom_iff`
-makes `constHom mid` inherit `mid`'s unique down-cover, so both points have
-degree 1 (checked directly at level 1 in
-`_archive/check_normalized_tower_rigidity_and_invariant.py`, and by Finding
-Update 25's invariant table).
-
-Deleted rather than repaired because it had **no consumers** — the
-load-bearing path for Theorem B is `glue_rigid_of_incomparable`, which pins
-`g2` from an incomparability witness and never looks at down-cover degrees
-(Finding Update 26).  Rigidity itself survives the normalization unchanged;
-only this particular separating invariant does not. -/
-
--- Theorem UP-TRANSFER for the real tower: rigidity of `EndP (D k)` lifts to rigidity of `D (k+1)`, via `glue_rigid_of_incomparable` applied at the marked point `OrderHom.id`.
+-- [D-0798] D_up_transfer
 theorem D_up_transfer (k : ℕ) :
     Subsingleton (EndP (D k) ≃o EndP (D k)) → Subsingleton (D (k+1) ≃o D (k+1)) := by
   intro hEnd
   have h := D_marked_point_nondegenerate k
-  -- Under `m = id` the witness was a constant `constHom v`.  Under
-  -- `m = constHom (dMid k)` constants are useless (two constants are
-  -- comparable whenever their values are, and `D 0` is a chain) — but
-  -- `OrderHom.id` is incomparable to the marked point at every level, for
-  -- free.  The two conventions simply swap roles (Finding Update 26).
   have hp1 : ¬ (OrderHom.id : EndP (D k)) ≤ markedPt k := fun hc =>
     dMid_ne_top k (le_antisymm le_top (hc ⊤))
   have hp2 : ¬ markedPt k ≤ (OrderHom.id : EndP (D k)) := fun hc =>
@@ -313,21 +233,19 @@ theorem D_up_transfer (k : ℕ) :
   exact glue_rigid_of_incomparable (P := EndP (D k)) (markedPt k) h.1 h.2.1 h.2.2
     hEnd (OrderHom.id) hp1 hp2
 
--- ============================================================ §2.15.
-
 section H0Rigid
 
--- Down-set cardinality of `z` in a finite preorder: `|{x : x ≤ z}|`.
+-- [D-0799] downCard
 def downCard {α : Type*} [Fintype α] [Preorder α]
     [DecidableRel ((· ≤ ·) : α → α → Prop)] (z : α) : ℕ :=
   (Finset.univ.filter (· ≤ z)).card
 
-/-- Up-set cardinality, dual to `downCard`. -/
+-- [D-0800] upCard
 def upCard {α : Type*} [Fintype α] [Preorder α]
     [DecidableRel ((· ≤ ·) : α → α → Prop)] (z : α) : ℕ :=
   (Finset.univ.filter (z ≤ ·)).card
 
--- `downCard` is an order-iso invariant: `Finset` transcription of §2.14's `gDown_ncard_map` proof (that proof used nothing `GlueCar`-specific, so it transfers verbatim).
+-- [D-0801] downCard_map
 theorem downCard_map {α : Type*} [Fintype α] [Preorder α]
     [DecidableRel ((· ≤ ·) : α → α → Prop)] (φ : α ≃o α) (z : α) :
     downCard (φ z) = downCard z := by
@@ -343,7 +261,7 @@ theorem downCard_map {α : Type*} [Fintype α] [Preorder α]
     · rintro ⟨w', hw', rfl⟩; exact φ.le_iff_le.mpr hw'
   rw [himg, Finset.card_image_of_injective _ φ.injective]
 
-/-- Dual of `downCard_map`. STATUS: TOOLCHAIN-VERIFIED, pass 29. -/
+-- [D-0802] upCard_map
 theorem upCard_map {α : Type*} [Fintype α] [Preorder α]
     [DecidableRel ((· ≤ ·) : α → α → Prop)] (φ : α ≃o α) (z : α) :
     upCard (φ z) = upCard z := by
@@ -359,19 +277,19 @@ theorem upCard_map {α : Type*} [Fintype α] [Preorder α]
     · rintro ⟨w', hw', rfl⟩; exact φ.le_iff_le.mpr hw'
   rw [himg, Finset.card_image_of_injective _ φ.injective]
 
--- The `(downCard,upCard)` pair is injective on `EndP (Fin 3)` (`H_0`, 10 elements) — hand-computed and confirmed (Python, before writing this) that all 10 pairs are distinct: `(1,10),(2,9),(3,6),(3,7), (5,5),(6,3),(4,4),(7,3),(9,2),(10,1)`.
+-- [D-0803] endPFin3_inv_injective
 theorem endPFin3_inv_injective :
     Function.Injective (fun f : EndP (Fin 3) => (downCard f, upCard f)) := by
   decide
 
--- Every automorphism of `EndP (Fin 3)` fixes every element — the `H_0`-analogue of `finThree_rigid`'s `key`, but pinning all 10 elements in one shot via the injective cardinality-pair invariant instead of a two-step endpoints/middle argument.
+-- [D-0804] H0_rigid_fixes
 theorem H0_rigid_fixes (h : EndP (Fin 3) ≃o EndP (Fin 3)) (f : EndP (Fin 3)) :
     h f = f := by
   apply endPFin3_inv_injective
   simp only
   exact Prod.ext (downCard_map h f) (upCard_map h f)
 
--- **`Aut(EndP (Fin 3)) = {id}`** — rigidity of the 10-element base endomorphism poset `H_0`, proved directly (route (ii) from `D1_rigid`'s own docstring below), not via `D_down_transfer`.
+-- [D-0805] H0_rigid
 theorem H0_rigid : Subsingleton (EndP (Fin 3) ≃o EndP (Fin 3)) := by
   constructor
   intro f g
@@ -381,9 +299,10 @@ theorem H0_rigid : Subsingleton (EndP (Fin 3) ≃o EndP (Fin 3)) := by
 
 end H0Rigid
 
+-- [D-0806] D1_rigid
 theorem D1_rigid : Subsingleton (D 1 ≃o D 1) := D_up_transfer 0 H0_rigid
 
--- Base case of Theorem J-CONN: `Hasse(J(D 0))` is connected -- `D 0` is a chain, so any two elements are comparable.
+-- [D-0807] D0_J_connected
 theorem D0_J_connected : (Graph.Hasse {x : D 0 // JoinIrred (D 0) x}).Connected := by
   intro a b
   have htot : (a : D 0) ≤ (b : D 0) ∨ (b : D 0) ≤ (a : D 0) :=
@@ -394,7 +313,7 @@ theorem D0_J_connected : (Graph.Hasse {x : D 0 // JoinIrred (D 0) x}).Connected 
       (fun x y hxy => (Graph.Hasse {x : D 0 // JoinIrred (D 0) x}).symm hxy)
       (connected_of_le_subtype' (JoinIrred (D 0)) b a hba)
 
--- **Theorem J-CONN, assembled for the real tower.** `Hasse(J(D k))` is connected at every level — base case direct (`D0_J_connected`), successor case via `hasse_hasUniqueDownCover_glueCar_connected` applied at `P := EndP (D k)`, `m := id`
+-- [D-0808] D_J_connected
 theorem D_J_connected : ∀ k, (Graph.Hasse {x : D k // JoinIrred (D k) x}).Connected
   | 0 => D0_J_connected
   | k + 1 => by
@@ -405,7 +324,7 @@ theorem D_J_connected : ∀ k, (Graph.Hasse {x : D k // JoinIrred (D k) x}).Conn
       exact connected_of_pointwise_iff HasUniqueDownCover (JoinIrred (D (k + 1)))
         hasUniqueDownCover_iff_joinIrred hconn
 
--- DOWN-transfer step for the real tower: rigidity of `D k` lifts to rigidity of `EndP (D k)` -- was the file's last remaining `sorry`; closing it made the (then ~13,000-line) file sorry-free.
+-- [D-0809] D_down_transfer
 theorem D_down_transfer (k : ℕ) :
     Subsingleton (D k ≃o D k) → Subsingleton (EndP (D k) ≃o EndP (D k)) := by
   intro hDk
@@ -490,20 +409,22 @@ theorem D_down_transfer (k : ℕ) :
   show φ₀ q = q
   exact hφ_fix ⟨q, hq⟩
 
--- **`GluingTower`, fully instantiated for the real `D`.** `aut_D_k_trivial`/`aut_D_infinity_trivial` (§4) apply directly to this instance and `realGluingTowerUp`/`realGluingTowerDown` below, giving `Aut(D_k,≤)={id}` for the real tower
-
+-- [D-0810] realGluingTower
 noncomputable instance realGluingTower :
     GluingTower D instLatticeD instBoundedOrderD instFintypeD where
   uac := realUniqueAtomCoatom
   base0_rigid := D0_rigid
   base1_rigid := D1_rigid
 
+-- [D-0811] realGluingTowerUp
 noncomputable instance realGluingTowerUp : GluingTowerUp D where
   up_transfer := D_up_transfer
 
+-- [D-0812] realGluingTowerDown
 noncomputable instance realGluingTowerDown : GluingTowerDown D where
   down_transfer := D_down_transfer
 
+-- [D-0813] D_all_rigid
 theorem D_all_rigid : ∀ k, Subsingleton (D k ≃o D k) :=
   aut_D_k_trivial D D0_rigid
 
@@ -511,21 +432,24 @@ section GasketIFS
 
 open Metric TopologicalSpace
 
-/-- Ambient plane for the classical Sierpiński-gasket IFS: `ℝ × ℝ` with its
-    default sup-norm instance — see this section's header for why the
-    Euclidean norm isn't needed. -/
+-- [D-0814] Plane
 abbrev Plane := ℝ × ℝ
 
+-- [D-0815] vA
 def vA : Plane := (0, 0)
+-- [D-0816] vB
 def vB : Plane := (1, 0)
+-- [D-0817] vC
 def vC : Plane := (0, 1)
 
-/-- The three ratio-`1/2` similarities generating the gasket, each fixing one
-    vertex: `f_i(x) = midpoint(x, V_i)`. -/
+-- [D-0818] fA
 noncomputable def fA (x : Plane) : Plane := (2⁻¹ : ℝ) • (x + vA)
+-- [D-0819] fB
 noncomputable def fB (x : Plane) : Plane := (2⁻¹ : ℝ) • (x + vB)
+-- [D-0820] fC
 noncomputable def fC (x : Plane) : Plane := (2⁻¹ : ℝ) • (x + vC)
 
+-- [D-0821] dist_fA
 theorem dist_fA (x y : Plane) : dist (fA x) (fA y) = 2⁻¹ * dist x y := by
   simp only [fA, dist_eq_norm]
   have : (2⁻¹ : ℝ) • (x + vA) - (2⁻¹ : ℝ) • (y + vA) = (2⁻¹ : ℝ) • (x - y) := by
@@ -533,6 +457,7 @@ theorem dist_fA (x y : Plane) : dist (fA x) (fA y) = 2⁻¹ * dist x y := by
   rw [this, norm_smul]
   simp
 
+-- [D-0822] dist_fB
 theorem dist_fB (x y : Plane) : dist (fB x) (fB y) = 2⁻¹ * dist x y := by
   simp only [fB, dist_eq_norm]
   have : (2⁻¹ : ℝ) • (x + vB) - (2⁻¹ : ℝ) • (y + vB) = (2⁻¹ : ℝ) • (x - y) := by
@@ -540,6 +465,7 @@ theorem dist_fB (x y : Plane) : dist (fB x) (fB y) = 2⁻¹ * dist x y := by
   rw [this, norm_smul]
   simp
 
+-- [D-0823] dist_fC
 theorem dist_fC (x y : Plane) : dist (fC x) (fC y) = 2⁻¹ * dist x y := by
   simp only [fC, dist_eq_norm]
   have : (2⁻¹ : ℝ) • (x + vC) - (2⁻¹ : ℝ) • (y + vC) = (2⁻¹ : ℝ) • (x - y) := by
@@ -547,20 +473,22 @@ theorem dist_fC (x y : Plane) : dist (fC x) (fC y) = 2⁻¹ * dist x y := by
   rw [this, norm_smul]
   simp
 
+-- [D-0824] lipschitzWith_fA
 theorem lipschitzWith_fA : LipschitzWith (2⁻¹ : NNReal) fA :=
   LipschitzWith.of_dist_le_mul fun x y => by rw [dist_fA]; norm_num
 
+-- [D-0825] lipschitzWith_fB
 theorem lipschitzWith_fB : LipschitzWith (2⁻¹ : NNReal) fB :=
   LipschitzWith.of_dist_le_mul fun x y => by rw [dist_fB]; norm_num
 
+-- [D-0826] lipschitzWith_fC
 theorem lipschitzWith_fC : LipschitzWith (2⁻¹ : NNReal) fC :=
   LipschitzWith.of_dist_le_mul fun x y => by rw [dist_fC]; norm_num
 
-/-- The generating triangle with vertices `vA,vB,vC`, presented directly by its
-    defining linear inequalities rather than as `convexHull ℝ {vA,vB,vC}` —
-    see this section's header note. -/
+-- [D-0827] Delta
 def Delta : Set Plane := {p : Plane | 0 ≤ p.1 ∧ 0 ≤ p.2 ∧ p.1 + p.2 ≤ 1}
 
+-- [D-0828] isClosed_Delta
 theorem isClosed_Delta : IsClosed Delta := by
   have h1 : IsClosed {p : Plane | 0 ≤ p.1} := isClosed_le continuous_const continuous_fst
   have h2 : IsClosed {p : Plane | 0 ≤ p.2} := isClosed_le continuous_const continuous_snd
@@ -568,6 +496,7 @@ theorem isClosed_Delta : IsClosed Delta := by
     isClosed_le (continuous_fst.add continuous_snd) continuous_const
   exact h1.inter (h2.inter h3)
 
+-- [D-0829] isBounded_Delta
 theorem isBounded_Delta : Bornology.IsBounded Delta := by
   have hball : Bornology.IsBounded (Metric.closedBall (0 : Plane) 1) :=
     Metric.isBounded_closedBall
@@ -578,17 +507,21 @@ theorem isBounded_Delta : Bornology.IsBounded Delta := by
   rw [sub_zero, sub_zero, abs_of_nonneg hx, abs_of_nonneg hy]
   exact max_le (by linarith) (by linarith)
 
+-- [D-0830] isCompact_Delta
 theorem isCompact_Delta : IsCompact Delta :=
   Metric.isCompact_iff_isClosed_bounded.mpr ⟨isClosed_Delta, isBounded_Delta⟩
 
+-- [D-0831] nonempty_Delta
 theorem nonempty_Delta : Delta.Nonempty := ⟨vA, by simp [Delta, vA]⟩
 
+-- [D-0832] vA_mem_Delta
 theorem vA_mem_Delta : vA ∈ Delta := by simp [Delta, vA]
+-- [D-0833] vB_mem_Delta
 theorem vB_mem_Delta : vB ∈ Delta := by simp [Delta, vB]
+-- [D-0834] vC_mem_Delta
 theorem vC_mem_Delta : vC ∈ Delta := by simp [Delta, vC]
 
-/-- corner-`A` image, corner-`B` image, corner-`C` image: the three sub-triangles
-    of `Delta` that `f_A,f_B,f_C` carve out (the "medial subdivision"). -/
+-- [D-0835] image_fA_Delta
 theorem image_fA_Delta :
     fA '' Delta = {q : Plane | 0 ≤ q.1 ∧ 0 ≤ q.2 ∧ q.1 + q.2 ≤ 2⁻¹} := by
   ext ⟨qx, qy⟩
@@ -600,6 +533,7 @@ theorem image_fA_Delta :
   · rintro ⟨hqx, hqy, hqxy⟩
     exact ⟨(2 * qx, 2 * qy), ⟨by linarith, by linarith, by linarith⟩, by ring, by ring⟩
 
+-- [D-0836] image_fB_Delta
 theorem image_fB_Delta :
     fB '' Delta = {q : Plane | 2⁻¹ ≤ q.1 ∧ 0 ≤ q.2 ∧ q.1 + q.2 ≤ 1} := by
   ext ⟨qx, qy⟩
@@ -611,6 +545,7 @@ theorem image_fB_Delta :
   · rintro ⟨hqx, hqy, hqxy⟩
     exact ⟨(2 * qx - 1, 2 * qy), ⟨by linarith, by linarith, by linarith⟩, by ring, by ring⟩
 
+-- [D-0837] image_fC_Delta
 theorem image_fC_Delta :
     fC '' Delta = {q : Plane | 0 ≤ q.1 ∧ 2⁻¹ ≤ q.2 ∧ q.1 + q.2 ≤ 1} := by
   ext ⟨qx, qy⟩
@@ -622,8 +557,7 @@ theorem image_fC_Delta :
   · rintro ⟨hqx, hqy, hqxy⟩
     exact ⟨(2 * qx, 2 * qy - 1), ⟨by linarith, by linarith, by linarith⟩, by ring, by ring⟩
 
-/-- **The just-touching fact** (minimal-citation-set item 3): the three
-    corner sub-triangles pairwise meet in exactly the shared edge midpoint. -/
+-- [D-0838] touch_fA_fB
 theorem touch_fA_fB : fA '' Delta ∩ fB '' Delta = {(2⁻¹, 0)} := by
   rw [image_fA_Delta, image_fB_Delta]
   ext ⟨x, y⟩
@@ -634,6 +568,7 @@ theorem touch_fA_fB : fA '' Delta ∩ fB '' Delta = {(2⁻¹, 0)} := by
   · rintro ⟨hx, hy⟩
     subst hx; subst hy; norm_num
 
+-- [D-0839] touch_fA_fC
 theorem touch_fA_fC : fA '' Delta ∩ fC '' Delta = {(0, 2⁻¹)} := by
   rw [image_fA_Delta, image_fC_Delta]
   ext ⟨x, y⟩
@@ -644,6 +579,7 @@ theorem touch_fA_fC : fA '' Delta ∩ fC '' Delta = {(0, 2⁻¹)} := by
   · rintro ⟨hx, hy⟩
     subst hx; subst hy; norm_num
 
+-- [D-0840] touch_fB_fC
 theorem touch_fB_fC : fB '' Delta ∩ fC '' Delta = {(2⁻¹, 2⁻¹)} := by
   rw [image_fB_Delta, image_fC_Delta]
   ext ⟨x, y⟩
@@ -654,10 +590,8 @@ theorem touch_fB_fC : fB '' Delta ∩ fC '' Delta = {(2⁻¹, 2⁻¹)} := by
   · rintro ⟨hx, hy⟩
     subst hx; subst hy; norm_num
 
-/-! ### The Hutchinson operator: a `(1/2)`-contraction on `NonemptyCompacts Plane` -/
-
-/-- A `K`-Lipschitz map moves the `infDist` to any target set by at most a
-    factor of `K` (general — no IFS content, not currently in Mathlib). -/
+-- [D-0841] §The-Hutchinson-operator-a-1-2-contraction
+-- [D-0842] infDist_image_le_of_lipschitz
 theorem infDist_image_le_of_lipschitz {K : NNReal} (hK : 0 < K) {f : Plane → Plane}
     (hf : LipschitzWith K f) (x : Plane) (s : Set Plane) (hs : s.Nonempty) :
     Metric.infDist (f x) (f '' s) ≤ (K : ℝ) * Metric.infDist x s := by
@@ -675,7 +609,7 @@ theorem infDist_image_le_of_lipschitz {K : NNReal} (hK : 0 < K) {f : Plane → P
         apply mul_le_mul_of_nonneg_right hle hKpos.le
     _ = (K : ℝ) * Metric.infDist x s := mul_comm _ _
 
--- A `K`-Lipschitz map moves the Hausdorff distance between two nonempty bounded sets by at most a factor of `K` (general, not currently in Mathlib — the closest existing fact, `Metric.hausdorffDist_image`, only covers isometries).
+-- [D-0843] hausdorffDist_image_le_of_lipschitz
 theorem hausdorffDist_image_le_of_lipschitz {K : NNReal} (hK : 0 < K) {f : Plane → Plane}
     (hf : LipschitzWith K f) {s t : Set Plane} (hs : s.Nonempty) (ht : t.Nonempty)
     (hsb : Bornology.IsBounded s) (htb : Bornology.IsBounded t) :
@@ -698,16 +632,18 @@ theorem hausdorffDist_image_le_of_lipschitz {K : NNReal} (hK : 0 < K) {f : Plane
           rw [Metric.hausdorffDist_comm]
           exact Metric.infDist_le_hausdorffDist_of_mem hy hfin'
 
-/-- Push a self-map of `Plane` forward along `NonemptyCompacts.map`-style image. -/
+-- [D-0844] mapNC
 def mapNC (f : Plane → Plane) (hf : Continuous f) (X : NonemptyCompacts Plane) :
     NonemptyCompacts Plane where
   carrier := f '' X.carrier
   isCompact' := X.isCompact.image hf
   nonempty' := X.nonempty.image f
 
+-- [D-0845] coe_mapNC
 theorem coe_mapNC (f : Plane → Plane) (hf : Continuous f) (X : NonemptyCompacts Plane) :
     (mapNC f hf X : Set Plane) = f '' (X : Set Plane) := rfl
 
+-- [D-0846] lipschitzWith_mapNC
 theorem lipschitzWith_mapNC {K : NNReal} (hK : 0 < K) {f : Plane → Plane} (hf : Continuous f)
     (hfL : LipschitzWith K f) : LipschitzWith K (mapNC f hf) := by
   apply LipschitzWith.of_dist_le_mul
@@ -716,16 +652,18 @@ theorem lipschitzWith_mapNC {K : NNReal} (hK : 0 < K) {f : Plane → Plane} (hf 
   exact hausdorffDist_image_le_of_lipschitz hK hfL X.nonempty Y.nonempty
     X.isCompact.isBounded Y.isCompact.isBounded
 
+-- [D-0847] dist_sup_le_max
 theorem dist_sup_le_max (p q p' q' : NonemptyCompacts Plane) :
     dist (p ⊔ q) (p' ⊔ q') ≤ max (dist p p') (dist q q') := by
   have h := (NonemptyCompacts.lipschitz_sup (α := Plane)).dist_le_mul (p, q) (p', q')
   simpa [Prod.dist_eq] using h
 
-/-- The Hutchinson operator for the gasket IFS: `X ↦ f_A(X) ∪ f_B(X) ∪ f_C(X)`. -/
+-- [D-0848] Hutchinson
 noncomputable def Hutchinson (X : NonemptyCompacts Plane) : NonemptyCompacts Plane :=
   mapNC fA lipschitzWith_fA.continuous X ⊔ mapNC fB lipschitzWith_fB.continuous X ⊔
     mapNC fC lipschitzWith_fC.continuous X
 
+-- [D-0849] hutchinson_dist_le
 theorem hutchinson_dist_le (X Y : NonemptyCompacts Plane) :
     dist (Hutchinson X) (Hutchinson Y) ≤ 2⁻¹ * dist X Y := by
   have hA : dist (mapNC fA lipschitzWith_fA.continuous X) (mapNC fA lipschitzWith_fA.continuous Y)
@@ -748,53 +686,61 @@ theorem hutchinson_dist_le (X Y : NonemptyCompacts Plane) :
       ≤ max (dist ABX ABY) (dist CX CY) := dist_sup_le_max _ _ _ _
     _ ≤ 2⁻¹ * dist X Y := max_le hAB hC
 
+-- [D-0850] lipschitzWith_hutchinson
 theorem lipschitzWith_hutchinson : LipschitzWith (2⁻¹ : NNReal) Hutchinson :=
   LipschitzWith.of_dist_le_mul hutchinson_dist_le
 
+-- [D-0851] contractingWith_hutchinson
 theorem contractingWith_hutchinson : ContractingWith (2⁻¹ : NNReal) Hutchinson :=
   ⟨by norm_num, lipschitzWith_hutchinson⟩
 
+-- [D-0852] inst-Nonempty
 instance : Nonempty (NonemptyCompacts Plane) := ⟨{
   carrier := {vA}
   isCompact' := isCompact_singleton
   nonempty' := Set.singleton_nonempty vA }⟩
 
-/-- **`Γ`, the Sierpiński gasket**, as the Banach fixed point of the Hutchinson
-    operator on `NonemptyCompacts Plane`. -/
+-- [D-0853] GammaNC
 noncomputable def GammaNC : NonemptyCompacts Plane := contractingWith_hutchinson.fixedPoint
 
-/-- `Γ`'s defining self-similarity equation, `Γ = f_A(Γ) ∪ f_B(Γ) ∪ f_C(Γ)`. -/
+-- [D-0854] GammaNC_fixed
 theorem GammaNC_fixed : Hutchinson GammaNC = GammaNC :=
   contractingWith_hutchinson.fixedPoint_isFixedPt
 
-/-- `Γ` as a genuine nonempty compact subset of the plane. -/
+-- [D-0855] Gamma
 def Gamma : Set Plane := (GammaNC : Set Plane)
 
+-- [D-0856] isCompact_Gamma
 theorem isCompact_Gamma : IsCompact Gamma := GammaNC.isCompact
+-- [D-0857] nonempty_Gamma
 theorem nonempty_Gamma : Gamma.Nonempty := GammaNC.nonempty
 
+-- [D-0858] Gamma_self_similar
 theorem Gamma_self_similar : Gamma = fA '' Gamma ∪ fB '' Gamma ∪ fC '' Gamma := by
   conv_lhs => rw [Gamma, ← GammaNC_fixed]
   rfl
 
 end GasketIFS
 
--- **The tower's connecting map**, `ι_k : D_k → D_(k+1)`: send `x` to the constant endomorphism at `x`, then embed that as copy `A` of the glued object.
+-- [D-0859] iotaD
 noncomputable def iotaD (k : ℕ) (x : D k) : D (k + 1) :=
   glueA (markedPt k) (constHom x)
 
--- **`ι_k` is a genuine order-embedding**: `x ≤ y` in `D_k` iff `ι_k x ≤ ι_k y` in `D_(k+1)`.
+-- [D-0860] iotaD_le_iff
 theorem iotaD_le_iff (k : ℕ) (x y : D k) : iotaD k x ≤ iotaD k y ↔ x ≤ y :=
   (glueA_le_iff (markedPt k) (D_marked_point_nondegenerate k).1
       (constHom x) (constHom y)).trans (constHom_le_iff x y)
 
+-- [D-0861] iotaD_injective
 theorem iotaD_injective (k : ℕ) : Function.Injective (iotaD k) := by
   intro x y h
   exact constHom_injective (glueA_injective (markedPt k) h)
 
+-- [D-0862] iotaD_monotone
 theorem iotaD_monotone (k : ℕ) : Monotone (iotaD k) := fun x y h =>
   (iotaD_le_iff k x y).mpr h
 
+-- [D-0863] iotaD_lt_iff
 theorem iotaD_lt_iff (k : ℕ) (x y : D k) : iotaD k x < iotaD k y ↔ x < y := by
   constructor
   · intro h
@@ -804,16 +750,11 @@ theorem iotaD_lt_iff (k : ℕ) (x y : D k) : iotaD k x < iotaD k y ↔ x < y := 
     exact lt_of_le_of_ne ((iotaD_le_iff k x y).mpr h.le)
       (fun heq => h.ne (iotaD_injective k heq))
 
+-- [D-0864] iotaD_strictMono
 theorem iotaD_strictMono (k : ℕ) : StrictMono (iotaD k) := fun x y h =>
   (iotaD_lt_iff k x y).mpr h
 
--- **`ι_k` is a genuine LATTICE embedding, not just order-embedding** -- the concrete first
--- step toward giving `DInfty` a `Lattice` instance (2026-08-20 session: `colimit_compat`'s
--- most-promising remaining positive-proof lead, the `Θ` invariant, needs `DInfty` to have
--- inf/sup to even be stated there; `DInfty` currently only has `PartialOrder`). Composes
--- `glueA_sup`/`glueA_inf` (copy-A is a lattice embedding of `EndP (D k)`) with
--- `constHom_sup`/`constHom_inf` (constant maps are a lattice embedding of `D k` into
--- `EndP (D k)`, pointwise).
+-- [D-0865] iotaD_sup
 theorem iotaD_sup (k : ℕ) (x y : D k) : iotaD k x ⊔ iotaD k y = iotaD k (x ⊔ y) := by
   have h := D_marked_point_nondegenerate k
   letI := glueLattice (markedPt k) h.1 h.2.1 h.2.2
@@ -821,6 +762,7 @@ theorem iotaD_sup (k : ℕ) (x y : D k) : iotaD k x ⊔ iotaD k y = iotaD k (x �
       = glueA (markedPt k) (constHom (x ⊔ y))
   rw [glueA_sup (markedPt k) h.1 h.2.1 h.2.2, constHom_sup]
 
+-- [D-0866] iotaD_inf
 theorem iotaD_inf (k : ℕ) (x y : D k) : iotaD k x ⊓ iotaD k y = iotaD k (x ⊓ y) := by
   have h := D_marked_point_nondegenerate k
   letI := glueLattice (markedPt k) h.1 h.2.1 h.2.2
@@ -828,31 +770,25 @@ theorem iotaD_inf (k : ℕ) (x y : D k) : iotaD k x ⊓ iotaD k y = iotaD k (x �
       = glueA (markedPt k) (constHom (x ⊓ y))
   rw [glueA_inf (markedPt k) h.1 h.2.1 h.2.2, constHom_inf]
 
--- **A second, independent connecting-map candidate**, `sigmaD_k : D_k → D_(k+1)`: send `x`
--- to the "meet with `x`" endomorphism, then embed as copy `A` -- the real-tower
--- formalization of the vault's symbolic shift map `sigma(x) = tag_a(meetid(x))`
--- (`_archive/check_sigma_order_embedding.py` / `check_sigma_join_preservation.py`,
--- 2026-08-20 session), which was found there to be a full order-embedding
--- (3306/3306 comparability-preserving pairs on a 58-point sample) and join-preserving
--- wherever computable (3098/3098), by finite sample only. This makes the order-embedding
--- claim a genuine, unconditional theorem instead of a finite empirical check, via the
--- SAME `glueA_le_iff`/`meetHom_le_iff` composition `iotaD_le_iff` already uses.
+-- [D-0867] sigmaD
 noncomputable def sigmaD (k : ℕ) (x : D k) : D (k + 1) :=
   glueA (markedPt k) (meetHom x)
 
--- **`σ_k` is a genuine order-embedding**, unconditionally: `x ≤ y` in `D_k` iff
--- `σ_k x ≤ σ_k y` in `D_(k+1)` -- mirrors `iotaD_le_iff` exactly.
+-- [D-0868] sigmaD_le_iff
 theorem sigmaD_le_iff (k : ℕ) (x y : D k) : sigmaD k x ≤ sigmaD k y ↔ x ≤ y :=
   (glueA_le_iff (markedPt k) (D_marked_point_nondegenerate k).1
       (meetHom x) (meetHom y)).trans (meetHom_le_iff x y)
 
+-- [D-0869] sigmaD_injective
 theorem sigmaD_injective (k : ℕ) : Function.Injective (sigmaD k) := by
   intro x y h
   exact meetHom_injective (glueA_injective (markedPt k) h)
 
+-- [D-0870] sigmaD_monotone
 theorem sigmaD_monotone (k : ℕ) : Monotone (sigmaD k) := fun x y h =>
   (sigmaD_le_iff k x y).mpr h
 
+-- [D-0871] sigmaD_lt_iff
 theorem sigmaD_lt_iff (k : ℕ) (x y : D k) : sigmaD k x < sigmaD k y ↔ x < y := by
   constructor
   · intro h
@@ -862,44 +798,40 @@ theorem sigmaD_lt_iff (k : ℕ) (x y : D k) : sigmaD k x < sigmaD k y ↔ x < y 
     exact lt_of_le_of_ne ((sigmaD_le_iff k x y).mpr h.le)
       (fun heq => h.ne (sigmaD_injective k heq))
 
+-- [D-0872] sigmaD_strictMono
 theorem sigmaD_strictMono (k : ℕ) : StrictMono (sigmaD k) := fun x y h =>
   (sigmaD_lt_iff k x y).mpr h
 
--- **`σ_k` does NOT send `⊤` to itself** -- confirms the symbolic-tower finding
--- (`sigma(KEPT_C) = GLUE1 ≠ KEPT_C`) was not a tool artifact: `σ_k (⊤ : D k)` lands
--- exactly on `ι_k`/`σ_k`'s shared marked-point image, not a fixed point, so `σ_k` cannot
--- extend to an automorphism of any single finite `D_k` -- the right signature for a
--- colimit-only shift, not a finite-level one.
+-- [D-0873] sigmaD_top
 theorem sigmaD_top (k : ℕ) :
     sigmaD k (⊤ : D k) = glueA (markedPt k) (OrderHom.id : EndP (D k)) := by
   unfold sigmaD; rw [meetHom_top]
 
--- **`σ_k` and `ι_k` agree at `⊥`** -- confirms the symbolic-tower finding
--- `sigma(KEPT_A) = KEPT_A` (both maps send the bottom to the same place).
+-- [D-0874] sigmaD_bot_eq_iotaD_bot
 theorem sigmaD_bot_eq_iotaD_bot (k : ℕ) : sigmaD k (⊥ : D k) = iotaD k (⊥ : D k) := by
   unfold sigmaD iotaD; rw [meetHom_bot]
 
 section DInftyColimit
 
--- Transport a point of `D k` up to any later level `n ≥ k` along the embedding tower, by iterating `iotaD` — built from Mathlib's `Nat.leRecOn` (`{k} → D k → D (k+1)`, i.e.
+-- [D-0875] iotaLe
 noncomputable def iotaLe {k n : ℕ} (h : k ≤ n) : D k → D n :=
   Nat.leRecOn h (fun {j} => iotaD j)
 
+-- [D-0876] iotaLe_self
 theorem iotaLe_self {k : ℕ} (h : k ≤ k) (x : D k) : iotaLe h x = x :=
   Nat.leRecOn_self x
 
+-- [D-0877] iotaLe_succ
 theorem iotaLe_succ {k n : ℕ} (h : k ≤ n) (h' : k ≤ n + 1) (x : D k) :
     iotaLe h' x = iotaD n (iotaLe h x) :=
   Nat.leRecOn_succ h x
 
--- The cocycle/composability condition transport along the tower must satisfy — chasing to an intermediate level then the rest of the way agrees with chasing straight through.
+-- [D-0878] iotaLe_trans
 theorem iotaLe_trans {k n m : ℕ} (h1 : k ≤ n) (h2 : n ≤ m) (x : D k) :
     iotaLe (h1.trans h2) x = iotaLe h2 (iotaLe h1 x) :=
   Nat.leRecOn_trans h1 h2 x
 
-/-- `iotaLe` is order-reflecting at every pair of levels — the chain
-    version of `iotaD_le_iff` (§10), by `Nat.le_induction` peeling off
-    one `iotaD` step at a time via `iotaLe_succ`. -/
+-- [D-0879] iotaLe_le_iff
 theorem iotaLe_le_iff {k : ℕ} : ∀ {n : ℕ} (h : k ≤ n) (x y : D k),
     iotaLe h x ≤ iotaLe h y ↔ x ≤ y := by
   intro n h
@@ -911,13 +843,12 @@ theorem iotaLe_le_iff {k : ℕ} : ∀ {n : ℕ} (h : k ≤ n) (x y : D k),
       rw [iotaD_le_iff]
       exact ih x y
 
+-- [D-0880] iotaLe_injective
 theorem iotaLe_injective {k n : ℕ} (h : k ≤ n) : Function.Injective (iotaLe h) := by
   intro x y hxy
   exact (iotaLe_le_iff h x y).mp hxy.le |>.antisymm ((iotaLe_le_iff h y x).mp hxy.ge)
 
-/-- `iotaLe` preserves binary join at any chase distance -- the chain version of `iotaD_sup`,
-    same `Nat.le_induction` shape as `iotaLe_le_iff`. Step toward giving `DInfty` a genuine
-    `Lattice` instance (2026-08-20 session). -/
+-- [D-0881] iotaLe_sup
 theorem iotaLe_sup {k : ℕ} : ∀ {n : ℕ} (h : k ≤ n) (x y : D k),
     iotaLe h x ⊔ iotaLe h y = iotaLe h (x ⊔ y) := by
   intro n h
@@ -930,7 +861,7 @@ theorem iotaLe_sup {k : ℕ} : ∀ {n : ℕ} (h : k ≤ n) (x y : D k),
       congr 1
       exact ih x y
 
-/-- Dual of `iotaLe_sup`. -/
+-- [D-0882] iotaLe_inf
 theorem iotaLe_inf {k : ℕ} : ∀ {n : ℕ} (h : k ≤ n) (x y : D k),
     iotaLe h x ⊓ iotaLe h y = iotaLe h (x ⊓ y) := by
   intro n h
@@ -943,20 +874,18 @@ theorem iotaLe_inf {k : ℕ} : ∀ {n : ℕ} (h : k ≤ n) (x y : D k),
       congr 1
       exact ih x y
 
-/-! ### The colimit relation on `Σ k, D k` -/
-
-/-- Two staged points are identified in the colimit iff they agree once
-    chased up to SOME common level. -/
+-- [D-0883] §The-colimit-relation-on-k-D-k
+-- [D-0884] DInftyRel
 def DInftyRel (p q : Σ k, D k) : Prop :=
   ∃ (n : ℕ) (h1 : p.1 ≤ n) (h2 : q.1 ≤ n), iotaLe h1 p.2 = iotaLe h2 q.2
 
--- Chasing an equality of two chased representatives further up from a common level `n` to any higher level `n'` preserves it — the "push up" half of level-independence, a direct consequence of `iotaLe_trans`.
+-- [D-0885] chase_eq_level_indep
 theorem chase_eq_level_indep {k k' n n' : ℕ} (h : k ≤ n) (h' : k' ≤ n)
     (hn : n ≤ n') (h2 : k ≤ n') (h2' : k' ≤ n') (x : D k) (y : D k')
     (he : iotaLe h x = iotaLe h' y) : iotaLe h2 x = iotaLe h2' y := by
   rw [iotaLe_trans h hn x, iotaLe_trans h' hn y, he]
 
--- The colimit relation holds at ONE common level iff it holds at EVERY common level `N`
+-- [D-0886] chase_eq_of_rel
 theorem chase_eq_of_rel {a c : Σ k, D k} (h : DInftyRel a c) {N : ℕ}
     (ha : a.1 ≤ N) (hc : c.1 ≤ N) : iotaLe ha a.2 = iotaLe hc c.2 := by
   obtain ⟨m, hm, hm', he⟩ := h
@@ -967,13 +896,16 @@ theorem chase_eq_of_rel {a c : Σ k, D k} (h : DInftyRel a c) {N : ℕ}
     rw [e1, e2, he]
   · exact chase_eq_level_indep hm hm' hmN ha hc a.2 c.2 he
 
+-- [D-0887] DInftyRel_refl
 theorem DInftyRel_refl (p : Σ k, D k) : DInftyRel p p :=
   ⟨p.1, le_refl p.1, le_refl p.1, rfl⟩
 
+-- [D-0888] DInftyRel_symm
 theorem DInftyRel_symm {p q : Σ k, D k} (h : DInftyRel p q) : DInftyRel q p := by
   obtain ⟨n, h1, h2, he⟩ := h
   exact ⟨n, h2, h1, he.symm⟩
 
+-- [D-0889] DInftyRel_trans
 theorem DInftyRel_trans {p q r : Σ k, D k} (hpq : DInftyRel p q) (hqr : DInftyRel q r) :
     DInftyRel p r := by
   obtain ⟨n, h1, h2, he1⟩ := hpq
@@ -985,47 +917,42 @@ theorem DInftyRel_trans {p q r : Σ k, D k} (hpq : DInftyRel p q) (hqr : DInftyR
     chase_eq_level_indep h2' h3 (le_max_right n n') _ _ q.2 r.2 he2
   exact key1.trans key2
 
+-- [D-0890] dInftySetoid
 instance dInftySetoid : Setoid (Σ k, D k) where
   r := DInftyRel
   iseqv := ⟨DInftyRel_refl, DInftyRel_symm, DInftyRel_trans⟩
 
-/-- **`D_∞` itself**, as the colimit of the real tower along the
-    embedding maps `iotaD` — the object Phase 2 exists to construct. -/
+-- [D-0891] DInfty
 def DInfty : Type := Quotient dInftySetoid
 
-/-! ### Canonical inclusions `D_k ↪ D_∞` -/
-
-/-- The canonical map of stage `k` into the colimit. -/
+-- [D-0892] §Canonical-inclusions-D-k-D
+-- [D-0893] toD
 noncomputable def toD (k : ℕ) (x : D k) : DInfty := Quotient.mk dInftySetoid ⟨k, x⟩
 
-/-- The inclusions are compatible with the tower's own connecting maps —
-    `D_∞` really is the colimit ALONG `iotaD`, not just some quotient. -/
+-- [D-0894] toD_iotaD
 theorem toD_iotaD (k : ℕ) (x : D k) : toD (k + 1) (iotaD k x) = toD k x := by
   apply Quotient.sound
   refine ⟨k + 1, le_refl (k + 1), Nat.le_succ k, ?_⟩
   rw [iotaLe_self, iotaLe_succ (le_refl k) (Nat.le_succ k), iotaLe_self]
 
+-- [D-0895] toD_injective
 theorem toD_injective (k : ℕ) : Function.Injective (toD k) := by
   intro x y hxy
   obtain ⟨n, h1, h2, he⟩ := Quotient.exact hxy
   exact iotaLe_injective h1 (by rw [he])
 
-/-- Every point of `D_∞` comes from some finite stage — `D_∞` is
-    genuinely built as a union of the tower, nothing extraneous was
-    quotiented in. -/
+-- [D-0896] toD_surjective
 theorem toD_surjective : ∀ z : DInfty, ∃ k x, toD k x = z := by
   intro z
   obtain ⟨p, hp⟩ := Quotient.exists_rep z
   exact ⟨p.1, p.2, hp⟩
 
-/-! ### The order on `D_∞` -/
-
-/-- Two staged points compare, in the colimit, exactly as their chased
-    images do at the pointwise `max` level. -/
+-- [D-0897] §The-order-on-D
+-- [D-0898] DInftyLeRel
 def DInftyLeRel (p q : Σ k, D k) : Prop :=
   iotaLe (le_max_left p.1 q.1) p.2 ≤ iotaLe (le_max_right p.1 q.1) q.2
 
--- `DInftyLeRel`'s comparison at the canonical `max` level agrees with the comparison at ANY other common level `N` — the well-definedness fact the lift to `≤` on `D_∞` (and every proof about it below) reduces to.
+-- [D-0899] DInftyLeRel_iff_atLevel
 theorem DInftyLeRel_iff_atLevel {p q : Σ k, D k} {N : ℕ} (hp : p.1 ≤ N) (hq : q.1 ≤ N) :
     DInftyLeRel p q ↔ iotaLe hp p.2 ≤ iotaLe hq q.2 := by
   unfold DInftyLeRel
@@ -1042,9 +969,7 @@ theorem DInftyLeRel_iff_atLevel {p q : Σ k, D k} {N : ℕ} (hp : p.1 ≤ N) (hq
         (iotaLe_trans hq h q.2),
       iotaLe_le_iff h]
 
-/-- `DInftyLeRel` respects `DInftyRel` in both arguments — exactly the
-    obligation `Quotient.lift₂` needs to produce a genuine relation on
-    `D_∞`. -/
+-- [D-0900] DInftyLeRel_congr
 theorem DInftyLeRel_congr {a b c d : Σ k, D k} (hac : DInftyRel a c) (hbd : DInftyRel b d) :
     DInftyLeRel a b ↔ DInftyLeRel c d := by
   set N := max (max a.1 b.1) (max c.1 d.1) with hN
@@ -1055,19 +980,19 @@ theorem DInftyLeRel_congr {a b c d : Σ k, D k} (hac : DInftyRel a c) (hbd : DIn
   rw [DInftyLeRel_iff_atLevel haN hbN, DInftyLeRel_iff_atLevel hcN hdN,
       chase_eq_of_rel hac haN hcN, chase_eq_of_rel hbd hbN hdN]
 
-/-- **`≤` on `D_∞`**, lifted from `DInftyLeRel` via `Quotient.lift₂`. -/
+-- [D-0901] DInftyLE
 def DInftyLE : DInfty → DInfty → Prop :=
   Quotient.lift₂ DInftyLeRel (fun _a _b _c _d hac hbd => propext (DInftyLeRel_congr hac hbd))
 
+-- [D-0902] inst-LE
 noncomputable instance : LE DInfty := ⟨DInftyLE⟩
 
-/-- Comparing two `toD`-images of possibly-different levels reduces to
-    comparing their chased images at any common level `N` — the
-    general form `toD_le_iff'` (same level) specializes from. -/
+-- [D-0903] toD_le_iff
 theorem toD_le_iff (k n : ℕ) (x : D k) (y : D n) {N : ℕ} (hx : k ≤ N) (hy : n ≤ N) :
     toD k x ≤ toD n y ↔ iotaLe hx x ≤ iotaLe hy y :=
   DInftyLeRel_iff_atLevel hx hy
 
+-- [D-0904] inst-PartialOrder
 noncomputable instance : PartialOrder DInfty where
   le := DInftyLE
   le_refl := by
@@ -1099,39 +1024,27 @@ noncomputable instance : PartialOrder DInfty where
     have h2 := (DInftyLeRel_iff_atLevel hqN hpN).mp hyx
     exact Quotient.sound ⟨N, hpN, hqN, le_antisymm h1 h2⟩
 
-/-- **`D_k` order-embeds into `D_∞`** via `toD k` — the payoff of this
-    whole section: comparing two elements of the SAME finite stage in
-    `D_∞` is exactly comparing them in `D k`. -/
+-- [D-0905] toD_le_iff'
 theorem toD_le_iff' (k : ℕ) (x y : D k) : toD k x ≤ toD k y ↔ x ≤ y := by
   have := toD_le_iff k k x y (le_refl k) (le_refl k)
   rwa [iotaLe_self, iotaLe_self] at this
 
+-- [D-0906] toD_strictMono
 theorem toD_strictMono (k : ℕ) : StrictMono (toD k) := by
   intro x y h
   refine lt_of_le_of_ne ((toD_le_iff' k x y).mpr h.le) (fun heq => h.ne ?_)
   exact toD_injective k heq
 
-/-! ### Giving `D_∞` a `Lattice` structure -- 2026-08-20 session
-
-`colimit_compat`'s most promising remaining positive-proof lead, the two-sided invariant
-`Θ` (bounded across every level tested, unlike down-sets which explode), needs `DInfty` to
-have inf/sup to even be STATED there. `DInfty` only had `PartialOrder` until now. This
-section gives it a genuine `Lattice` instance the same way its order was built: chase two
-representatives to a common level, compute there, prove the result doesn't depend on which
-common level was chosen (`iotaD_sup`/`iotaLe_sup` above make this possible: `iotaD` is a
-LATTICE embedding, not just an order-embedding). -/
-
--- Chasing `x : D k` up to level `n` then including into `D_∞` agrees with including `x`
--- directly -- the any-distance version of `toD_iotaD`.
+-- [D-0907] §Giving-D-a-Lattice-structure-2026-08-20-session
+-- [D-0908] toD_iotaLe
 theorem toD_iotaLe {k n : ℕ} (h : k ≤ n) (x : D k) : toD n (iotaLe h x) = toD k x :=
   Quotient.sound ⟨n, le_refl n, h, iotaLe_self (le_refl n) (iotaLe h x)⟩
 
-/-- Two staged points' join, computed at the pointwise `max` level. -/
+-- [D-0909] DInftySupRep
 noncomputable def DInftySupRep (p q : Σ k, D k) : DInfty :=
   toD (max p.1 q.1) (iotaLe (le_max_left p.1 q.1) p.2 ⊔ iotaLe (le_max_right p.1 q.1) q.2)
 
--- `DInftySupRep`'s value at the canonical `max` level agrees with the value computed at ANY
--- other common level `N` -- the join analogue of `DInftyLeRel_iff_atLevel`.
+-- [D-0910] DInftySupRep_atLevel
 theorem DInftySupRep_atLevel {p q : Σ k, D k} {N : ℕ} (hp : p.1 ≤ N) (hq : q.1 ≤ N) :
     DInftySupRep p q = toD N (iotaLe hp p.2 ⊔ iotaLe hq q.2) := by
   unfold DInftySupRep
@@ -1148,6 +1061,7 @@ theorem DInftySupRep_atLevel {p q : Σ k, D k} {N : ℕ} (hp : p.1 ≤ N) (hq : 
         (iotaLe_trans hq h q.2),
       iotaLe_sup, toD_iotaLe]
 
+-- [D-0911] DInftySupRep_congr
 theorem DInftySupRep_congr {a b c d : Σ k, D k} (hac : DInftyRel a c) (hbd : DInftyRel b d) :
     DInftySupRep a b = DInftySupRep c d := by
   set N := max (max a.1 b.1) (max c.1 d.1) with hN
@@ -1158,23 +1072,24 @@ theorem DInftySupRep_congr {a b c d : Σ k, D k} (hac : DInftyRel a c) (hbd : DI
   rw [DInftySupRep_atLevel haN hbN, DInftySupRep_atLevel hcN hdN,
       chase_eq_of_rel hac haN hcN, chase_eq_of_rel hbd hbN hdN]
 
-/-- **`⊔` on `D_∞`**, lifted from `DInftySupRep` via `Quotient.lift₂`. -/
+-- [D-0912] DInftySup
 noncomputable def DInftySup : DInfty → DInfty → DInfty :=
   Quotient.lift₂ DInftySupRep (fun _a _b _c _d hac hbd => DInftySupRep_congr hac hbd)
 
+-- [D-0913] inst-Max
 noncomputable instance : Max DInfty := ⟨DInftySup⟩
 
-/-- Comparing a `toD`-join against a common-level chase reduces exactly as `toD_le_iff` does. -/
+-- [D-0914] toD_sup
 theorem toD_sup (k n : ℕ) (x : D k) (y : D n) {N : ℕ} (hx : k ≤ N) (hy : n ≤ N) :
     toD k x ⊔ toD n y = toD N (iotaLe hx x ⊔ iotaLe hy y) :=
   DInftySupRep_atLevel hx hy
 
-/-- **`D_k` order-embeds `⊔` too**, not just `≤` -- comparing two `toD`-joins at the SAME
-    stage is exactly their join in `D_k`. -/
+-- [D-0915] toD_sup'
 theorem toD_sup' (k : ℕ) (x y : D k) : toD k x ⊔ toD k y = toD k (x ⊔ y) := by
   have := toD_sup k k x y (le_refl k) (le_refl k)
   rwa [iotaLe_self, iotaLe_self] at this
 
+-- [D-0916] DInftySup_le_left
 theorem DInftySup_le_left (a b : DInfty) : a ≤ a ⊔ b := by
   obtain ⟨k, x, rfl⟩ := toD_surjective a
   obtain ⟨n, y, rfl⟩ := toD_surjective b
@@ -1182,6 +1097,7 @@ theorem DInftySup_le_left (a b : DInfty) : a ≤ a ⊔ b := by
       toD_le_iff k (max k n) x _ (le_max_left k n) (le_refl (max k n)), iotaLe_self]
   exact le_sup_left
 
+-- [D-0917] DInftySup_le_right
 theorem DInftySup_le_right (a b : DInfty) : b ≤ a ⊔ b := by
   obtain ⟨k, x, rfl⟩ := toD_surjective a
   obtain ⟨n, y, rfl⟩ := toD_surjective b
@@ -1189,6 +1105,7 @@ theorem DInftySup_le_right (a b : DInfty) : b ≤ a ⊔ b := by
       toD_le_iff n (max k n) y _ (le_max_right k n) (le_refl (max k n)), iotaLe_self]
   exact le_sup_right
 
+-- [D-0918] DInftySup_le
 theorem DInftySup_le (a b c : DInfty) (hac : a ≤ c) (hbc : b ≤ c) : a ⊔ b ≤ c := by
   obtain ⟨k, x, rfl⟩ := toD_surjective a
   obtain ⟨n, y, rfl⟩ := toD_surjective b
@@ -1208,6 +1125,7 @@ theorem DInftySup_le (a b c : DInfty) (hac : a ≤ c) (hbc : b ≤ c) : a ⊔ b 
       toD_le_iff (max k n) p _ z hmn hpN, ← iotaLe_sup, ← heqx, ← heqy]
   exact sup_le hxz hyz
 
+-- [D-0919] inst-SemilatticeSup
 noncomputable instance : SemilatticeSup DInfty :=
   { (inferInstance : PartialOrder DInfty) with
     sup := DInftySup
@@ -1215,10 +1133,11 @@ noncomputable instance : SemilatticeSup DInfty :=
     le_sup_right := DInftySup_le_right
     sup_le := DInftySup_le }
 
--- Dual of `DInftySupRep` etc. -- meet instead of join, otherwise an exact mirror.
+-- [D-0920] DInftyInfRep
 noncomputable def DInftyInfRep (p q : Σ k, D k) : DInfty :=
   toD (max p.1 q.1) (iotaLe (le_max_left p.1 q.1) p.2 ⊓ iotaLe (le_max_right p.1 q.1) q.2)
 
+-- [D-0921] DInftyInfRep_atLevel
 theorem DInftyInfRep_atLevel {p q : Σ k, D k} {N : ℕ} (hp : p.1 ≤ N) (hq : q.1 ≤ N) :
     DInftyInfRep p q = toD N (iotaLe hp p.2 ⊓ iotaLe hq q.2) := by
   unfold DInftyInfRep
@@ -1235,6 +1154,7 @@ theorem DInftyInfRep_atLevel {p q : Σ k, D k} {N : ℕ} (hp : p.1 ≤ N) (hq : 
         (iotaLe_trans hq h q.2),
       iotaLe_inf, toD_iotaLe]
 
+-- [D-0922] DInftyInfRep_congr
 theorem DInftyInfRep_congr {a b c d : Σ k, D k} (hac : DInftyRel a c) (hbd : DInftyRel b d) :
     DInftyInfRep a b = DInftyInfRep c d := by
   set N := max (max a.1 b.1) (max c.1 d.1) with hN
@@ -1245,20 +1165,24 @@ theorem DInftyInfRep_congr {a b c d : Σ k, D k} (hac : DInftyRel a c) (hbd : DI
   rw [DInftyInfRep_atLevel haN hbN, DInftyInfRep_atLevel hcN hdN,
       chase_eq_of_rel hac haN hcN, chase_eq_of_rel hbd hbN hdN]
 
-/-- **`⊓` on `D_∞`**, lifted from `DInftyInfRep` via `Quotient.lift₂`. -/
+-- [D-0923] DInftyInf
 noncomputable def DInftyInf : DInfty → DInfty → DInfty :=
   Quotient.lift₂ DInftyInfRep (fun _a _b _c _d hac hbd => DInftyInfRep_congr hac hbd)
 
+-- [D-0924] inst-Min
 noncomputable instance : Min DInfty := ⟨DInftyInf⟩
 
+-- [D-0925] toD_inf
 theorem toD_inf (k n : ℕ) (x : D k) (y : D n) {N : ℕ} (hx : k ≤ N) (hy : n ≤ N) :
     toD k x ⊓ toD n y = toD N (iotaLe hx x ⊓ iotaLe hy y) :=
   DInftyInfRep_atLevel hx hy
 
+-- [D-0926] toD_inf'
 theorem toD_inf' (k : ℕ) (x y : D k) : toD k x ⊓ toD k y = toD k (x ⊓ y) := by
   have := toD_inf k k x y (le_refl k) (le_refl k)
   rwa [iotaLe_self, iotaLe_self] at this
 
+-- [D-0927] DInftyInf_le_left
 theorem DInftyInf_le_left (a b : DInfty) : a ⊓ b ≤ a := by
   obtain ⟨k, x, rfl⟩ := toD_surjective a
   obtain ⟨n, y, rfl⟩ := toD_surjective b
@@ -1266,6 +1190,7 @@ theorem DInftyInf_le_left (a b : DInfty) : a ⊓ b ≤ a := by
       toD_le_iff (max k n) k _ x (le_refl (max k n)) (le_max_left k n), iotaLe_self]
   exact inf_le_left
 
+-- [D-0928] DInftyInf_le_right
 theorem DInftyInf_le_right (a b : DInfty) : a ⊓ b ≤ b := by
   obtain ⟨k, x, rfl⟩ := toD_surjective a
   obtain ⟨n, y, rfl⟩ := toD_surjective b
@@ -1273,6 +1198,7 @@ theorem DInftyInf_le_right (a b : DInfty) : a ⊓ b ≤ b := by
       toD_le_iff (max k n) n _ y (le_refl (max k n)) (le_max_right k n), iotaLe_self]
   exact inf_le_right
 
+-- [D-0929] DInftyLe_inf
 theorem DInftyLe_inf (c a b : DInfty) (hca : c ≤ a) (hcb : c ≤ b) : c ≤ a ⊓ b := by
   obtain ⟨k, x, rfl⟩ := toD_surjective a
   obtain ⟨n, y, rfl⟩ := toD_surjective b
@@ -1292,6 +1218,7 @@ theorem DInftyLe_inf (c a b : DInfty) (hca : c ≤ a) (hcb : c ≤ b) : c ≤ a 
       toD_le_iff p (max k n) z _ hpN hmn, ← iotaLe_inf, ← heqx, ← heqy]
   exact le_inf hzx hzy
 
+-- [D-0930] inst-SemilatticeInf
 noncomputable instance : SemilatticeInf DInfty :=
   { (inferInstance : PartialOrder DInfty) with
     inf := DInftyInf
@@ -1299,61 +1226,61 @@ noncomputable instance : SemilatticeInf DInfty :=
     inf_le_right := DInftyInf_le_right
     le_inf := DInftyLe_inf }
 
-/-- **`D_∞` is a genuine `Lattice`** -- the concrete payoff of this whole section: assembling
-    the already-proven `SemilatticeSup`/`SemilatticeInf` (agreeing on the same `PartialOrder`,
-    so no diamond). -/
+-- [D-0931] inst-Lattice
 noncomputable instance : Lattice DInfty :=
   { (inferInstance : SemilatticeSup DInfty), (inferInstance : SemilatticeInf DInfty) with }
 
 end DInftyColimit
 
-/-- **The tower's ep-pair projection**, `p_k : D_(k+1) → D_k` — the
-    real-tower instantiation of `pGen` at `L := D k`. -/
+-- [D-0932] pD
 noncomputable def pD (k : ℕ) : D (k + 1) → D k := pGenM (L := D k) (dMid k)
 
+-- [D-0933] pD_iotaD
 theorem pD_iotaD (k : ℕ) (x : D k) : pD k (iotaD k x) = x := pGenM_section (dMid k) x
 
+-- [D-0934] pD_deflation
 theorem pD_deflation (k : ℕ) (w : D (k + 1)) : iotaD k (pD k w) ≤ w :=
   pGenM_deflation (L := D k) (dMid k) w
 
+-- [D-0935] pD_monotone
 theorem pD_monotone (k : ℕ) (w w' : D (k + 1)) (hle : w ≤ w') : pD k w ≤ pD k w' :=
   pGenM_monotone (L := D k) (dMid_ne_bot k) bot_ne_top_of_nontrivial w w' hle
 
--- Tower instantiation: `p_k(⊤_{D(k+1)}) = ⊤_{D_k}` — the fact that makes the "always-top" sequence a genuine compatible sequence (and hence a genuine point of `DBilimit`, EXACTLY the chain that has no upper bound in `DInfty`, confirming `DBilimit` is a strictly larger object).
+-- [D-0936] pD_top
 theorem pD_top (k : ℕ) : pD k (⊤ : D (k + 1)) = (⊤ : D k) := by
   exact pGenM_top (L := D k) (dMid_ne_bot k) (dMid_ne_top k) bot_ne_top_of_nontrivial
 
-/-- **The genuine bilimit**: compatible sequences under the tower's
-    ep-pair projections. -/
+-- [D-0937] DBilimit
 def DBilimit : Type := {x : ∀ k, D k // ∀ k, pD k (x (k + 1)) = x k}
 
+-- [D-0938] inst-PartialOrder
 noncomputable instance : PartialOrder DBilimit := Subtype.partialOrder _
 
-/-- The "always top" sequence — a genuine point of `DBilimit` with no
-    counterpart in `DInfty` (§11), confirmed by `pD_top`. -/
+-- [D-0939] topSeq
 noncomputable def topSeq : DBilimit := ⟨fun k => (⊤ : D k), pD_top⟩
 
+-- [D-0940] inst-Nonempty
 noncomputable instance : Nonempty DBilimit := ⟨topSeq⟩
 
--- Every `D k` is finite and bounded, hence a genuine `CompleteLattice`, letting `sSup` of an arbitrary (in particular directed) subset be used.
+-- [D-0941] completeLatticeD
 noncomputable instance completeLatticeD (k : ℕ) : CompleteLattice (D k) :=
   Fintype.toCompleteLattice (D k)
 
--- **`pD k` is Scott-continuous on nonempty finite directed sets** — the tower instantiation of `monotone_sSup_image_of_finite_directed`, using only `pD_monotone` (§12) and finiteness of `D (k+1)`, no further tower-specific argument.
+-- [D-0942] pD_sSup_image
 theorem pD_sSup_image (k : ℕ) {T : Set (D (k + 1))} (hne : T.Nonempty)
     (hdir : DirectedOn (· ≤ ·) T) :
     pD k (sSup T) = sSup (pD k '' T) :=
   monotone_sSup_image_of_finite_directed (fun _ _ h => pD_monotone k _ _ h)
     (Set.toFinite T) hne hdir
 
--- Projecting a directed set of compatible sequences to a single level stays directed — `DBilimit`'s order is inherited pointwise from `∀ k, D k` via `Subtype.partialOrder`, so an upper bound witness at the sequence level is directly an upper bound witness at each level.
+-- [D-0943] DBilimit_directed_image
 theorem DBilimit_directed_image (k : ℕ) {S : Set DBilimit} (hdir : DirectedOn (· ≤ ·) S) :
     DirectedOn (· ≤ ·) ((fun x : DBilimit => x.1 k) '' S) := by
   rintro _ ⟨x, hx, rfl⟩ _ ⟨y, hy, rfl⟩
   obtain ⟨z, hz, hxz, hyz⟩ := hdir x hx y hy
   exact ⟨z.1 k, ⟨z, hz, rfl⟩, hxz k, hyz k⟩
 
--- **`DBilimit` is a genuine dcpo**: every nonempty directed set has a least upper bound.
+-- [D-0944] DBilimit.exists_isLUB_of_directedOn
 theorem DBilimit.exists_isLUB_of_directedOn (S : Set DBilimit) (hne : S.Nonempty)
     (hdir : DirectedOn (· ≤ ·) S) : ∃ y, IsLUB S y := by
   set T : ∀ k, Set (D k) := fun k => (fun x : DBilimit => x.1 k) '' S with hT
@@ -1382,23 +1309,16 @@ theorem DBilimit.exists_isLUB_of_directedOn (S : Set DBilimit) (hne : S.Nonempty
 
 section DBilimitScott
 
-/-- **The Scott topology on `DBilimit`** — free once `DBilimit` has a
-    `PartialOrder` (§13), via Mathlib's `Topology.scott`. -/
+-- [D-0945] inst-TopologicalSpace
 noncomputable instance : TopologicalSpace DBilimit := Topology.scott DBilimit Set.univ
 
-/-- Registers the instance above as genuinely THE Scott topology (not
-    merely some topology of the same name), unlocking Mathlib's general
-    `Topology.IsScott` API for `DBilimit`. -/
+-- [D-0946] inst-IsScott
 instance : Topology.IsScott DBilimit Set.univ := ⟨rfl⟩
 
-/-- Sanity check: the Scott topology on a partial order is always `T0` —
-    a bare `inferInstance` once `IsScott` is registered, general Mathlib
-    content, not new here. -/
+-- [D-0947] example-T0Space
 example : T0Space DBilimit := inferInstance
 
-/-- Sanity check: Scott-closed sets are exactly the lower, directed-sup-
-    closed sets — general Mathlib content (`Topology.IsScott.isClosed_
-    iff_isLowerSet_and_dirSupClosed`), specialized to `DBilimit`. -/
+-- [D-0948] example-Set
 example (s : Set DBilimit) : IsClosed s ↔ IsLowerSet s ∧ DirSupClosed s :=
   Topology.IsScott.isClosed_iff_isLowerSet_and_dirSupClosed
 
@@ -1406,22 +1326,24 @@ end DBilimitScott
 
 section DInftyBilimitEmbedding
 
--- Transport a point of `D n` DOWN to any earlier level `j ≤ n` along the tower's ep-pair projections — the dual of `iotaLe` (§11), built the same way from `Nat.leRecOn`, but composing `pD` instead of `iotaD`.
+-- [D-0949] pLe
 noncomputable def pLe {j n : ℕ} (h : j ≤ n) : D n → D j :=
   Nat.leRecOn (C := fun k => D k → D j) h (fun {k} (f : D k → D j) => f ∘ pD k) id
 
+-- [D-0950] pLe_self
 theorem pLe_self (j : ℕ) (h : j ≤ j) (x : D j) : pLe h x = x := by
   unfold pLe
   rw [Nat.leRecOn_self]
   rfl
 
+-- [D-0951] pLe_succ
 theorem pLe_succ {j n : ℕ} (h : j ≤ n) (h' : j ≤ n + 1) (w : D (n + 1)) :
     pLe h' w = pLe h (pD n w) := by
   unfold pLe
   rw [Nat.leRecOn_succ h]
   rfl
 
--- **`pD` commutes with `pLe` across a change of the BOTTOM index** — the genuinely new fact this section needs beyond `pLe`'s own top-recursive unfolding (`pLe_succ`): chasing down from `k` to `j+1` then one more `pD` step agrees with chasing straight down to `j`.
+-- [D-0952] pLe_pD_comm
 theorem pLe_pD_comm {j : ℕ} : ∀ {k : ℕ} (h1 : j + 1 ≤ k) (h2 : j ≤ k) (y : D k),
     pD j (pLe h1 y) = pLe h2 y := by
   intro k h1
@@ -1436,13 +1358,11 @@ theorem pLe_pD_comm {j : ℕ} : ∀ {k : ℕ} (h1 : j + 1 ≤ k) (h2 : j ≤ k) 
           pLe_succ (Nat.le_of_succ_le hjk) h2 y]
       exact ih (Nat.le_of_succ_le hjk) (pD k y)
 
--- **The compatible sequence a staged point determines**: chase UP via `iotaLe` above its own level, DOWN via `pLe` below it — the standard "chase down, then up" presentation of a compact as a point of the bilimit.
+-- [D-0953] seqOf
 noncomputable def seqOf (p : Σ k, D k) (j : ℕ) : D j :=
   if h : j ≤ p.1 then pLe h p.2 else iotaLe (not_le.mp h).le p.2
 
-/-- **`seqOf p` is a genuine point of `DBilimit`.** Three cases: strictly
-    below `p.1` (`pLe_pD_comm`), exactly at the boundary (`pD_iotaD`),
-    and strictly above (`iotaLe_succ` + `pD_iotaD`). -/
+-- [D-0954] seqOf_compat
 theorem seqOf_compat (p : Σ k, D k) (j : ℕ) :
     pD j (seqOf p (j + 1)) = seqOf p j := by
   by_cases h1 : j + 1 ≤ p.1
@@ -1468,7 +1388,7 @@ theorem seqOf_compat (p : Σ k, D k) (j : ℕ) :
         iotaLe_succ (not_le.mp h2).le (not_le.mp h1).le p.2
       rw [heq, pD_iotaD]
 
--- Moving the basepoint up ONE tower step doesn't change `seqOf` — the single-step reduction well-definedness on `DInfty`'s quotient is built from, avoiding a direct (harder) argument for an arbitrary gap.
+-- [D-0955] seqOf_iotaD_step
 theorem seqOf_iotaD_step (n : ℕ) (w : D n) :
     seqOf ⟨n + 1, iotaD n w⟩ = seqOf ⟨n, w⟩ := by
   funext j
@@ -1493,7 +1413,7 @@ theorem seqOf_iotaD_step (n : ℕ) (w : D n) :
         rw [iotaLe_succ (le_refl n) hstep, iotaLe_self]
       rw [hchase, hstepval]
 
--- **`seqOf` is invariant under replacing a representative by any later one reachable via `iotaLe`** — chains `seqOf_iotaD_step` by `Nat.le_induction`.
+-- [D-0956] seqOf_iotaLe_invariant
 theorem seqOf_iotaLe_invariant (p : Σ k, D k) : ∀ {n : ℕ} (h : p.1 ≤ n),
     seqOf ⟨n, iotaLe h p.2⟩ = seqOf p := by
   intro n h
@@ -1504,30 +1424,24 @@ theorem seqOf_iotaLe_invariant (p : Σ k, D k) : ∀ {n : ℕ} (h : p.1 ≤ n),
       rw [seqOf_iotaD_step n (iotaLe hpn p.2)]
       exact ih
 
-/-- `seqOf` respects `DInftyRel` — two representatives agreeing once
-    chased to a common level `n` produce the SAME compatible sequence,
-    via `seqOf_iotaLe_invariant` applied to each side. -/
+-- [D-0957] seqOf_congr
 theorem seqOf_congr {p q : Σ k, D k} (h : DInftyRel p q) : seqOf p = seqOf q := by
   obtain ⟨n, h1, h2, he⟩ := h
   rw [← seqOf_iotaLe_invariant p h1, ← seqOf_iotaLe_invariant q h2, he]
 
-/-- **The canonical embedding of the compacts into the genuine
-    bilimit.** -/
+-- [D-0958] toDBilimit
 noncomputable def toDBilimit : DInfty → DBilimit :=
   Quotient.lift (fun p => (Subtype.mk (seqOf p) (seqOf_compat p) : DBilimit))
     (fun _ _ h => Subtype.ext (seqOf_congr h))
 
-/-- `toDBilimit` agrees with `toD` at every level — it really is an
-    extension of the tower's own inclusions, not just some map. -/
+-- [D-0959] toDBilimit_toD
 theorem toDBilimit_toD (k : ℕ) (x : D k) :
     (toDBilimit (toD k x)).1 k = x := by
   show seqOf ⟨k, x⟩ k = x
   show (if h : k ≤ k then pLe h x else iotaLe (not_le.mp h).le x) = x
   rw [dif_pos (le_refl k), pLe_self k (le_refl k) x]
 
-/-- `seqOf p`'s value at any level `n` above `p`'s own is exactly the
-    `iotaLe` chase — the fact `toDBilimit`'s injectivity/order-reflection
-    both reduce to. -/
+-- [D-0960] seqOf_eq_iotaLe
 theorem seqOf_eq_iotaLe (p : Σ k, D k) {n : ℕ} (h : p.1 ≤ n) : seqOf p n = iotaLe h p.2 := by
   show (if h' : n ≤ p.1 then pLe h' p.2 else iotaLe (not_le.mp h').le p.2) = iotaLe h p.2
   by_cases heq : p.1 = n
@@ -1538,7 +1452,7 @@ theorem seqOf_eq_iotaLe (p : Σ k, D k) {n : ℕ} (h : p.1 ≤ n) : seqOf p n = 
       omega
     rw [dif_neg hlt]
 
-/-- **`toDBilimit` is injective.** -/
+-- [D-0961] toDBilimit_injective
 theorem toDBilimit_injective : Function.Injective toDBilimit := by
   intro z1 z2 hz
   obtain ⟨k, x, hkx⟩ := toD_surjective z1
@@ -1554,9 +1468,7 @@ theorem toDBilimit_injective : Function.Injective toDBilimit := by
       ← seqOf_eq_iotaLe ⟨k', x'⟩ (le_max_right k k')]
   exact hz'
 
-/-- `pLe` is monotone at every fixed pair of levels — mirrors
-    `pLe_pD_comm`'s induction shape, using `pD_monotone` (§12) at each
-    step. -/
+-- [D-0962] pLe_monotone
 theorem pLe_monotone {j : ℕ} : ∀ {n : ℕ} (h : j ≤ n) (x y : D n), x ≤ y → pLe h x ≤ pLe h y := by
   intro n h
   induction n, h using Nat.le_induction with
@@ -1566,7 +1478,7 @@ theorem pLe_monotone {j : ℕ} : ∀ {n : ℕ} (h : j ≤ n) (x y : D n), x ≤ 
       rw [pLe_succ hjn (Nat.le_succ_of_le hjn), pLe_succ hjn (Nat.le_succ_of_le hjn)]
       exact ih (pD n x) (pD n y) (pD_monotone n x y hxy)
 
--- `seqOf` is monotone in its basepoint value, AT A FIXED LEVEL — the single-level fact `toDBilimit`'s monotonicity reduces to once both representatives are chased (via `seqOf_iotaLe_invariant`) to a common level.
+-- [D-0963] seqOf_monotone_atLevel
 theorem seqOf_monotone_atLevel (N : ℕ) (w w' : D N) (hww : w ≤ w') (j : ℕ) :
     seqOf ⟨N, w⟩ j ≤ seqOf ⟨N, w'⟩ j := by
   show (if h : j ≤ N then pLe h w else iotaLe (not_le.mp h).le w)
@@ -1577,7 +1489,7 @@ theorem seqOf_monotone_atLevel (N : ℕ) (w w' : D N) (hww : w ≤ w') (j : ℕ)
   · rw [dif_neg h, dif_neg h]
     exact (iotaLe_le_iff (not_le.mp h).le w w').mpr hww
 
-/-- **`toDBilimit` is monotone.** -/
+-- [D-0964] toDBilimit_monotone
 theorem toDBilimit_monotone : Monotone toDBilimit := by
   intro z1 z2 hz
   obtain ⟨k, x, hkx⟩ := toD_surjective z1
@@ -1592,7 +1504,7 @@ theorem toDBilimit_monotone : Monotone toDBilimit := by
   rw [← seqOf_iotaLe_invariant ⟨k, x⟩ hkN, ← seqOf_iotaLe_invariant ⟨k', x'⟩ hkN']
   exact seqOf_monotone_atLevel (max k k') (iotaLe hkN x) (iotaLe hkN' x') hzN j
 
-/-- **`toDBilimit` is order-reflecting.** -/
+-- [D-0965] toDBilimit_reflects_le
 theorem toDBilimit_reflects_le {z1 z2 : DInfty} (h : toDBilimit z1 ≤ toDBilimit z2) :
     z1 ≤ z2 := by
   obtain ⟨k, x, hkx⟩ := toD_surjective z1
@@ -1606,11 +1518,11 @@ theorem toDBilimit_reflects_le {z1 z2 : DInfty} (h : toDBilimit z1 ≤ toDBilimi
   rw [← seqOf_eq_iotaLe ⟨k, x⟩ hkN, ← seqOf_eq_iotaLe ⟨k', x'⟩ hkN']
   exact hjN
 
+-- [D-0966] toDBilimit_le_iff
 theorem toDBilimit_le_iff {z1 z2 : DInfty} : toDBilimit z1 ≤ toDBilimit z2 ↔ z1 ≤ z2 :=
   ⟨toDBilimit_reflects_le, fun h => toDBilimit_monotone h⟩
 
-/-- **The compacts embed into the genuine bilimit, as a bundled order
-    embedding** — the payoff of this whole section. -/
+-- [D-0967] toDBilimitEmb
 noncomputable def toDBilimitEmb : DInfty ↪o DBilimit :=
   OrderEmbedding.ofMapLEIff toDBilimit (fun _ _ => toDBilimit_le_iff)
 
@@ -1618,27 +1530,23 @@ end DInftyBilimitEmbedding
 
 section EndPEpPair
 
-/-- **The tower's ep-pair, lifted to endomorphisms**: `f ↦ iotaD k ∘ f ∘
-    pD k`. Bundled as a genuine `OrderHom` since `EndP (D (k+1))` is
-    itself `D (k+1) →o D (k+1)`. -/
+-- [D-0968] iotaEndP
 noncomputable def iotaEndP (k : ℕ) (f : EndP (D k)) : EndP (D (k + 1)) where
   toFun w := iotaD k (f (pD k w))
   monotone' _ _ hle := iotaD_monotone k (f.monotone (pD_monotone k _ _ hle))
 
-/-- The dual projection: `g ↦ pD k ∘ g ∘ iotaD k`. -/
+-- [D-0969] pEndP
 noncomputable def pEndP (k : ℕ) (g : EndP (D (k + 1))) : EndP (D k) where
   toFun x := pD k (g (iotaD k x))
   monotone' _ _ hle := pD_monotone k _ _ (g.monotone (iotaD_monotone k hle))
 
-/-- **Section**: `pEndP k (iotaEndP k f) = f` — two applications of
-    `pD_iotaD`, exactly the algebraic derivation the Python check
-    confirmed exhaustively over `EndP(D_0)`. -/
+-- [D-0970] pEndP_iotaEndP
 theorem pEndP_iotaEndP (k : ℕ) (f : EndP (D k)) : pEndP k (iotaEndP k f) = f := by
   ext x
   show pD k (iotaD k (f (pD k (iotaD k x)))) = f x
   rw [pD_iotaD, pD_iotaD]
 
--- **Deflation**: `iotaEndP k (pEndP k g) ≤ g` pointwise — chains `pD_deflation` (applied at `w` and again at `iotaD k (pD k w)`) with monotonicity of `g`/`iotaD k`/`pD k`.
+-- [D-0971] iotaEndP_pEndP_deflation
 theorem iotaEndP_pEndP_deflation (k : ℕ) (g : EndP (D (k + 1))) :
     iotaEndP k (pEndP k g) ≤ g := by
   rw [OrderHom.le_def]
@@ -1650,8 +1558,7 @@ theorem iotaEndP_pEndP_deflation (k : ℕ) (g : EndP (D (k + 1))) :
     iotaD_monotone k h2
   exact h3.trans (pD_deflation k (g w))
 
-/-- `iotaEndP k` is monotone in `f` — free from `iotaD k`/`pD k` being
-    fixed monotone maps flanking `f`. -/
+-- [D-0972] iotaEndP_monotone
 theorem iotaEndP_monotone (k : ℕ) : Monotone (iotaEndP k) := by
   intro f f' hle
   rw [OrderHom.le_def]
@@ -1659,8 +1566,7 @@ theorem iotaEndP_monotone (k : ℕ) : Monotone (iotaEndP k) := by
   show iotaD k (f (pD k w)) ≤ iotaD k (f' (pD k w))
   exact iotaD_monotone k (OrderHom.le_def.mp hle (pD k w))
 
-/-- `pEndP k` is monotone in `g` — free from `pD k`/`iotaD k` being fixed
-    monotone maps flanking `g`. -/
+-- [D-0973] pEndP_monotone
 theorem pEndP_monotone (k : ℕ) : Monotone (pEndP k) := by
   intro g g' hle
   rw [OrderHom.le_def]
@@ -1672,38 +1578,32 @@ end EndPEpPair
 
 section EndPBilimitSection
 
-/-- **`EndPBilimit`**: compatible sequences of endomorphisms under
-    `pEndP`, mirroring `DBilimit`'s own definition (§13) one functor
-    level up. -/
+-- [D-0974] EndPBilimit
 def EndPBilimit : Type := {x : ∀ k, EndP (D k) // ∀ k, pEndP k (x (k + 1)) = x k}
 
+-- [D-0975] inst-PartialOrder
 noncomputable instance : PartialOrder EndPBilimit := Subtype.partialOrder _
 
-/-- **Insert a finite-level point into `DBilimit`** via `seqOf` --
-    packaging `seqOf_compat` into the `DBilimit` subtype directly. -/
+-- [D-0976] insertAtLevel
 noncomputable def insertAtLevel (k : ℕ) (w : D k) : DBilimit :=
   ⟨seqOf ⟨k, w⟩, seqOf_compat ⟨k, w⟩⟩
 
-/-- Moving the inserted point up one tower step via `iotaD` doesn't
-    change which point of `DBilimit` results -- the `DBilimit`-packaged
-    form of `seqOf_iotaD_step`. -/
+-- [D-0977] insertAtLevel_iotaD
 theorem insertAtLevel_iotaD (k : ℕ) (w : D k) :
     insertAtLevel (k + 1) (iotaD k w) = insertAtLevel k w :=
   Subtype.ext (seqOf_iotaD_step k w)
 
-/-- `insertAtLevel k` is monotone -- the `DBilimit`-packaged form of
-    `seqOf_monotone_atLevel`. -/
+-- [D-0978] insertAtLevel_monotone
 theorem insertAtLevel_monotone (k : ℕ) : Monotone (insertAtLevel k) := by
   intro w w' hle j
   exact seqOf_monotone_atLevel k w w' hle j
 
-/-- **Forward direction**: restrict a global self-map of `DBilimit` to
-    its level-`k` approximation via `insertAtLevel`. -/
+-- [D-0979] toEndPBilimitAt
 noncomputable def toEndPBilimitAt (F : EndP DBilimit) (k : ℕ) : EndP (D k) where
   toFun w := (F (insertAtLevel k w)).1 k
   monotone' _ _ hle := F.monotone (insertAtLevel_monotone k hle) k
 
--- **`toEndPBilimitAt F` is a genuine compatible sequence** -- reduces to `insertAtLevel_iotaD` (the two insertion points agree) plus `F (insertAtLevel k w)`'s OWN `DBilimit` compatibility proof applied at index `k`.
+-- [D-0980] toEndPBilimit
 noncomputable def toEndPBilimit (F : EndP DBilimit) : EndPBilimit :=
   ⟨fun k => toEndPBilimitAt F k, fun k => by
     ext w
@@ -1716,7 +1616,7 @@ end EndPBilimitSection
 
 section EndPBilimitApply
 
--- **The one-step algebraic core**: applying `f` at level `n` then chasing down (via `pD`) is dominated by applying `f` one level deeper.
+-- [D-0981] chain_deflate_le
 theorem chain_deflate_le (f : EndPBilimit) (y : DBilimit) (n : ℕ) :
     f.1 n (y.1 n) ≤ pD n (f.1 (n + 1) (y.1 (n + 1))) := by
   have hcompat : f.1 n (y.1 n) = pD n (f.1 (n + 1) (iotaD n (y.1 n))) := by
@@ -1729,12 +1629,11 @@ theorem chain_deflate_le (f : EndPBilimit) (y : DBilimit) (n : ℕ) :
     exact pD_deflation n (y.1 (n + 1))
   exact pD_monotone n _ _ ((f.1 (n + 1)).monotone hdefl)
 
-/-- Chase `f`'s value at level `n` (applied to `y`'s own level-`n`
-    approximation) down to any earlier level `k ≤ n` via `pLe`. -/
+-- [D-0982] chaseDown
 noncomputable def chaseDown (f : EndPBilimit) (y : DBilimit) {k n : ℕ} (h : k ≤ n) : D k :=
   pLe h (f.1 n (y.1 n))
 
--- **`chaseDown` is monotone as the source level `n` grows**, for a FIXED target level `k` -- the general-gap bootstrap of `chain_deflate_le`'s one-step fact via `pLe_succ`/`pLe_monotone`, same induction shape as `pLe_pD_comm`/`iotaLe_le_iff`.
+-- [D-0983] chaseDown_mono
 theorem chaseDown_mono (f : EndPBilimit) (y : DBilimit) {k n : ℕ} (h : k ≤ n) :
     ∀ {n' : ℕ} (h' : n ≤ n'), chaseDown f y h ≤ chaseDown f y (h.trans h') := by
   intro n' h'
@@ -1747,15 +1646,16 @@ theorem chaseDown_mono (f : EndPBilimit) (y : DBilimit) {k n : ℕ} (h : k ≤ n
       rw [pLe_succ (h.trans hn') (h.trans (hn'.trans (Nat.le_succ n')))]
       exact pLe_monotone (h.trans hn') _ _ (chain_deflate_le f y n')
 
-/-- The set of all `chaseDown`s of `f`/`y` landing at level `k`, ranging
-    over every source level `n ≥ k`. -/
+-- [D-0984] chaseDownSet
 noncomputable def chaseDownSet (f : EndPBilimit) (y : DBilimit) (k : ℕ) : Set (D k) :=
   {v | ∃ n, ∃ h : k ≤ n, v = chaseDown f y h}
 
+-- [D-0985] chaseDownSet_nonempty
 theorem chaseDownSet_nonempty (f : EndPBilimit) (y : DBilimit) (k : ℕ) :
     (chaseDownSet f y k).Nonempty :=
   ⟨chaseDown f y (le_refl k), k, le_refl k, rfl⟩
 
+-- [D-0986] chaseDownSet_directed
 theorem chaseDownSet_directed (f : EndPBilimit) (y : DBilimit) (k : ℕ) :
     DirectedOn (· ≤ ·) (chaseDownSet f y k) := by
   rintro a ⟨n1, h1, rfl⟩ b ⟨n2, h2, rfl⟩
@@ -1764,11 +1664,11 @@ theorem chaseDownSet_directed (f : EndPBilimit) (y : DBilimit) (k : ℕ) :
     chaseDown_mono f y h1 (le_max_left n1 n2),
     chaseDown_mono f y h2 (le_max_right n1 n2)⟩
 
--- **The level-`k` approximation of the induced global map** -- supremum of every `chaseDown` landing at `k`, well-defined since `D k` is a `CompleteLattice` (`completeLatticeD`, §14) regardless of directedness, but genuinely THE right value because of it (see `levelSup_compat`).
+-- [D-0987] levelSup
 noncomputable def levelSup (f : EndPBilimit) (y : DBilimit) (k : ℕ) : D k :=
   sSup (chaseDownSet f y k)
 
--- **`levelSup` is a genuine compatible sequence**: `pD k` of the level-`(k+1)` sup equals the level-`k` sup.
+-- [D-0988] levelSup_compat
 theorem levelSup_compat (f : EndPBilimit) (y : DBilimit) (k : ℕ) :
     pD k (levelSup f y (k + 1)) = levelSup f y k := by
   have hne : (chaseDownSet f y (k + 1)).Nonempty := chaseDownSet_nonempty f y (k + 1)
@@ -1804,14 +1704,16 @@ theorem levelSup_compat (f : EndPBilimit) (y : DBilimit) (k : ℕ) :
       rw [heq]
       exact le_sSup ⟨chaseDown f y hge, ⟨n, hge, rfl⟩, rfl⟩
 
-/-- **The induced global self-map of `DBilimit`.** -/
+-- [D-0989] applyEndPBilimit
 noncomputable def applyEndPBilimit (f : EndPBilimit) (y : DBilimit) : DBilimit :=
   ⟨fun k => levelSup f y k, fun k => levelSup_compat f y k⟩
 
+-- [D-0990] chaseDown_mono_in_y
 theorem chaseDown_mono_in_y (f : EndPBilimit) {k n : ℕ} (h : k ≤ n) (y y' : DBilimit)
     (hyy' : y ≤ y') : chaseDown f y h ≤ chaseDown f y' h :=
   pLe_monotone h _ _ ((f.1 n).monotone (hyy' n))
 
+-- [D-0991] applyEndPBilimit_monotone
 theorem applyEndPBilimit_monotone (f : EndPBilimit) : Monotone (applyEndPBilimit f) := by
   intro y y' hyy' k
   show levelSup f y k ≤ levelSup f y' k
@@ -1819,8 +1721,7 @@ theorem applyEndPBilimit_monotone (f : EndPBilimit) : Monotone (applyEndPBilimit
   rintro _ ⟨n, h, rfl⟩
   exact (chaseDown_mono_in_y f h y y' hyy').trans (le_sSup ⟨n, h, rfl⟩)
 
-/-- **Backward direction**: bundle `applyEndPBilimit f` as a genuine
-    `OrderHom`. -/
+-- [D-0992] ofEndPBilimit
 noncomputable def ofEndPBilimit (f : EndPBilimit) : EndP DBilimit where
   toFun := applyEndPBilimit f
   monotone' := applyEndPBilimit_monotone f
@@ -1831,10 +1732,10 @@ section CounterexampleCheck
 
 open Classical
 
-/-- `topSeq` is the top of `DBilimit` -- every level is already `⊤`. -/
+-- [D-0993] le_topSeq
 theorem le_topSeq (z : DBilimit) : z ≤ topSeq := fun _ => le_top
 
--- **General fact about `DBilimit` points**: chasing a point's own level-`n` value down to any earlier level `k` via `pLe` recovers its own level-`k` value exactly -- immediate from the point's own compatibility proof
+-- [D-0994] DBilimit_pLe_eq
 theorem DBilimit_pLe_eq (z : DBilimit) {k : ℕ} : ∀ {n : ℕ} (h : k ≤ n), pLe h (z.1 n) = z.1 k := by
   intro n h
   induction n, h using Nat.le_induction with
@@ -1844,7 +1745,7 @@ theorem DBilimit_pLe_eq (z : DBilimit) {k : ℕ} : ∀ {n : ℕ} (h : k ≤ n), 
       rw [z.2 n]
       exact ih
 
--- `iotaD` always lands in copy `A` (`Sum.inl`), but `⊤ : D (k+1)` is copy `C` (`Sum.inr (Sum.inr _)`) -- the exact fact pass 33's own `topSeq`-has-no-`DInfty`-representative finding rests on, made explicit here since the counterexample below needs it directly.
+-- [D-0995] iotaD_ne_top
 theorem iotaD_ne_top (k : ℕ) (x : D k) : iotaD k x ≠ (⊤ : D (k + 1)) := by
   intro heq
   have h := D_marked_point_nondegenerate k
@@ -1861,7 +1762,7 @@ theorem iotaD_ne_top (k : ℕ) (x : D k) : iotaD k x ≠ (⊤ : D (k + 1)) := by
   rw [heq, hval, hcanon] at hiotaD
   exact absurd hiotaD (by simp)
 
--- `insertAtLevel n (topSeq.1 n)` is never `topSeq` itself -- they already differ at level `n+1` (`iotaD_ne_top`).
+-- [D-0996] insertAtLevel_topSeq_ne
 theorem insertAtLevel_topSeq_ne (n : ℕ) : insertAtLevel n (topSeq.1 n) ≠ topSeq := by
   intro heq
   have h1 : (insertAtLevel n (topSeq.1 n)).1 (n + 1) = topSeq.1 (n + 1) :=
@@ -1875,7 +1776,7 @@ theorem insertAtLevel_topSeq_ne (n : ℕ) : insertAtLevel n (topSeq.1 n) ≠ top
   rw [h2] at h1
   exact iotaD_ne_top n (topSeq.1 n) h1
 
--- **The counterexample**: a genuine monotone self-map of `DBilimit` (an "up-set indicator" of `{topSeq}`, the standard textbook example of monotone-but-not-Scott-continuous) whose value at `topSeq` is NOT recovered by `ofEndPBilimit (toEndPBilimit F)`.
+-- [D-0997] counterF
 noncomputable def counterF : EndP DBilimit where
   toFun y := if topSeq ≤ y then topSeq else insertAtLevel 0 (⊥ : D 0)
   monotone' y y' hyy' := by
@@ -1889,10 +1790,12 @@ noncomputable def counterF : EndP DBilimit where
       · simp only [if_neg hy, if_neg hy']
         exact le_refl _
 
+-- [D-0998] counterF_topSeq
 theorem counterF_topSeq : counterF topSeq = topSeq := by
   show (if topSeq ≤ topSeq then topSeq else insertAtLevel 0 (⊥ : D 0)) = topSeq
   rw [if_pos (le_refl topSeq)]
 
+-- [D-0999] counterF_approx
 theorem counterF_approx (n : ℕ) :
     counterF (insertAtLevel n (topSeq.1 n)) = insertAtLevel 0 (⊥ : D 0) := by
   show (if topSeq ≤ insertAtLevel n (topSeq.1 n) then topSeq else insertAtLevel 0 (⊥ : D 0))
@@ -1901,7 +1804,7 @@ theorem counterF_approx (n : ℕ) :
   intro hle
   exact insertAtLevel_topSeq_ne n (le_antisymm (le_topSeq _) hle)
 
--- **The actual counterexample theorem**: `toEndPBilimit`/`ofEndPBilimit` are NOT mutually inverse on the full `EndP DBilimit` (all monotone self-maps) -- only Scott-continuous `F` can round-trip
+-- [D-1000] toEndPBilimit_ofEndPBilimit_not_roundtrip
 theorem toEndPBilimit_ofEndPBilimit_not_roundtrip :
     ofEndPBilimit (toEndPBilimit counterF) ≠ counterF := by
   intro heq
@@ -1953,12 +1856,12 @@ end CounterexampleCheck
 
 section ContinuousRoundtrip
 
--- **One-step approximation fact**: chasing `y`'s own level-`n` value up one step via `iotaD` stays below `y`'s actual level-`(n+1)` value -- the same derivation `chain_deflate_le`'s `hdefl` sub-proof uses
+-- [D-1001] iotaD_y_le
 theorem iotaD_y_le (y : DBilimit) (n : ℕ) : iotaD n (y.1 n) ≤ y.1 (n + 1) := by
   rw [show y.1 n = pD n (y.1 (n + 1)) from (y.2 n).symm]
   exact pD_deflation n (y.1 (n + 1))
 
--- **General bootstrap**: chasing `y`'s level-`n` value UP to any later level `n'` via `iotaLe` stays below `y`'s actual level-`n'` value -- the general-gap version of `iotaD_y_le`, same `Nat.le_induction` shape as everywhere else in this file.
+-- [D-1002] iotaLe_y_le
 theorem iotaLe_y_le (y : DBilimit) {n : ℕ} : ∀ {n' : ℕ} (h : n ≤ n'), iotaLe h (y.1 n) ≤ y.1 n' := by
   intro n' h
   induction n', h using Nat.le_induction with
@@ -1967,8 +1870,7 @@ theorem iotaLe_y_le (y : DBilimit) {n : ℕ} : ∀ {n' : ℕ} (h : n ≤ n'), io
       rw [iotaLe_succ hn' (hn'.trans (Nat.le_succ n'))]
       exact (iotaD_monotone n' ih).trans (iotaD_y_le y n')
 
-/-- **`insertAtLevel n (y.1 n)` is always `≤ y`** -- exact agreement at
-    levels `≤ n` (`DBilimit_pLe_eq`), `iotaLe_y_le` above `n`. -/
+-- [D-1003] insertAtLevel_le_self
 theorem insertAtLevel_le_self (y : DBilimit) (n : ℕ) : insertAtLevel n (y.1 n) ≤ y := by
   intro j
   show (if h : j ≤ n then pLe h (y.1 n) else iotaLe (not_le.mp h).le (y.1 n)) ≤ y.1 j
@@ -1977,7 +1879,7 @@ theorem insertAtLevel_le_self (y : DBilimit) (n : ℕ) : insertAtLevel n (y.1 n)
   · rw [dif_neg hjn]
     exact iotaLe_y_le y (not_le.mp hjn).le
 
--- **The approximating chain is monotone increasing in `n`** -- combines exact agreement below `n` (`DBilimit_pLe_eq`) with `iotaLe_y_le` (chasing `y.1 n` further up via `iotaLe_trans` stays below `y.1 n'`, hence below `insertAtLevel n' (y.1 n')`'s own value there).
+-- [D-1004] insertAtLevel_chain_mono
 theorem insertAtLevel_chain_mono (y : DBilimit) {n n' : ℕ} (h : n ≤ n') :
     insertAtLevel n (y.1 n) ≤ insertAtLevel n' (y.1 n') := by
   intro j
@@ -1997,17 +1899,19 @@ theorem insertAtLevel_chain_mono (y : DBilimit) {n n' : ℕ} (h : n ≤ n') :
       rw [show iotaLe (not_le.mp hjn).le (y.1 n) = iotaLe hnj (y.1 n) from rfl, hrw]
       exact (iotaLe_le_iff hn'j _ _).mpr (iotaLe_y_le y h)
 
-/-- The approximating chain, as a set. -/
+-- [D-1005] chainSet
 noncomputable def chainSet (y : DBilimit) : Set DBilimit := Set.range (fun n => insertAtLevel n (y.1 n))
 
+-- [D-1006] chainSet_nonempty
 theorem chainSet_nonempty (y : DBilimit) : (chainSet y).Nonempty := ⟨_, 0, rfl⟩
 
+-- [D-1007] chainSet_directedOn
 theorem chainSet_directedOn (y : DBilimit) : DirectedOn (· ≤ ·) (chainSet y) := by
   rintro _ ⟨n1, rfl⟩ _ ⟨n2, rfl⟩
   exact ⟨insertAtLevel (max n1 n2) (y.1 (max n1 n2)), ⟨max n1 n2, rfl⟩,
     insertAtLevel_chain_mono y (le_max_left n1 n2), insertAtLevel_chain_mono y (le_max_right n1 n2)⟩
 
--- **`y` is genuinely the LUB of its own approximating chain.** Upper bound: `insertAtLevel_le_self`.
+-- [D-1008] chainSet_isLUB
 theorem chainSet_isLUB (y : DBilimit) : IsLUB (chainSet y) y := by
   constructor
   · rintro _ ⟨n, rfl⟩
@@ -2022,7 +1926,7 @@ theorem chainSet_isLUB (y : DBilimit) : IsLUB (chainSet y) y := by
     rw [← heq]
     exact hzj
 
--- **The round-trip holds for Scott-continuous `F`.** The naive "apply pointwise" gap that broke the general case (`toEndPBilimit_ofEndPBilimit_not_roundtrip`) is exactly closed by continuity here: both `F y` and `applyEndPBilimit (toEndPBilim
+-- [D-1009] toEndPBilimit_ofEndPBilimit_of_continuous
 theorem toEndPBilimit_ofEndPBilimit_of_continuous (F : EndP DBilimit)
     (hF : ScottContinuous (F : DBilimit → DBilimit)) :
     ofEndPBilimit (toEndPBilimit F) = F := by
@@ -2059,13 +1963,13 @@ end ContinuousRoundtrip
 
 section EasyRoundtrip
 
--- `insertAtLevel k w` evaluated at its own level k equals w.
+-- [D-1010] insertAtLevel_self
 theorem insertAtLevel_self (k : ℕ) (w : D k) : (insertAtLevel k w).1 k = w := by
   show (if h : k ≤ k then pLe h w else iotaLe (not_le.mp h).le w) = w
   rw [dif_pos (le_refl k)]
   exact pLe_self k (le_refl k) w
 
--- `insertAtLevel k w` chases up via iotaD one step at a time above its insertion level.
+-- [D-1011] insertAtLevel_succ
 theorem insertAtLevel_succ (k : ℕ) (w : D k) (n : ℕ) (h : k ≤ n) :
     (insertAtLevel k w).1 (n + 1) = iotaD n ((insertAtLevel k w).1 n) := by
   have h' : k ≤ n + 1 := h.trans (Nat.le_succ n)
@@ -2080,7 +1984,7 @@ theorem insertAtLevel_succ (k : ℕ) (w : D k) (n : ℕ) (h : k ≤ n) :
     show iotaLe (not_le.mp hnk).le w = iotaD n (if hh : n ≤ k then pLe hh w else iotaLe (not_le.mp hh).le w)
     rw [dif_neg hnk2, iotaLe_succ (not_le.mp hnk2).le (not_le.mp hnk).le]
 
--- `chaseDown` of f at the point f was just inserted from is constant, equal to f.1 k w, at every reachable level n ≥ k.
+-- [D-1012] chaseDown_insertAtLevel_const
 theorem chaseDown_insertAtLevel_const (f : EndPBilimit) (k : ℕ) (w : D k) :
     ∀ {n : ℕ} (h : k ≤ n), chaseDown f (insertAtLevel k w) h = f.1 k w := by
   intro n h
@@ -2099,7 +2003,7 @@ theorem chaseDown_insertAtLevel_const (f : EndPBilimit) (k : ℕ) (w : D k) :
       rw [pLe_succ hkn (hkn.trans (Nat.le_succ n)), ← hcompat]
       exact ih
 
--- Reassembling ofEndPBilimit f back into a compatible sequence via toEndPBilimit recovers f exactly, unconditionally.
+-- [D-1013] toEndPBilimit_ofEndPBilimit
 theorem toEndPBilimit_ofEndPBilimit (f : EndPBilimit) :
     toEndPBilimit (ofEndPBilimit f) = f := by
   apply Subtype.ext
@@ -2122,7 +2026,7 @@ end EasyRoundtrip
 
 section ScottContinuousOf
 
--- Any LUB a of a nonempty directed S ⊆ DBilimit has level-k value equal to the levelwise sup of S's level-k projections.
+-- [D-1014] _root_.IsLUB.dbilimit_apply
 theorem _root_.IsLUB.dbilimit_apply {S : Set DBilimit} {a : DBilimit} (ha : IsLUB S a)
     (hne : S.Nonempty) (hdir : DirectedOn (· ≤ ·) S) (k : ℕ) :
     a.1 k = sSup ((fun x : DBilimit => x.1 k) '' S) := by
@@ -2149,7 +2053,7 @@ theorem _root_.IsLUB.dbilimit_apply {S : Set DBilimit} {a : DBilimit} (ha : IsLU
   have hab := ha.unique hb
   rw [hab]
 
--- ofEndPBilimit f is always Scott-continuous, for every f : EndPBilimit.
+-- [D-1015] applyEndPBilimit_scottContinuous
 theorem applyEndPBilimit_scottContinuous (f : EndPBilimit) :
     ScottContinuous (applyEndPBilimit f : DBilimit → DBilimit) := by
   intro S hSne hSdir a haLUB
@@ -2185,13 +2089,13 @@ theorem applyEndPBilimit_scottContinuous (f : EndPBilimit) :
 
 end ScottContinuousOf
 
--- `toEndPBilimit` is monotone in its `EndP DBilimit` argument.
+-- [D-1016] toEndPBilimit_monotone
 theorem toEndPBilimit_monotone : Monotone (toEndPBilimit) := by
   intro F F' hFF' k w
   show (F (insertAtLevel k w)).1 k ≤ (F' (insertAtLevel k w)).1 k
   exact hFF' (insertAtLevel k w) k
 
--- `ofEndPBilimit` is monotone in its `EndPBilimit` argument.
+-- [D-1017] ofEndPBilimit_monotone
 theorem ofEndPBilimit_monotone : Monotone (ofEndPBilimit) := by
   intro f f' hff' y k
   show levelSup f y k ≤ levelSup f' y k
@@ -2200,24 +2104,27 @@ theorem ofEndPBilimit_monotone : Monotone (ofEndPBilimit) := by
   have hle : f.1 n (y.1 n) ≤ f'.1 n (y.1 n) := hff' n (y.1 n)
   exact (pLe_monotone h _ _ hle).trans (le_sSup ⟨n, h, rfl⟩)
 
+-- [D-1018] inst-PartialOrder
 noncomputable instance : PartialOrder (ScottEndP DBilimit) := Subtype.partialOrder _
 
--- `toEndPBilimit`, bundled as an `OrderHom`, restricted to the Scott-continuous sub-type.
+-- [D-1019] toEndPBilimitHom
 noncomputable def toEndPBilimitHom : ScottEndP DBilimit →o EndPBilimit where
   toFun F := toEndPBilimit F.1
   monotone' _ _ h := toEndPBilimit_monotone h
 
--- `ofEndPBilimit`, bundled as an `OrderHom` landing in the Scott-continuous sub-type (well-typed since applyEndPBilimit f is always Scott-continuous).
+-- [D-1020] ofEndPBilimitHom
 noncomputable def ofEndPBilimitHom : EndPBilimit →o ScottEndP DBilimit where
   toFun f := ⟨ofEndPBilimit f, applyEndPBilimit_scottContinuous f⟩
   monotone' _ _ h := ofEndPBilimit_monotone h
 
+-- [D-1021] toEndPBilimitHom_comp_ofEndPBilimitHom
 theorem toEndPBilimitHom_comp_ofEndPBilimitHom :
     toEndPBilimitHom.comp ofEndPBilimitHom = OrderHom.id := by
   ext f
   show toEndPBilimit (ofEndPBilimit f) = f
   exact toEndPBilimit_ofEndPBilimit f
 
+-- [D-1022] ofEndPBilimitHom_comp_toEndPBilimitHom
 theorem ofEndPBilimitHom_comp_toEndPBilimitHom :
     ofEndPBilimitHom.comp toEndPBilimitHom = OrderHom.id := by
   ext F
@@ -2225,23 +2132,24 @@ theorem ofEndPBilimitHom_comp_toEndPBilimitHom :
   show ofEndPBilimit (toEndPBilimit F.1) = F.1
   exact toEndPBilimit_ofEndPBilimit_of_continuous F.1 F.2
 
--- `ScottEndP DBilimit ≃o EndPBilimit`: the order isomorphism between Scott-continuous self-maps of DBilimit and ep-pair-compatible sequences of finite-level self-maps.
+-- [D-1023] endPBilimitOrderIso
 noncomputable def endPBilimitOrderIso : ScottEndP DBilimit ≃o EndPBilimit :=
   OrderIso.ofHomInv toEndPBilimitHom ofEndPBilimitHom
     toEndPBilimitHom_comp_ofEndPBilimitHom ofEndPBilimitHom_comp_toEndPBilimitHom
 
 section Phase3aStep3
 
-/-- The bilimit of the shifted tower `(D (k + 1))_k`. -/
+-- [D-1024] ShiftBilimit
 def ShiftBilimit : Type := {y : ∀ k, D (k + 1) // ∀ k, pD (k + 1) (y (k + 1)) = y k}
 
+-- [D-1025] inst-PartialOrder
 noncomputable instance : PartialOrder ShiftBilimit := Subtype.partialOrder _
 
-/-- Forward: drop `DBilimit`'s level-`0` coordinate. -/
+-- [D-1026] toShiftBilimit
 noncomputable def toShiftBilimit (x : DBilimit) : ShiftBilimit :=
   ⟨fun k => x.1 (k + 1), fun k => x.2 (k + 1)⟩
 
-/-- Backward: reconstruct level `0` via `pD 0`. -/
+-- [D-1027] ofShiftBilimit
 noncomputable def ofShiftBilimit (y : ShiftBilimit) : DBilimit :=
   ⟨fun k => match k with
     | 0 => pD 0 (y.1 0)
@@ -2252,12 +2160,14 @@ noncomputable def ofShiftBilimit (y : ShiftBilimit) : DBilimit :=
     | zero => rfl
     | succ n => exact y.2 n⟩
 
+-- [D-1028] toShiftBilimit_ofShiftBilimit
 theorem toShiftBilimit_ofShiftBilimit (y : ShiftBilimit) :
     toShiftBilimit (ofShiftBilimit y) = y := by
   apply Subtype.ext
   funext k
   rfl
 
+-- [D-1029] ofShiftBilimit_toShiftBilimit
 theorem ofShiftBilimit_toShiftBilimit (x : DBilimit) :
     ofShiftBilimit (toShiftBilimit x) = x := by
   apply Subtype.ext
@@ -2266,31 +2176,35 @@ theorem ofShiftBilimit_toShiftBilimit (x : DBilimit) :
   | zero => exact x.2 0
   | succ n => rfl
 
+-- [D-1030] toShiftBilimit_monotone
 theorem toShiftBilimit_monotone : Monotone toShiftBilimit := by
   intro x x' hxx' k
   exact hxx' (k + 1)
 
+-- [D-1031] ofShiftBilimit_monotone
 theorem ofShiftBilimit_monotone : Monotone ofShiftBilimit := by
   intro y y' hyy' k
   cases k with
   | zero => exact pD_monotone 0 (y.1 0) (y'.1 0) (hyy' 0)
   | succ n => exact hyy' n
 
+-- [D-1032] toShiftBilimitHom
 noncomputable def toShiftBilimitHom : DBilimit →o ShiftBilimit where
   toFun := toShiftBilimit
   monotone' := toShiftBilimit_monotone
 
+-- [D-1033] ofShiftBilimitHom
 noncomputable def ofShiftBilimitHom : ShiftBilimit →o DBilimit where
   toFun := ofShiftBilimit
   monotone' := ofShiftBilimit_monotone
 
--- `DBilimit ≃o ShiftBilimit`: the reindexing half of Phase 3a Step 3.
+-- [D-1034] dBilimitShiftIso
 noncomputable def dBilimitShiftIso : DBilimit ≃o ShiftBilimit :=
   OrderIso.ofHomInv toShiftBilimitHom ofShiftBilimitHom
     (by ext y; exact toShiftBilimit_ofShiftBilimit y)
     (by ext x; exact ofShiftBilimit_toShiftBilimit x)
 
--- Confirms by a concrete counterexample that the naive functoriality square pD (k+1) ∘ glueA_{k+1} = glueA_k ∘ pEndP k fails in general; Step 3's remaining structure maps need the same chase-down/level-sup reconstruction as Step 2, not free functoriality (open, Noah's call on how to proceed).
+-- [D-1035] glueA_pD_naive_square_fails
 theorem glueA_pD_naive_square_fails :
     pD 1 (glueA (markedPt 1) (OrderHom.id : EndP (D 1)))
       ≠ glueA (markedPt 0) (pEndP 0 (OrderHom.id : EndP (D 1))) := by
@@ -2313,15 +2227,16 @@ theorem glueA_pD_naive_square_fails :
 
 end Phase3aStep3
 
--- Lifts a finite-level self-map f : EndP (D k) to a self-map of DBilimit by projecting to level k, applying f, then inserting back up.
+-- [D-1036] liftEndP
 noncomputable def liftEndP (k : ℕ) (f : EndP (D k)) : DBilimit → DBilimit :=
   fun x => insertAtLevel k (f (x.1 k))
 
+-- [D-1037] liftEndP_monotone
 theorem liftEndP_monotone (k : ℕ) (f : EndP (D k)) : Monotone (liftEndP k f) := by
   intro x x' hxx'
   exact insertAtLevel_monotone k (f.monotone (hxx' k))
 
-/-- **`liftEndP k f` is Scott-continuous.** -/
+-- [D-1038] liftEndP_scottContinuous
 theorem liftEndP_scottContinuous (k : ℕ) (f : EndP (D k)) :
     ScottContinuous (liftEndP k f) := by
   intro S hSne hSdir a haLUB
@@ -2350,36 +2265,36 @@ theorem liftEndP_scottContinuous (k : ℕ) (f : EndP (D k)) :
       exact ⟨s, hs, by show insertAtLevel k (f (s.1 k)) = insertAtLevel k t; rw [hxeq]⟩
     exact hz this
 
--- liftEndP is compatible with iotaEndP: lifting a self-map from a deeper level then applying liftEndP gives the same self-map of DBilimit as lifting it directly.
+-- [D-1039] liftEndP_iotaEndP
 theorem liftEndP_iotaEndP (k : ℕ) (f : EndP (D k)) :
     liftEndP (k + 1) (iotaEndP k f) = liftEndP k f := by
   funext x
   show insertAtLevel (k + 1) (iotaD k (f (pD k (x.1 (k + 1))))) = insertAtLevel k (f (x.1 k))
   rw [insertAtLevel_iotaD, x.2 k]
 
--- `DBilimit` gets a genuine `⊥` (dual of `topSeq`/`le_topSeq`, §13).
-
+-- [D-1040] pD_bot
 theorem pD_bot (k : ℕ) : pD k (⊥ : D (k + 1)) = (⊥ : D k) := rfl
 
+-- [D-1041] botSeq
 noncomputable def botSeq : DBilimit := ⟨fun k => (⊥ : D k), pD_bot⟩
 
+-- [D-1042] botSeq_le
 theorem botSeq_le (z : DBilimit) : botSeq ≤ z := fun _ => bot_le
 
+-- [D-1043] inst-OrderBot
 noncomputable instance : OrderBot DBilimit := { bot := botSeq, bot_le := botSeq_le }
 
--- insertAtLevel k applied to D k's own bottom always lands on botSeq, independent of k -- botSeq
--- is the tower's unique global bottom, realized identically at every level. Load-bearing for the
--- sigmaB_succ_stage/sigmaC_succ_stage exclusion below (§Phase3bStage): it's what makes
--- sigmaX (insertAtLevel k ⊥) the SAME fixed DBilimit point for every k.
+-- [D-1044] insertAtLevel_bot
 theorem insertAtLevel_bot (k : ℕ) : insertAtLevel k (⊥ : D k) = botSeq := by
   apply le_antisymm
   · have h := insertAtLevel_le_self botSeq k
     rwa [show botSeq.1 k = (⊥ : D k) from rfl] at h
   · exact botSeq_le _
 
+-- [D-1045] inst-OrderTop
 noncomputable instance : OrderTop DBilimit := { top := topSeq, le_top := le_topSeq }
 
--- Constant maps are Scott-continuous (trivially).
+-- [D-1046] scottContinuous_const
 theorem scottContinuous_const (v : DBilimit) :
     ScottContinuous (Function.const DBilimit v) := by
   intro S hSne _ a _
@@ -2389,92 +2304,112 @@ theorem scottContinuous_const (v : DBilimit) :
     obtain ⟨s, hs⟩ := hSne
     exact hz ⟨s, hs, rfl⟩
 
+-- [D-1047] scottEndPBot
 noncomputable def scottEndPBot : ScottEndP DBilimit :=
   ⟨OrderHom.const DBilimit ⊥, scottContinuous_const ⊥⟩
+-- [D-1048] scottEndPTop
 noncomputable def scottEndPTop : ScottEndP DBilimit :=
   ⟨OrderHom.const DBilimit ⊤, scottContinuous_const ⊤⟩
 
+-- [D-1049] scottEndPBot_le
 theorem scottEndPBot_le (F : ScottEndP DBilimit) : scottEndPBot ≤ F := fun _ => bot_le
+-- [D-1050] le_scottEndPTop
 theorem le_scottEndPTop (F : ScottEndP DBilimit) : F ≤ scottEndPTop := fun _ => le_top
 
+-- [D-1051] inst-OrderBot
 noncomputable instance : OrderBot (ScottEndP DBilimit) :=
   { bot := scottEndPBot, bot_le := scottEndPBot_le }
 
+-- [D-1052] inst-OrderTop
 noncomputable instance : OrderTop (ScottEndP DBilimit) :=
   { top := scottEndPTop, le_top := le_scottEndPTop }
 
+-- [D-1053] inst-BoundedOrder
 noncomputable instance : BoundedOrder (ScottEndP DBilimit) := {}
 
 section PsiTargetType
 
--- `DBilimit` is nontrivial: `botSeq ≠ topSeq`.
+-- [D-1054] botSeq_ne_topSeq
 theorem botSeq_ne_topSeq : (botSeq : DBilimit) ≠ topSeq := by
   intro h
   exact bot_ne_top_of_nontrivial (congrArg (fun x : DBilimit => x.1 0) h)
 
--- The identity self-map of DBilimit, bundled into ScottEndP DBilimit (trivially Scott-continuous).
+-- [D-1055] scottEndPId
 noncomputable def scottEndPId : ScottEndP DBilimit := ⟨OrderHom.id, by
   intro S hSne hSdir a haLUB
   simpa using haLUB⟩
 
+-- [D-1056] scottEndPId_apply
 @[simp] theorem scottEndPId_apply (x : DBilimit) :
     (scottEndPId : ScottEndP DBilimit).1 x = x := rfl
+-- [D-1057] scottEndPBot_apply
 @[simp] theorem scottEndPBot_apply (x : DBilimit) :
     (⊥ : ScottEndP DBilimit).1 x = (⊥ : DBilimit) := rfl
+-- [D-1058] scottEndPTop_apply
 @[simp] theorem scottEndPTop_apply (x : DBilimit) :
     (⊤ : ScottEndP DBilimit).1 x = (⊤ : DBilimit) := rfl
 
+-- [D-1059] scottEndPId_ne_bot
 theorem scottEndPId_ne_bot : (scottEndPId : ScottEndP DBilimit) ≠ ⊥ := by
   intro h
   have h1 := congrArg (fun f : ScottEndP DBilimit => f.1 topSeq) h
   simp only [scottEndPId_apply, scottEndPBot_apply] at h1
   exact botSeq_ne_topSeq h1.symm
 
+-- [D-1060] scottEndPId_ne_top
 theorem scottEndPId_ne_top : (scottEndPId : ScottEndP DBilimit) ≠ ⊤ := by
   intro h
   have h1 := congrArg (fun f : ScottEndP DBilimit => f.1 botSeq) h
   simp only [scottEndPId_apply, scottEndPTop_apply] at h1
   exact botSeq_ne_topSeq h1
 
+-- [D-1061] scottEndPBot_ne_top
 theorem scottEndPBot_ne_top : (⊥ : ScottEndP DBilimit) ≠ (⊤ : ScottEndP DBilimit) := by
   intro h
   have h1 := congrArg (fun f : ScottEndP DBilimit => f.1 topSeq) h
   simp only [scottEndPBot_apply, scottEndPTop_apply] at h1
   exact botSeq_ne_topSeq h1
 
--- Ψ's target type now type-checks and carries a genuine PartialOrder (the isomorphism Ψ itself is built later).
+-- [D-1062] psiTargetOrder
 noncomputable def psiTargetOrder :
     PartialOrder (GlueCarGen (P := ScottEndP DBilimit) scottEndPId) :=
   glueCarPartialOrderGen scottEndPId scottEndPId_ne_bot scottEndPId_ne_top scottEndPBot_ne_top
 
 end PsiTargetType
 
+-- [D-1063] glueAA
 noncomputable def glueAA (k : ℕ) : D (k + 1) → D (k + 2) :=
   glueAAGenM (L := D k) (dMid_ne_bot k) (dMid_ne_top k) bot_ne_top_of_nontrivial
 
+-- [D-1064] glueAA_monotone
 theorem glueAA_monotone (k : ℕ) {x y : D (k + 1)} (hxy : x ≤ y) :
     glueAA k x ≤ glueAA k y :=
   glueAAGenM_monotone (L := D k) (dMid_ne_bot k) (dMid_ne_top k) bot_ne_top_of_nontrivial hxy
 
+-- [D-1065] glueAA_reflect
 theorem glueAA_reflect (k : ℕ) {x y : D (k + 1)} (hxy : glueAA k x ≤ glueAA k y) : x ≤ y :=
   glueAAGenM_reflect (L := D k) (dMid_ne_bot k) (dMid_ne_top k) bot_ne_top_of_nontrivial hxy
 
+-- [D-1066] glueAA_le_iff
 theorem glueAA_le_iff (k : ℕ) {x y : D (k + 1)} : glueAA k x ≤ glueAA k y ↔ x ≤ y :=
   ⟨glueAA_reflect k, glueAA_monotone k⟩
 
+-- [D-1067] glueAA_injective
 theorem glueAA_injective (k : ℕ) : Function.Injective (glueAA k) := fun x y h =>
   le_antisymm ((glueAA_le_iff k).mp h.le) ((glueAA_le_iff k).mp h.ge)
 
+-- [D-1068] glueAA_iotaD
 theorem glueAA_iotaD (k : ℕ) (x : D k) :
     glueAA k (iotaD k x) = iotaD (k + 1) (iotaD k x) :=
   glueAAGenM_iotaGenM (L := D k) (dMid_ne_bot k) (dMid_ne_top k) bot_ne_top_of_nontrivial x
 
+-- [D-1069] pD_glueAA_deflation_tagA
 theorem pD_glueAA_deflation_tagA (k : ℕ) (f : EndP (D k)) :
     pD (k + 1) (glueAA k (⟨Sum.inl f, rfl⟩ : D (k + 1))) ≤ (⟨Sum.inl f, rfl⟩ : D (k + 1)) :=
   glueAAGenM_pGenM_deflation_tagA (L := D k) (dMid_ne_bot k) (dMid_ne_top k)
     bot_ne_top_of_nontrivial f
 
-/-- Concrete tower instantiation of tag-B deflation. -/
+-- [D-1070] pD_glueAA_deflation_tagB
 theorem pD_glueAA_deflation_tagB (k : ℕ) {f : EndP (D k)}
     (hxv : canon (markedPt k) (Sum.inr (Sum.inl f)) = Sum.inr (Sum.inl f))
     (hft : f ≠ (⊤ : EndP (D k))) :
@@ -2483,6 +2418,7 @@ theorem pD_glueAA_deflation_tagB (k : ℕ) {f : EndP (D k)}
   glueAAGenM_pGenM_deflation_tagB (L := D k) (dMid_ne_bot k) (dMid_ne_top k)
     bot_ne_top_of_nontrivial hxv hft
 
+-- [D-1071] pD_crossTag_CA_sufficient
 theorem pD_crossTag_CA_sufficient (k : ℕ) (f : EndP (D k))
     (hfb : f ≠ (⊥ : EndP (D k))) (hfm : f ≠ (markedPt k))
     (hidf : (markedPt k) ≤ f)
@@ -2496,21 +2432,22 @@ theorem pD_crossTag_CA_sufficient (k : ℕ) (f : EndP (D k))
 
 section Phase3aStep4PsiInv
 
--- `PsiInv`: pGen's own 3-case formula written down at P := ScottEndP DBilimit, L := DBilimit — the coarse-graining half of Ψ's eventual ep-pair.
+-- [D-1072] PsiInv
 noncomputable def PsiInv (w : GlueCarGen (P := ScottEndP DBilimit) scottEndPId) : DBilimit :=
   match w.1 with
   | Sum.inl x => x.1 botSeq
   | Sum.inr (Sum.inl x) => if x = (⊤ : ScottEndP DBilimit) then (⊤ : DBilimit) else (⊥ : DBilimit)
   | Sum.inr (Sum.inr _) => (⊤ : DBilimit)
 
--- Bundle liftEndP k f into ScottEndP DBilimit proper.
+-- [D-1073] liftEndPHom
 noncomputable def liftEndPHom (k : ℕ) (f : EndP (D k)) : ScottEndP DBilimit :=
   ⟨⟨liftEndP k f, liftEndP_monotone k f⟩, liftEndP_scottContinuous k f⟩
 
+-- [D-1074] liftEndPHom_apply
 theorem liftEndPHom_apply (k : ℕ) (f : EndP (D k)) (x : DBilimit) :
     (liftEndPHom k f).1 x = insertAtLevel k (f (x.1 k)) := rfl
 
--- PsiInv sends the tag-A GlueCarGen point built from a liftEndP generator to insertAtLevel k applied to pGen's finite-level formula f (⊥ : D k).
+-- [D-1075] PsiInv_liftEndPHom
 theorem PsiInv_liftEndPHom (k : ℕ) (f : EndP (D k)) :
     PsiInv ⟨Sum.inl (liftEndPHom k f), rfl⟩ = insertAtLevel k (f (⊥ : D k)) := by
   show (liftEndPHom k f).1 botSeq = insertAtLevel k (f (⊥ : D k))
@@ -2520,6 +2457,7 @@ theorem PsiInv_liftEndPHom (k : ℕ) (f : EndP (D k)) :
 
 end Phase3aStep4PsiInv
 
+-- [D-1076] PsiInv_monotone
 theorem PsiInv_monotone (w w' : GlueCarGen (P := ScottEndP DBilimit) scottEndPId)
     (hle : w ≤ w') : PsiInv w ≤ PsiInv w' := by
   rw [GlueCarGen.le_def] at hle
@@ -2527,11 +2465,11 @@ theorem PsiInv_monotone (w w' : GlueCarGen (P := ScottEndP DBilimit) scottEndPId
   obtain ⟨wv', hwv'⟩ := w'
   simp only at hle
   rcases wv with x | x | x <;> rcases wv' with x' | x' | x'
-  · -- A, A
+  ·
     show x.1 botSeq ≤ x'.1 botSeq
     have h : x ≤ x' := (tagA_isoGen scottEndPId scottEndPId_ne_bot x x').mp hle
     exact h botSeq
-  · -- A, B
+  ·
     show x.1 botSeq ≤ (if x' = (⊤ : ScottEndP DBilimit) then (⊤ : DBilimit) else (⊥ : DBilimit))
     by_cases hx't : x' = (⊤ : ScottEndP DBilimit)
     · rw [if_pos hx't]; exact le_top
@@ -2539,13 +2477,13 @@ theorem PsiInv_monotone (w w' : GlueCarGen (P := ScottEndP DBilimit) scottEndPId
       have hxm : x ≤ (scottEndPId : ScottEndP DBilimit) :=
         (leGlue_tagA_tagB_iffGen scottEndPId x x' hx't).mp hle
       exact hxm botSeq
-  · -- A, C
+  ·
     show x.1 botSeq ≤ (⊤ : DBilimit)
     exact le_top
-  · -- B, A
+  ·
     exact absurd hle (not_leGlue_tagB_tagAGen scottEndPId x x' scottEndPId_ne_bot
       scottEndPBot_ne_top (ne_bot_of_canon_tagBGen scottEndPId x hwv))
-  · -- B, B
+  ·
     show (if x = (⊤ : ScottEndP DBilimit) then (⊤ : DBilimit) else (⊥ : DBilimit)) ≤
         (if x' = (⊤ : ScottEndP DBilimit) then (⊤ : DBilimit) else (⊥ : DBilimit))
     by_cases hx't : x' = (⊤ : ScottEndP DBilimit)
@@ -2554,42 +2492,43 @@ theorem PsiInv_monotone (w w' : GlueCarGen (P := ScottEndP DBilimit) scottEndPId
       have hxle : x ≤ x' := (leGlue_tagB_tagB_iffGen scottEndPId x x' hx't hxb).mp hle
       have hxne : x ≠ (⊤ : ScottEndP DBilimit) := fun hxT => hx't (top_le_iff.mp (hxT ▸ hxle))
       rw [if_neg hxne, if_neg hx't]
-  · -- B, C
+  ·
     show (if x = (⊤ : ScottEndP DBilimit) then (⊤ : DBilimit) else (⊥ : DBilimit)) ≤ (⊤ : DBilimit)
     exact le_top
-  · -- C, A
+  ·
     exact absurd hle (not_leGlue_tagC_tagAGen scottEndPId x x'
       (ne_bot_of_canon_tagCGen scottEndPId x hwv))
-  · -- C, B
+  ·
     by_cases hx't : x' = (⊤ : ScottEndP DBilimit)
     · show (⊤ : DBilimit) ≤ (if x' = (⊤ : ScottEndP DBilimit) then (⊤ : DBilimit) else (⊥ : DBilimit))
       rw [if_pos hx't]
     · exact absurd hle (not_leGlue_tagC_tagBGen scottEndPId x x' hx't)
-  · -- C, C
+  ·
     show (⊤ : DBilimit) ≤ (⊤ : DBilimit)
     exact le_refl _
 
 section Phase3aStep4PsiInvDeflation
 
--- constHom-analogue at the ScottEndP DBilimit level: the constant Scott-continuous self-map of DBilimit at v, bundled.
+-- [D-1077] constScottHom
 noncomputable def constScottHom (v : DBilimit) : ScottEndP DBilimit :=
   ⟨OrderHom.const DBilimit v, scottContinuous_const v⟩
 
+-- [D-1078] constScottHom_apply
 theorem constScottHom_apply (v x : DBilimit) : (constScottHom v).1 x = v := rfl
 
--- **`PsiInv` is a deflation**: `constScottHom (PsiInv w)`, tagged `A`, is `≤ w` for every `w` -- the `Fintype`/`Lattice`-free port of `pGen_deflation`.
+-- [D-1079] PsiInv_deflation
 theorem PsiInv_deflation (w : GlueCarGen (P := ScottEndP DBilimit) scottEndPId) :
     leGlueGen scottEndPId (Sum.inl (constScottHom (PsiInv w))) w.1 := by
   obtain ⟨wv, hwv⟩ := w
   rcases wv with x | x | x
-  · -- tag A
+  ·
     show leGlueGen scottEndPId (Sum.inl (constScottHom (x.1 botSeq))) (Sum.inl x)
     refine ⟨Sum.inl (constScottHom (x.1 botSeq)), self_mem_occsGen _ _, Sum.inl x,
       self_mem_occsGen _ _, ?_⟩
     show (constScottHom (x.1 botSeq) : ScottEndP DBilimit) ≤ x
     intro z
     exact x.1.monotone (botSeq_le z)
-  · -- tag B
+  ·
     show leGlueGen scottEndPId
         (Sum.inl (constScottHom
           (if x = (⊤ : ScottEndP DBilimit) then (⊤ : DBilimit) else (⊥ : DBilimit))))
@@ -2601,7 +2540,7 @@ theorem PsiInv_deflation (w : GlueCarGen (P := ScottEndP DBilimit) scottEndPId) 
       exact (leGlue_tagA_tagB_iffGen scottEndPId (constScottHom (⊥ : DBilimit)) x hxt).mpr (by
         intro z
         exact bot_le)
-  · -- tag C
+  ·
     show leGlueGen scottEndPId (Sum.inl (constScottHom (⊤ : DBilimit))) (Sum.inr (Sum.inr x))
     exact ⟨Sum.inl (constScottHom (⊤ : DBilimit)), self_mem_occsGen _ _, Sum.inr (Sum.inr x),
       self_mem_occsGen _ _, trivial⟩
@@ -2610,24 +2549,25 @@ end Phase3aStep4PsiInvDeflation
 
 section Phase3aStep4Psi
 
--- Ψ: the forward embedding, the tag-A constScottHom-embed of x.
+-- [D-1080] Psi
 noncomputable def Psi (x : DBilimit) : GlueCarGen (P := ScottEndP DBilimit) scottEndPId :=
   ⟨Sum.inl (constScottHom x), rfl⟩
 
+-- [D-1081] Psi_apply
 @[simp] theorem Psi_apply (x : DBilimit) :
     (Psi x).1 = Sum.inl (constScottHom x) := rfl
 
--- Ψ is a section of PsiInv: PsiInv (Psi x) = x.
+-- [D-1082] PsiInv_Psi
 theorem PsiInv_Psi (x : DBilimit) : PsiInv (Psi x) = x := rfl
 
--- Ψ is monotone (stated as an explicit implication since GlueCarGen scottEndPId has no registered Preorder instance).
+-- [D-1083] Psi_monotone
 theorem Psi_monotone (x x' : DBilimit) (hxx' : x ≤ x') : Psi x ≤ Psi x' := by
   show leGlueGen scottEndPId (Sum.inl (constScottHom x)) (Sum.inl (constScottHom x'))
   refine (tagA_isoGen scottEndPId scottEndPId_ne_bot (constScottHom x) (constScottHom x')).mpr ?_
   intro z
   exact hxx'
 
--- Ψ is a genuine order embedding: Ψ x ≤ Ψ x' ↔ x ≤ x'.
+-- [D-1084] Psi_le_iff
 theorem Psi_le_iff (x x' : DBilimit) : Psi x ≤ Psi x' ↔ x ≤ x' := by
   constructor
   · intro h
@@ -2635,70 +2575,62 @@ theorem Psi_le_iff (x x' : DBilimit) : Psi x ≤ Psi x' ↔ x ≤ x' := by
     rwa [PsiInv_Psi, PsiInv_Psi] at this
   · exact Psi_monotone x x'
 
+-- [D-1085] Psi_injective
 theorem Psi_injective : Function.Injective Psi :=
   Function.LeftInverse.injective PsiInv_Psi
 
--- Ψ is a deflation-partner of PsiInv: Ψ (PsiInv w) ≤ w (restates PsiInv_deflation through Ψ).
+-- [D-1086] Psi_PsiInv_le
 theorem Psi_PsiInv_le (w : GlueCarGen (P := ScottEndP DBilimit) scottEndPId) :
     Psi (PsiInv w) ≤ w :=
   PsiInv_deflation w
 
 end Phase3aStep4Psi
 
-/- ============================================================
-   Marked-point compatibility infrastructure (`PsiIso`-free).
-
-   `endPBilimitOrderIso` carries the marked basepoint `scottEndPId` to the
-   identity sequence `ebId : EndPBilimit`, giving
-   `F(DBilimit) = GlueCarGen (ScottEndP DBilimit) scottEndPId ≃o
-   GlueCarGen EndPBilimit ebId`. Once part of an abandoned plan to construct
-   `axiom PsiIso` (deleted 2026-08-26, most likely false — see
-   `DBilimit_reflexive`); kept as it is self-contained and reusable.
-   ============================================================ -/
-
 section PsiIsoStepB1
 
--- `pEndP k` fixes the identity self-map (`pD k ∘ id ∘ iotaD k = id`, two `pD_iotaD`s).
+-- [D-1087] pEndP_id
 theorem pEndP_id (k : ℕ) :
     pEndP k (OrderHom.id : EndP (D (k + 1))) = (OrderHom.id : EndP (D k)) := by
   ext x
   show pD k (iotaD k x) = x
   exact pD_iotaD k x
 
--- `pEndP k` fixes `⊥` (constant map, via `pD_bot`).
+-- [D-1088] pEndP_bot
 theorem pEndP_bot (k : ℕ) :
     pEndP k (⊥ : EndP (D (k + 1))) = (⊥ : EndP (D k)) := by
   ext x
   show pD k ((⊥ : EndP (D (k + 1))) (iotaD k x)) = (⊥ : D k)
   rw [endPBot_apply, pD_bot]
 
--- `pEndP k` fixes `⊤` (constant map, via `pD_top`).
+-- [D-1089] pEndP_top
 theorem pEndP_top (k : ℕ) :
     pEndP k (⊤ : EndP (D (k + 1))) = (⊤ : EndP (D k)) := by
   ext x
   show pD k ((⊤ : EndP (D (k + 1))) (iotaD k x)) = (⊤ : D k)
   rw [endPTop_apply, pD_top]
 
-/-- The identity sequence, a point of `EndPBilimit` -- the marked basepoint
-    of `GlueCarGen EndPBilimit _`, matching `scottEndPId` one functor level up. -/
+-- [D-1090] ebId
 noncomputable def ebId : EndPBilimit := ⟨fun _ => OrderHom.id, fun k => pEndP_id k⟩
 
-/-- The constant-`⊥` sequence, a point of `EndPBilimit`. -/
+-- [D-1091] ebBot
 noncomputable def ebBot : EndPBilimit := ⟨fun _ => ⊥, fun k => pEndP_bot k⟩
 
-/-- The constant-`⊤` sequence, a point of `EndPBilimit`. -/
+-- [D-1092] ebTop
 noncomputable def ebTop : EndPBilimit := ⟨fun _ => ⊤, fun k => pEndP_top k⟩
 
+-- [D-1093] ebBot_le
 theorem ebBot_le (f : EndPBilimit) : ebBot ≤ f := fun _ => bot_le
+-- [D-1094] le_ebTop
 theorem le_ebTop (f : EndPBilimit) : f ≤ ebTop := fun _ => le_top
 
+-- [D-1095] inst-OrderBot
 noncomputable instance : OrderBot EndPBilimit := { bot := ebBot, bot_le := ebBot_le }
+-- [D-1096] inst-OrderTop
 noncomputable instance : OrderTop EndPBilimit := { top := ebTop, le_top := le_ebTop }
+-- [D-1097] inst-BoundedOrder
 noncomputable instance : BoundedOrder EndPBilimit := {}
 
-/-- `endPBilimitOrderIso` sends the marked basepoint `scottEndPId` to `ebId`:
-    restricting the identity self-map of `DBilimit` to level `k` (project in,
-    apply `id`, read off level `k`) is the identity of `D k` (`insertAtLevel_self`). -/
+-- [D-1098] endPBilimitOrderIso_scottEndPId
 theorem endPBilimitOrderIso_scottEndPId :
     endPBilimitOrderIso scottEndPId = ebId := by
   show toEndPBilimit scottEndPId.1 = ebId
@@ -2708,8 +2640,7 @@ theorem endPBilimitOrderIso_scottEndPId :
   change (scottEndPId.1 (insertAtLevel k w)).1 k = w
   exact insertAtLevel_self k w
 
-/-- `F(DBilimit)` is order-isomorphic to `GlueCarGen EndPBilimit ebId`
-    (marked-point-preserving transport of `endPBilimitOrderIso`). -/
+-- [D-1099] glueCarGenScottEndPId_iso_ebId
 noncomputable def glueCarGenScottEndPId_iso_ebId :
     GlueCarGen (P := ScottEndP DBilimit) scottEndPId ≃o
       GlueCarGen (P := EndPBilimit) ebId := by
@@ -2718,14 +2649,7 @@ noncomputable def glueCarGenScottEndPId_iso_ebId :
 
 end PsiIsoStepB1
 
-/-- **`DBilimit` is a reflexive object** — a retract of
-    `F(DBilimit) = GlueCarGen (ScottEndP DBilimit) scottEndPId` via the ep-pair
-    `(Psi, PsiInv)`: `PsiInv ∘ Psi = id` (`PsiInv_Psi`, definitional) and
-    `Psi ∘ PsiInv ≤ id` (`Psi_PsiInv_le`), both maps monotone, `Psi` a genuine
-    order-embedding (`Psi_le_iff`). This is the honest self-similarity statement.
-    The former `axiom PsiIso` asserted a full *isomorphism* here and is most
-    likely FALSE — see `Meta/Finding - PsiIso tower mismatch (2026-08-26).md`;
-    the `sigma`/Ψ-dynamics thread it supported was deleted with it (2026-08-26). -/
+-- [D-1100] DBilimit_reflexive
 theorem DBilimit_reflexive :
     (∀ x : DBilimit, PsiInv (Psi x) = x) ∧
     (∀ w, Psi (PsiInv w) ≤ w) ∧
@@ -2735,47 +2659,46 @@ theorem DBilimit_reflexive :
   ⟨PsiInv_Psi, Psi_PsiInv_le, fun x x' h => Psi_monotone x x' h,
    fun w w' h => PsiInv_monotone w w' h, Psi_le_iff⟩
 
--- Tower colimit-cocone infrastructure (`PsiIso`-free). Section name is historical:
--- it once also carried `axiom PsiIso_natural`, deleted 2026-08-26 on the `PsiIso`
--- split. `IsColimitCocone` / `DBilimit_isColimitCocone` here are consumed by
--- `section ColimitCoconeIso` below.
 section PsiIsoNatural
 
+-- [D-1101] eK
 noncomputable def eK (k : ℕ) : D k → DBilimit := toDBilimit ∘ toD k
 
--- eK k agrees with insertAtLevel k as a function (both reduce to the same seqOf construction by rfl).
+-- [D-1102] eK_eq_insertAtLevel
 theorem eK_eq_insertAtLevel (k : ℕ) : eK k = insertAtLevel k := by
   funext x
   show toDBilimit (toD k x) = insertAtLevel k x
   rfl
 
+-- [D-1103] eK_monotone
 theorem eK_monotone (k : ℕ) : Monotone (eK k) := by
   rw [eK_eq_insertAtLevel]; exact insertAtLevel_monotone k
 
--- eK k is Scott-continuous (immediate from monotonicity plus finiteness of D k).
+-- [D-1104] eK_scottContinuous
 theorem eK_scottContinuous (k : ℕ) : ScottContinuous (eK k) :=
   monotone_scottContinuous_of_finite_dom (eK_monotone k)
 
--- The level-k coordinate projection DBilimit → D k, the other half of the ep-pair (eK k, projK k).
+-- [D-1105] projK
 noncomputable def projK (k : ℕ) : DBilimit → D k := fun z => z.1 k
 
+-- [D-1106] projK_monotone
 theorem projK_monotone (k : ℕ) : Monotone (projK k) := fun _ _ h => h k
 
--- projK k is Scott-continuous, via IsLUB.dbilimit_apply and D k's CompleteLattice structure.
+-- [D-1107] projK_scottContinuous
 theorem projK_scottContinuous (k : ℕ) : ScottContinuous (projK k) := by
   intro S hSne hSdir a haLUB
   rw [show projK k a = a.1 k from rfl, haLUB.dbilimit_apply hSne hSdir k]
   exact isLUB_sSup _
 
--- Retraction: projK k ∘ eK k = id (restates toDBilimit_toD).
+-- [D-1108] eK_projK_retraction
 theorem eK_projK_retraction (k : ℕ) (x : D k) : projK k (eK k x) = x := toDBilimit_toD k x
 
--- Deflation: eK k ∘ projK k ≤ id pointwise; together with eK_projK_retraction, (eK k, projK k) is a genuine ep-pair D k ⇄ DBilimit.
+-- [D-1109] eK_projK_deflation
 theorem eK_projK_deflation (k : ℕ) (z : DBilimit) : eK k (projK k z) ≤ z := by
   rw [eK_eq_insertAtLevel]
   exact insertAtLevel_le_self z k
 
--- A cocone (e, p) over the tower (D k, iotaD) is colimiting: the standard domain-theoretic ω-colimit-of-embeddings characterization, stated purely via the cocone's own legs.
+-- [D-1110] IsColimitCocone
 structure IsColimitCocone {X : Type*} [PartialOrder X]
     (e : ∀ k, D k → X) (p : ∀ k, X → D k) : Prop where
   retraction : ∀ k x, p k (e k x) = x
@@ -2783,7 +2706,7 @@ structure IsColimitCocone {X : Type*} [PartialOrder X]
   compat : ∀ k w, e (k + 1) (iotaD k w) = e k w
   isLUB : ∀ z, IsLUB (Set.range (fun k => e k (p k z))) z
 
--- DBilimit's own cocone (eK, projK) genuinely is colimiting — a real theorem, not an axiom.
+-- [D-1111] DBilimit_isColimitCocone
 theorem DBilimit_isColimitCocone : IsColimitCocone eK projK where
   retraction := eK_projK_retraction
   deflation := eK_projK_deflation
@@ -2796,28 +2719,32 @@ theorem DBilimit_isColimitCocone : IsColimitCocone eK projK where
       simp only [chainSet, eK_eq_insertAtLevel, projK]
     rwa [hset] at h
 
-/-- `ScottEndP (D k)` gets the subtype order, same pattern as
-    `ScottEndP DBilimit` (§18). -/
+-- [D-1112] instPartialOrderScottEndPD
 noncomputable instance instPartialOrderScottEndPD (k : ℕ) : PartialOrder (ScottEndP (D k)) :=
   Subtype.partialOrder _
 
--- ScottEndP (D k) gets a BoundedOrder, needed as a typeclass instance for GlueCarGen (P := ScottEndP (D k)) _ to elaborate; at this finite level Scott-continuity of constant maps is free from monotone_scottContinuous_of_finite.
+-- [D-1113] scottEndPBotD
 noncomputable def scottEndPBotD (k : ℕ) : ScottEndP (D k) :=
   ⟨OrderHom.const (D k) ⊥, monotone_scottContinuous_of_finite (OrderHom.const (D k) ⊥).monotone⟩
+-- [D-1114] scottEndPTopD
 noncomputable def scottEndPTopD (k : ℕ) : ScottEndP (D k) :=
   ⟨OrderHom.const (D k) ⊤, monotone_scottContinuous_of_finite (OrderHom.const (D k) ⊤).monotone⟩
 
+-- [D-1115] scottEndPBotD_le
 theorem scottEndPBotD_le (k : ℕ) (F : ScottEndP (D k)) : scottEndPBotD k ≤ F := fun _ => bot_le
+-- [D-1116] le_scottEndPTopD
 theorem le_scottEndPTopD (k : ℕ) (F : ScottEndP (D k)) : F ≤ scottEndPTopD k := fun _ => le_top
 
+-- [D-1117] instOrderBotScottEndPD
 noncomputable instance instOrderBotScottEndPD (k : ℕ) : OrderBot (ScottEndP (D k)) :=
   { bot := scottEndPBotD k, bot_le := scottEndPBotD_le k }
+-- [D-1118] instOrderTopScottEndPD
 noncomputable instance instOrderTopScottEndPD (k : ℕ) : OrderTop (ScottEndP (D k)) :=
   { top := scottEndPTopD k, le_top := le_scottEndPTopD k }
+-- [D-1119] instBoundedOrderScottEndPD
 noncomputable instance instBoundedOrderScottEndPD (k : ℕ) : BoundedOrder (ScottEndP (D k)) := {}
 
--- `EndP (D k) ≃o ScottEndP (D k)`: finite monotone self-maps of `D k` coincide
--- with the Scott-continuous ones (`monotone_scottContinuous_of_finite`).
+-- [D-1120] endPScottEndPIso
 noncomputable def endPScottEndPIso (k : ℕ) : EndP (D k) ≃o ScottEndP (D k) :=
   OrderIso.ofHomInv
     { toFun := fun f => ⟨f, monotone_scottContinuous_of_finite f.monotone⟩,
@@ -2826,23 +2753,26 @@ noncomputable def endPScottEndPIso (k : ℕ) : EndP (D k) ≃o ScottEndP (D k) :
     (by ext f; rfl)
     (by ext F; rfl)
 
--- Sanity check: D (k+1) is definitionally GlueCarGen (P := EndP (D k)) (markedPt k), confirmed by rfl.
+-- [D-1121] example-D
 example (k : ℕ) : D (k + 1) = GlueCarGen (P := EndP (D k)) (markedPt k) := rfl
 
 end PsiIsoNatural
 
 section Phase3bCoreIFS
 
+-- [D-1122] fA_mapsTo_Gamma
 theorem fA_mapsTo_Gamma : fA '' Gamma ⊆ Gamma := by
   have h : fA '' Gamma ⊆ fA '' Gamma ∪ fB '' Gamma ∪ fC '' Gamma :=
     Set.subset_union_left.trans Set.subset_union_left
   rwa [← Gamma_self_similar] at h
 
+-- [D-1123] fB_mapsTo_Gamma
 theorem fB_mapsTo_Gamma : fB '' Gamma ⊆ Gamma := by
   have h : fB '' Gamma ⊆ fA '' Gamma ∪ fB '' Gamma ∪ fC '' Gamma :=
     Set.subset_union_right.trans Set.subset_union_left
   rwa [← Gamma_self_similar] at h
 
+-- [D-1124] fC_mapsTo_Gamma
 theorem fC_mapsTo_Gamma : fC '' Gamma ⊆ Gamma := by
   have h : fC '' Gamma ⊆ fA '' Gamma ∪ fB '' Gamma ∪ fC '' Gamma :=
     Set.subset_union_right
@@ -2850,39 +2780,46 @@ theorem fC_mapsTo_Gamma : fC '' Gamma ⊆ Gamma := by
 
 end Phase3bCoreIFS
 section Phase4Pi
+-- [D-1125] Addr
 abbrev Addr := ℕ → Fin 3
 
-/-- Picks `fA/fB/fC` by address symbol. -/
+-- [D-1126] symF
 noncomputable def symF : Fin 3 → Plane → Plane
   | 0 => fA
   | 1 => fB
   | 2 => fC
 
+-- [D-1127] lipschitzWith_symF
 theorem lipschitzWith_symF (i : Fin 3) : LipschitzWith (2⁻¹ : NNReal) (symF i) := by
   fin_cases i
   · exact lipschitzWith_fA
   · exact lipschitzWith_fB
   · exact lipschitzWith_fC
 
-/-- The length-`n` prefix of an address, as a `List (Fin 3)`. -/
+-- [D-1128] wordPrefix
 def wordPrefix (w : Addr) (n : ℕ) : List (Fin 3) := (List.range n).map w
 
+-- [D-1129] wordPrefix_length
 theorem wordPrefix_length (w : Addr) (n : ℕ) : (wordPrefix w n).length = n := by
   simp [wordPrefix]
 
+-- [D-1130] wordPrefix_succ
 theorem wordPrefix_succ (w : Addr) (n : ℕ) :
     wordPrefix w (n + 1) = wordPrefix w n ++ [w n] := by
   simp [wordPrefix, List.range_succ]
 
-/-- `f_{w0} ∘ f_{w1} ∘ ⋯ ∘ f_{w(n-1)}` for a finite word, `w0` outermost. -/
+-- [D-1131] applyList
 noncomputable def applyList (l : List (Fin 3)) : Plane → Plane :=
   l.foldr (fun i acc => symF i ∘ acc) id
 
+-- [D-1132] applyList_nil
 theorem applyList_nil : applyList ([] : List (Fin 3)) = id := rfl
 
+-- [D-1133] applyList_cons
 theorem applyList_cons (a : Fin 3) (l : List (Fin 3)) :
     applyList (a :: l) = symF a ∘ applyList l := rfl
 
+-- [D-1134] lipschitzWith_applyList
 theorem lipschitzWith_applyList (l : List (Fin 3)) :
     LipschitzWith ((2⁻¹ : NNReal) ^ l.length) (applyList l) := by
   induction l with
@@ -2891,12 +2828,14 @@ theorem lipschitzWith_applyList (l : List (Fin 3)) :
       rw [applyList_cons, List.length_cons, pow_succ']
       exact (lipschitzWith_symF a).comp ih
 
+-- [D-1135] applyList_append_singleton
 theorem applyList_append_singleton (l : List (Fin 3)) (a : Fin 3) (x : Plane) :
     applyList (l ++ [a]) x = applyList l (symF a x) := by
   induction l with
   | nil => rfl
   | cons b l ih => simp [applyList_cons, ih]
 
+-- [D-1136] applyList_mem_Gamma
 theorem applyList_mem_Gamma (l : List (Fin 3)) {x : Plane} (hx : x ∈ Gamma) :
     applyList l x ∈ Gamma := by
   induction l with
@@ -2909,16 +2848,20 @@ theorem applyList_mem_Gamma (l : List (Fin 3)) {x : Plane} (hx : x ∈ Gamma) :
       · exact fB_mapsTo_Gamma ⟨_, ih, rfl⟩
       · exact fC_mapsTo_Gamma ⟨_, ih, rfl⟩
 
+-- [D-1137] fA_fixed_vA
 theorem fA_fixed_vA : fA vA = vA := by
   simp only [fA, vA]
   module
 
+-- [D-1138] contractingWith_fA
 theorem contractingWith_fA : ContractingWith (2⁻¹ : NNReal) fA :=
   ⟨by norm_num, lipschitzWith_fA⟩
 
+-- [D-1139] fixedPoint_fA_eq_vA
 theorem fixedPoint_fA_eq_vA : ContractingWith.fixedPoint fA contractingWith_fA = vA :=
   (ContractingWith.fixedPoint_unique contractingWith_fA fA_fixed_vA).symm
 
+-- [D-1140] fA_iterate_mem_Gamma
 theorem fA_iterate_mem_Gamma (g0 : Plane) (hg0 : g0 ∈ Gamma) (n : ℕ) :
     fA^[n] g0 ∈ Gamma := by
   induction n with
@@ -2927,7 +2870,7 @@ theorem fA_iterate_mem_Gamma (g0 : Plane) (hg0 : g0 ∈ Gamma) (n : ℕ) :
       rw [Function.iterate_succ']
       exact fA_mapsTo_Gamma ⟨fA^[n] g0, ih, rfl⟩
 
--- Γ contains vA (needed as π's basepoint).
+-- [D-1141] vA_mem_Gamma
 theorem vA_mem_Gamma : vA ∈ Gamma := by
   obtain ⟨g0, hg0⟩ := nonempty_Gamma
   have htendsto : Filter.Tendsto (fun n => fA^[n] g0) Filter.atTop (nhds vA) := by
@@ -2936,19 +2879,21 @@ theorem vA_mem_Gamma : vA ∈ Gamma := by
   exact isCompact_Gamma.isClosed.mem_of_tendsto htendsto
     (Filter.Eventually.of_forall (fA_iterate_mem_Gamma g0 hg0))
 
-/-- The `n`-th finite approximation to `π(w)`. -/
+-- [D-1142] piApprox
 noncomputable def piApprox (w : Addr) (n : ℕ) : Plane := applyList (wordPrefix w n) vA
 
-/-- A uniform bound on how far one more symbol can move the basepoint. -/
+-- [D-1143] piStepBound
 noncomputable def piStepBound : ℝ :=
   max (dist (symF 0 vA) vA) (max (dist (symF 1 vA) vA) (dist (symF 2 vA) vA))
 
+-- [D-1144] dist_symF_vA_le
 theorem dist_symF_vA_le (i : Fin 3) : dist (symF i vA) vA ≤ piStepBound := by
   fin_cases i
   · exact le_max_left _ _
   · exact (le_max_left _ _).trans (le_max_right _ _)
   · exact (le_max_right _ _).trans (le_max_right _ _)
 
+-- [D-1145] piApprox_succ_dist
 theorem piApprox_succ_dist (w : Addr) (n : ℕ) :
     dist (piApprox w n) (piApprox w (n + 1)) ≤ piStepBound * (2⁻¹ : ℝ) ^ n := by
   have heq : piApprox w (n + 1) = applyList (wordPrefix w n) (symF (w n) vA) := by
@@ -2963,26 +2908,30 @@ theorem piApprox_succ_dist (w : Addr) (n : ℕ) :
         mul_le_mul_of_nonneg_left (dist_symF_vA_le (w n)) (by positivity)
     _ = piStepBound * (2⁻¹ : ℝ) ^ n := by push_cast; ring
 
+-- [D-1146] piApprox_cauchySeq
 theorem piApprox_cauchySeq (w : Addr) : CauchySeq (piApprox w) :=
   cauchySeq_of_le_geometric (2⁻¹ : ℝ) piStepBound (by norm_num) (piApprox_succ_dist w)
 
--- π, the classical coding map: π(w) := lim_n f_{w|n}(v_A).
+-- [D-1147] piCoding
 noncomputable def piCoding (w : Addr) : Plane :=
   (cauchySeq_tendsto_of_complete (piApprox_cauchySeq w)).choose
 
+-- [D-1148] piCoding_tendsto
 theorem piCoding_tendsto (w : Addr) :
     Filter.Tendsto (piApprox w) Filter.atTop (nhds (piCoding w)) :=
   (cauchySeq_tendsto_of_complete (piApprox_cauchySeq w)).choose_spec
 
+-- [D-1149] piCoding_mem_Gamma
 theorem piCoding_mem_Gamma (w : Addr) : piCoding w ∈ Gamma :=
   isCompact_Gamma.isClosed.mem_of_tendsto (piCoding_tendsto w)
     (Filter.Eventually.of_forall (fun n => applyList_mem_Gamma (wordPrefix w n) vA_mem_Gamma))
 
-/-- Prepend a symbol to an address. -/
+-- [D-1150] prependAddr
 def prependAddr (i : Fin 3) (w : Addr) : Addr
   | 0 => i
   | n + 1 => w n
 
+-- [D-1151] wordPrefix_prepend
 theorem wordPrefix_prepend (i : Fin 3) (w : Addr) (n : ℕ) :
     wordPrefix (prependAddr i w) (n + 1) = i :: wordPrefix w n := by
   induction n with
@@ -2991,11 +2940,12 @@ theorem wordPrefix_prepend (i : Fin 3) (w : Addr) (n : ℕ) :
       rw [wordPrefix_succ (prependAddr i w) (n + 1), ih, wordPrefix_succ w n]
       rfl
 
+-- [D-1152] piApprox_prepend_succ
 theorem piApprox_prepend_succ (i : Fin 3) (w : Addr) (n : ℕ) :
     piApprox (prependAddr i w) (n + 1) = symF i (piApprox w n) := by
   simp only [piApprox, wordPrefix_prepend, applyList_cons, Function.comp_apply]
 
--- π's equivariance: prepending a symbol to the address and reading off π agrees with applying the corresponding map to π of the tail.
+-- [D-1153] piCoding_equivariant
 theorem piCoding_equivariant (i : Fin 3) (w : Addr) :
     piCoding (prependAddr i w) = symF i (piCoding w) := by
   have h1 : Filter.Tendsto (fun n => piApprox (prependAddr i w) (n + 1)) Filter.atTop
@@ -3013,43 +2963,41 @@ end Phase4Pi
 
 section Phase4Alpha
 
+-- [D-1154] constScottHom_bot_eq
 theorem constScottHom_bot_eq : constScottHom (⊥ : DBilimit) = (⊥ : ScottEndP DBilimit) := rfl
 
+-- [D-1155] constScottHom_top_eq
 theorem constScottHom_top_eq : constScottHom (⊤ : DBilimit) = (⊤ : ScottEndP DBilimit) := rfl
 
+-- [D-1156] constScottHom_injective
 theorem constScottHom_injective : Function.Injective constScottHom := by
   intro x y hxy
   have := congrArg (fun f => f.1 x) hxy
   simpa [constScottHom] using this
 
+-- [D-1157] constScottHom_eq_bot_iff
 theorem constScottHom_eq_bot_iff {x : DBilimit} :
     constScottHom x = (⊥ : ScottEndP DBilimit) ↔ x = ⊥ := by
   rw [← constScottHom_bot_eq]
   exact constScottHom_injective.eq_iff
 
+-- [D-1158] constScottHom_eq_top_iff
 theorem constScottHom_eq_top_iff {x : DBilimit} :
     constScottHom x = (⊤ : ScottEndP DBilimit) ↔ x = ⊤ := by
   rw [← constScottHom_top_eq]
   exact constScottHom_injective.eq_iff
 
+-- [D-1159] constScottHom_monotone
 theorem constScottHom_monotone {x x' : DBilimit} (hxx' : x ≤ x') :
     constScottHom x ≤ constScottHom x' := fun _ => hxx'
 
+-- [D-1160] leGlue_tagB_tagB_topGen
 theorem leGlue_tagB_tagB_topGen {P : Type u} [DecidableEq P] [PartialOrder P] [BoundedOrder P]
     (m w : P) : leGlueGen m (Sum.inr (Sum.inl w)) (Sum.inr (Sum.inl (⊤ : P))) := by
   refine ⟨Sum.inr (Sum.inl w), self_mem_occsGen m _, Sum.inr (Sum.inr m), ?_, le_refl m⟩
   simp [occsGen]
 
--- `leGlue_tagC_tagC_iffGen` / `leGlue_tagA_tagCGen`: now supplied by
--- `GluingTowerLibrary.lean` (`Phase3aStep4PsiInvMonotone` section) —
--- removed from here, 2026-08-25, to resolve a duplicate-declaration
--- collision after that file's tag-comparability family was completed.
-
--- The "directed sets can't escape one tag" cofinality conjecture floated after leGlue_tagC_tagC_iffGen is refuted below by a concrete counterexample (found first by Python brute force); does not reopen lemma_A2/sigmaC_succ_stage.
-
-/-- `tagC 1 ≤ tagB ⊤` under `leGlueGen`, at `P := Fin 3`, `m := ⊤` -- via `tagB ⊤`'s
-    alternate `occsGen` representative `tagC m = tagC ⊤`, reducing to the tag-C-tag-C clause
-    `1 ≤ ⊤`. Building block for `tagC_cofinality_fails`. -/
+-- [D-1161] tagC_one_le_tagB_top
 theorem tagC_one_le_tagB_top :
     leGlueGen (⊤ : Fin 3) (Sum.inr (Sum.inr (1 : Fin 3))) (Sum.inr (Sum.inl (⊤ : Fin 3))) := by
   refine ⟨Sum.inr (Sum.inr (1 : Fin 3)), self_mem_occsGen _ _,
@@ -3057,7 +3005,7 @@ theorem tagC_one_le_tagB_top :
   show (1 : Fin 3) ≤ ⊤
   exact le_top
 
--- The converse fails: tagB ⊤ is NOT ≤ tagC 1, confirming {tagB ⊤, tagC 1} is a genuine non-degenerate 2-chain.
+-- [D-1162] not_tagB_top_le_tagC_one
 theorem not_tagB_top_le_tagC_one :
     ¬ leGlueGen (⊤ : Fin 3) (Sum.inr (Sum.inl (⊤ : Fin 3))) (Sum.inr (Sum.inr (1 : Fin 3))) := by
   rintro ⟨u, hu, v, hv, huv⟩
@@ -3071,7 +3019,7 @@ theorem not_tagB_top_le_tagC_one :
     · have hle : (⊤ : Fin 3) ≤ 1 := huv
       exact absurd hle (by decide)
 
--- GlueCarGen's directed sets can escape a single tag: at P := Fin 3, m := ⊤, S := {tagB ⊤, tagC 1} is directed and contains a tag-C point, yet tagB ⊤ (a member of S) has no tag-C dominator in S — refuting the naive cofinality claim.
+-- [D-1163] tagC_cofinality_fails
 theorem tagC_cofinality_fails :
     ∃ S : Set (GlueBaseGen (Fin 3)),
       (∃ w, Sum.inr (Sum.inr w) ∈ S) ∧
@@ -3094,6 +3042,7 @@ theorem tagC_cofinality_fails :
       subst hweq'
       exact not_tagB_top_le_tagC_one hle
 
+-- [D-1164] scottEndPId_ne_constScottHom
 theorem scottEndPId_ne_constScottHom (v : DBilimit) : scottEndPId ≠ constScottHom v := by
   intro h
   have h1 := congrArg (fun f : ScottEndP DBilimit => f.1 botSeq) h
@@ -3102,6 +3051,7 @@ theorem scottEndPId_ne_constScottHom (v : DBilimit) : scottEndPId ≠ constScott
   exact botSeq_ne_topSeq (h1.trans h2.symm)
 
 section SigmaAContinuous
+-- [D-1165] Psi_isLUB
 theorem Psi_isLUB {S : Set DBilimit} {y : DBilimit} (hy : IsLUB S y) :
     IsLUB (Psi '' S) (Psi y) := by
   constructor
@@ -3147,12 +3097,13 @@ theorem Psi_isLUB {S : Set DBilimit} {y : DBilimit} (hy : IsLUB S y) :
 end SigmaAContinuous
 end Phase4Alpha
 section Phase4MaxPrime
+-- [D-1166] topGen
 noncomputable def topGen : GlueCarGen (P := ScottEndP DBilimit) scottEndPId :=
   ⟨Sum.inr (Sum.inr (⊤ : ScottEndP DBilimit)), by
     simp only [canonGen]
     rw [if_neg scottEndPBot_ne_top.symm, if_neg scottEndPId_ne_top.symm]⟩
 
--- topGen is the top of GlueCarGen scottEndPId, by raw leGlueGen/occsGen case analysis.
+-- [D-1167] topGen_isTop
 theorem topGen_isTop (y : GlueCarGen (P := ScottEndP DBilimit) scottEndPId) : y ≤ topGen := by
   rcases y with ⟨v, hv⟩
   show leGlueGen scottEndPId v topGen.1
@@ -3165,19 +3116,23 @@ theorem topGen_isTop (y : GlueCarGen (P := ScottEndP DBilimit) scottEndPId) : y 
 
 end Phase4MaxPrime
 section Phase4MaxPrimeOmega
+-- [D-1168] topBGen
 noncomputable def topBGen : GlueCarGen (P := ScottEndP DBilimit) scottEndPId :=
   ⟨Sum.inr (Sum.inl (⊤ : ScottEndP DBilimit)), by
     simp only [canonGen]
     rw [if_neg scottEndPBot_ne_top.symm]⟩
 
+-- [D-1169] topBGen_ne_topGen
 theorem topBGen_ne_topGen : topBGen ≠ topGen := by
   intro h
   have h1 : Sum.inr (Sum.inl (⊤ : ScottEndP DBilimit)) = Sum.inr (Sum.inr (⊤ : ScottEndP DBilimit)) :=
     congrArg Subtype.val h
   simp at h1
 
+-- [D-1170] shiftAddr
 def shiftAddr (w : Addr) : Addr := fun n => w (n + 1)
 
+-- [D-1171] prependAddr_shiftAddr_eq
 theorem prependAddr_shiftAddr_eq (w : Addr) : prependAddr (w 0) (shiftAddr w) = w := by
   funext n
   cases n with
@@ -3186,6 +3141,7 @@ theorem prependAddr_shiftAddr_eq (w : Addr) : prependAddr (w 0) (shiftAddr w) = 
 
 end Phase4MaxPrimeOmega
 section Phase4FSCScoping
+-- [D-1172] topSeq_notMem_range_toDBilimit
 theorem topSeq_notMem_range_toDBilimit : topSeq ∉ Set.range toDBilimit := by
   rintro ⟨z, hz⟩
   obtain ⟨k, x, hkx⟩ := toD_surjective z
@@ -3199,10 +3155,11 @@ theorem topSeq_notMem_range_toDBilimit : topSeq ∉ Set.range toDBilimit := by
   subst hx
   exact insertAtLevel_topSeq_ne k hz
 
+-- [D-1173] botGen
 noncomputable def botGen : GlueCarGen (P := ScottEndP DBilimit) scottEndPId :=
   ⟨Sum.inl (⊥ : ScottEndP DBilimit), rfl⟩
 
--- botGen is the bottom of GlueCarGen scottEndPId, dual to topGen_isTop.
+-- [D-1174] botGen_isBot
 theorem botGen_isBot (y : GlueCarGen (P := ScottEndP DBilimit) scottEndPId) : botGen ≤ y := by
   rcases y with ⟨v, hv⟩
   show leGlueGen scottEndPId botGen.1 v
@@ -3214,6 +3171,7 @@ theorem botGen_isBot (y : GlueCarGen (P := ScottEndP DBilimit) scottEndPId) : bo
         Sum.inr (Sum.inl x), self_mem_occsGen _ _, bot_le⟩
     · exact leGlue_tagA_tagCGen scottEndPId (⊥ : ScottEndP DBilimit) x
 
+-- [D-1175] leGlueGen_tagC_tagB_top_iff
 theorem leGlueGen_tagC_tagB_top_iff {P : Type*} [DecidableEq P] [PartialOrder P]
     [BoundedOrder P] (m w' : P) :
     leGlueGen m (Sum.inr (Sum.inr w')) (Sum.inr (Sum.inl (⊤ : P))) ↔ w' ≤ m := by
@@ -3232,10 +3190,12 @@ theorem leGlueGen_tagC_tagB_top_iff {P : Type*} [DecidableEq P] [PartialOrder P]
 
 end Phase4FSCScoping
 section SigmaCContinuous
+-- [D-1176] PsiC
 noncomputable def PsiC (x : DBilimit) : GlueCarGen (P := ScottEndP DBilimit) scottEndPId :=
   ⟨canonGen scottEndPId (Sum.inr (Sum.inr (constScottHom x))),
     canonGen_idem scottEndPId scottEndPId_ne_bot scottEndPBot_ne_top _⟩
 
+-- [D-1177] PsiC_apply_of_ne_bot
 theorem PsiC_apply_of_ne_bot {x : DBilimit} (hx : x ≠ (⊥ : DBilimit)) :
     (PsiC x).1 = Sum.inr (Sum.inr (constScottHom x)) := by
   show canonGen scottEndPId (Sum.inr (Sum.inr (constScottHom x))) = _
@@ -3243,12 +3203,13 @@ theorem PsiC_apply_of_ne_bot {x : DBilimit} (hx : x ≠ (⊥ : DBilimit)) :
   rw [if_neg (fun h => hx (constScottHom_eq_bot_iff.mp h)),
       if_neg (scottEndPId_ne_constScottHom x).symm]
 
+-- [D-1178] PsiC_apply_of_eq_bot
 theorem PsiC_apply_of_eq_bot : (PsiC (⊥ : DBilimit)).1 = Sum.inl (⊤ : ScottEndP DBilimit) := by
   show canonGen scottEndPId (Sum.inr (Sum.inr (constScottHom (⊥ : DBilimit)))) = _
   rw [constScottHom_bot_eq]
   simp [canonGen]
 
--- Witness extraction: for a nonempty set with IsLUB y ≠ ⊥, some member of the set is itself ≠ ⊥.
+-- [D-1179] exists_ne_bot_of_ne_bot_sup
 theorem exists_ne_bot_of_ne_bot_sup {S : Set DBilimit} {y : DBilimit} (hy : IsLUB S y)
     (hyb : y ≠ (⊥ : DBilimit)) : ∃ w ∈ S, w ≠ (⊥ : DBilimit) := by
   by_contra hcon
@@ -3259,6 +3220,7 @@ theorem exists_ne_bot_of_ne_bot_sup {S : Set DBilimit} {y : DBilimit} (hy : IsLU
   intro w hw
   exact le_of_eq (hcon w hw)
 
+-- [D-1180] PsiC_monotone
 theorem PsiC_monotone (x x' : DBilimit) (hxx' : x ≤ x') : PsiC x ≤ PsiC x' := by
   by_cases hx : x = (⊥ : DBilimit)
   · subst hx
@@ -3279,7 +3241,7 @@ theorem PsiC_monotone (x x' : DBilimit) (hxx' : x ≤ x') : PsiC x ≤ PsiC x' :
     exact (leGlue_tagC_tagC_iffGen scottEndPId (constScottHom x) (constScottHom x')).mpr
       (constScottHom_monotone hxx')
 
--- Psi_C preserves IsLUB of nonempty sets: for S nonempty with IsLUB S y, IsLUB (PsiC '' S) (PsiC y).
+-- [D-1181] PsiC_isLUB
 theorem PsiC_isLUB {S : Set DBilimit} {y : DBilimit} (hS : S.Nonempty) (hy : IsLUB S y) :
     IsLUB (PsiC '' S) (PsiC y) := by
   constructor
@@ -3287,7 +3249,7 @@ theorem PsiC_isLUB {S : Set DBilimit} {y : DBilimit} (hS : S.Nonempty) (hy : IsL
     exact PsiC_monotone w y (hy.1 hwS)
   · intro b hb
     by_cases hyb : y = (⊥ : DBilimit)
-    · -- S is forced to be exactly {⊥}; b upper-bounds PsiC '' {⊥} = {PsiC ⊥} ∋ PsiC y
+    ·
       obtain ⟨w0, hw0S⟩ := hS
       have hw0y : w0 ≤ y := hy.1 hw0S
       rw [hyb] at hw0y
@@ -3301,7 +3263,7 @@ theorem PsiC_isLUB {S : Set DBilimit} {y : DBilimit} (hS : S.Nonempty) (hy : IsL
       show leGlueGen scottEndPId (PsiC y).1 bv
       rw [PsiC_apply_of_ne_bot hyb]
       rcases bv with s | t | r
-      · -- tag A: impossible, contradicts hb at the w0 witness
+      ·
         exfalso
         have h : PsiC w0 ≤ (⟨Sum.inl s, hbv⟩ : GlueCarGen (P := ScottEndP DBilimit) scottEndPId) :=
           hb ⟨w0, hw0S, rfl⟩
@@ -3309,11 +3271,9 @@ theorem PsiC_isLUB {S : Set DBilimit} {y : DBilimit} (hS : S.Nonempty) (hy : IsL
         rw [PsiC_apply_of_ne_bot hw0b] at h
         exact not_leGlue_tagC_tagAGen scottEndPId (constScottHom w0) s
           (fun heq => hw0b (constScottHom_eq_bot_iff.mp heq)) h
-      · -- tag B
+      ·
         by_cases htt : t = (⊤ : ScottEndP DBilimit)
         · subst htt
-          -- b upper-bounds every PsiC w; at w0 this forces constScottHom w0 ≤ scottEndPId,
-          -- i.e. w0 ≤ botSeq, contradicting w0 ≠ ⊥.
           exfalso
           have h : PsiC w0 ≤
               (⟨Sum.inr (Sum.inl (⊤ : ScottEndP DBilimit)), hbv⟩ :
@@ -3331,7 +3291,7 @@ theorem PsiC_isLUB {S : Set DBilimit} {y : DBilimit} (hS : S.Nonempty) (hy : IsL
           rw [GlueCarGen.le_def] at h
           rw [PsiC_apply_of_ne_bot hw0b] at h
           exact not_leGlue_tagC_tagBGen scottEndPId (constScottHom w0) t htt h
-      · -- tag C: the clean pointwise diagonal case
+      ·
         have hcond : ∀ w ∈ S, constScottHom w ≤ r := by
           intro w hwS
           by_cases hwb : w = (⊥ : DBilimit)
@@ -3351,6 +3311,7 @@ theorem PsiC_isLUB {S : Set DBilimit} {y : DBilimit} (hS : S.Nonempty) (hy : IsL
         exact (leGlue_tagC_tagC_iffGen scottEndPId (constScottHom y) r).mpr hsup
 
 end SigmaCContinuous
+-- [D-1182] _root_.IsLUB.eq_topSeq_iff_forall_exists_top
 theorem _root_.IsLUB.eq_topSeq_iff_forall_exists_top {S : Set DBilimit} {a : DBilimit}
     (ha : IsLUB S a) (hne : S.Nonempty) (hdir : DirectedOn (· ≤ ·) S) :
     a = topSeq ↔ ∀ j, ∃ x ∈ S, x.1 j = (⊤ : D j) := by
@@ -3375,6 +3336,7 @@ theorem _root_.IsLUB.eq_topSeq_iff_forall_exists_top {S : Set DBilimit} {a : DBi
     rw [hxeq] at hle
     exact top_le_iff.mp hle
 
+-- [D-1183] insertAtLevel_isCompactElement
 theorem insertAtLevel_isCompactElement (k : ℕ) (x : D k) :
     IsCompactElement (insertAtLevel k x) := by
   intro s u hs hdir hlub hle
@@ -3396,7 +3358,7 @@ theorem insertAtLevel_isCompactElement (k : ℕ) (x : D k) :
   calc insertAtLevel k x ≤ insertAtLevel k (x0.1 k) := insertAtLevel_monotone k hxx0
     _ ≤ x0 := insertAtLevel_le_self x0 k
 
--- Converse: every compact element of DBilimit is insertAtLevel k x for some k, x — pinning the compacts to exactly range toDBilimit.
+-- [D-1184] _root_.IsCompactElement.exists_insertAtLevel
 theorem _root_.IsCompactElement.exists_insertAtLevel {z : DBilimit}
     (hz : IsCompactElement z) : ∃ k x, z = insertAtLevel k x := by
   obtain ⟨w, hwmem, hzw⟩ := hz (chainSet z) z (chainSet_nonempty z)
@@ -3404,9 +3366,7 @@ theorem _root_.IsCompactElement.exists_insertAtLevel {z : DBilimit}
   obtain ⟨n, rfl⟩ := hwmem
   exact ⟨n, z.1 n, le_antisymm hzw (insertAtLevel_le_self z n)⟩
 
--- §49: Aut(DBilimit) rigidity, second piece — DBilimit is algebraic (every point is the directed sup of the compacts below it).
-
--- insertAtLevel k x ≤ y iff x ≤ y.1 k.
+-- [D-1185] insertAtLevel_le_iff
 theorem insertAtLevel_le_iff (k : ℕ) (x : D k) (y : DBilimit) :
     insertAtLevel k x ≤ y ↔ x ≤ y.1 k := by
   constructor
@@ -3417,7 +3377,7 @@ theorem insertAtLevel_le_iff (k : ℕ) (x : D k) (y : DBilimit) :
     calc insertAtLevel k x ≤ insertAtLevel k (y.1 k) := insertAtLevel_monotone k h
       _ ≤ y := insertAtLevel_le_self y k
 
--- The compacts below any y are directed.
+-- [D-1186] DBilimit_compacts_le_directedOn
 theorem DBilimit_compacts_le_directedOn (y : DBilimit) :
     DirectedOn (· ≤ ·) {z : DBilimit | IsCompactElement z ∧ z ≤ y} := by
   rintro z1 ⟨hz1c, hz1y⟩ z2 ⟨hz2c, hz2y⟩
@@ -3434,7 +3394,7 @@ theorem DBilimit_compacts_le_directedOn (y : DBilimit) :
       _ ≤ insertAtLevel (max k1 k2) (y.1 (max k1 k2)) :=
           insertAtLevel_chain_mono y (le_max_right k1 k2)
 
--- DBilimit is algebraic: every y is the directed sup, in IsLUB form, of the compact elements below it.
+-- [D-1187] DBilimit_isLUB_compacts_le
 theorem DBilimit_isLUB_compacts_le (y : DBilimit) :
     IsLUB {z : DBilimit | IsCompactElement z ∧ z ≤ y} y := by
   constructor
@@ -3445,10 +3405,11 @@ theorem DBilimit_isLUB_compacts_le (y : DBilimit) :
     rintro _ ⟨n, rfl⟩
     exact hb ⟨insertAtLevel_isCompactElement n (y.1 n), insertAtLevel_le_self y n⟩
 
+-- [D-1188] toDBilimit_toD_eq_insertAtLevel
 theorem toDBilimit_toD_eq_insertAtLevel (k : ℕ) (x : D k) :
     toDBilimit (toD k x) = insertAtLevel k x := rfl
 
--- range toDBilimit is exactly the compact elements of DBilimit.
+-- [D-1189] mem_range_toDBilimit_iff_isCompactElement
 theorem mem_range_toDBilimit_iff_isCompactElement {z : DBilimit} :
     z ∈ Set.range toDBilimit ↔ IsCompactElement z := by
   constructor
@@ -3460,13 +3421,7 @@ theorem mem_range_toDBilimit_iff_isCompactElement {z : DBilimit} :
     obtain ⟨k, x, hkx⟩ := hz.exists_insertAtLevel
     exact ⟨toD k x, by rw [toDBilimit_toD_eq_insertAtLevel, ← hkx]⟩
 
--- Free reduction (2026-08-19, `colimit_compat` recon Finding 2): `Aut(DBilimit,≤) ≅ Aut(DInfty,≤)`
--- unconditionally, no axiom needed. Chains `IsCompactElement.orderIso`, `DBilimit_isLUB_compacts_le`
--- (§49 algebraicity), `mem_range_toDBilimit_iff_isCompactElement`, `toDBilimit_le_iff`. This is exactly
--- the argument `DBilimit_rigid_of_colimit_compat` used to inline starting from `colimit_compat`; factored
--- out here so the real hypothesis it needs (bare `Subsingleton (DInfty ≃o DInfty)`) is visible, and
--- `colimit_compat` is isolated to the one place — deriving that hypothesis from `D_all_rigid` — where it's
--- actually used.
+-- [D-1190] DBilimit_rigid_of_DInfty_rigid
 theorem DBilimit_rigid_of_DInfty_rigid
     (hDInfty : Subsingleton (DInfty ≃o DInfty)) :
     Subsingleton (DBilimit ≃o DBilimit) := by
@@ -3541,11 +3496,7 @@ theorem DBilimit_rigid_of_DInfty_rigid
   funext y
   rw [hFix g1 y, hFix g2 y]
 
--- Aut(DBilimit,≤) = {id}, conditional on the `colimit_compat` axiom (the project's standing hardest open
--- problem). Now a one-line corollary of `DBilimit_rigid_of_DInfty_rigid`: `colimit_compat` is used solely
--- to produce the bare `Subsingleton (DInfty ≃o DInfty)` hypothesis that theorem actually needs, so the
--- remaining open problem this axiom stands in for is exactly `Subsingleton (DInfty ≃o DInfty)` — no
--- `DBilimit`, compacts, or algebraicity language needed to state what's still missing.
+-- [D-1191] DBilimit_rigid_of_colimit_compat
 theorem DBilimit_rigid_of_colimit_compat
     (colimit_compat :
       Subsingleton (DInfty ≃o DInfty) ↔ ∀ k, Subsingleton (D k ≃o D k)) :
@@ -3554,19 +3505,21 @@ theorem DBilimit_rigid_of_colimit_compat
 
 section SkeletonSixPoints
 
--- GLUE1, GlueCarGen-level: the tag-A point at the marked point m = scottEndPId itself.
+-- [D-1192] glue1Gen
 noncomputable def glue1Gen : GlueCarGen (P := ScottEndP DBilimit) scottEndPId :=
   ⟨Sum.inl (scottEndPId : ScottEndP DBilimit), rfl⟩
 
+-- [D-1193] glue2Gen
 noncomputable def glue2Gen : GlueCarGen (P := ScottEndP DBilimit) scottEndPId :=
   ⟨Sum.inl (⊤ : ScottEndP DBilimit), rfl⟩
 
+-- [D-1194] KEPT_A
 noncomputable def KEPT_A : DBilimit := botSeq
 
--- KEPT_C is exactly topSeq, named here for the six-point skeleton table.
+-- [D-1195] KEPT_C
 noncomputable def KEPT_C : DBilimit := topSeq
 
--- KEPT_B, GlueCarGen-level: the tag-B point at the marked point m = scottEndPId itself.
+-- [D-1196] keptBGen
 noncomputable def keptBGen : GlueCarGen (P := ScottEndP DBilimit) scottEndPId :=
   ⟨Sum.inr (Sum.inl (scottEndPId : ScottEndP DBilimit)), by
     show canonGen scottEndPId (Sum.inr (Sum.inl (scottEndPId : ScottEndP DBilimit))) =
@@ -3576,51 +3529,37 @@ noncomputable def keptBGen : GlueCarGen (P := ScottEndP DBilimit) scottEndPId :=
 
 end SkeletonSixPoints
 section StageAndLemmaA2
+-- [D-1197] Stage
 noncomputable def Stage {z : DBilimit} (hz : IsCompactElement z) : ℕ :=
   Nat.find hz.exists_insertAtLevel
 
--- Stage's defining witness: z equals insertAtLevel (Stage hz) x for some x.
+-- [D-1198] Stage_spec
 theorem Stage_spec {z : DBilimit} (hz : IsCompactElement z) :
     ∃ x : D (Stage hz), z = insertAtLevel (Stage hz) x :=
   Nat.find_spec hz.exists_insertAtLevel
 
--- Stage's minimality: no k < Stage hz realizes z as insertAtLevel k x.
+-- [D-1199] Stage_min
 theorem Stage_min {z : DBilimit} (hz : IsCompactElement z) {k : ℕ} (hk : k < Stage hz) :
     ¬ ∃ x : D k, z = insertAtLevel k x :=
   Nat.find_min hz.exists_insertAtLevel hk
 
--- `Stage` is invariant under transporting the compactness proof along an equation
--- of the underlying point.
+-- [D-1200] Stage_transport
 theorem Stage_transport {a b : DBilimit} (h : a = b) (ha : IsCompactElement a) :
     Stage (h ▸ ha : IsCompactElement b) = Stage ha := by
   subst h; rfl
 
--- Historical note (2026-08-26 `PsiIso` split): the `sigmaA/B/C_succ_stage`
--- axioms and `lemma_A2`/`lemma_A3` lived here. They were all defined through
--- `axiom PsiIso` (now deleted as most likely false — see `DBilimit_reflexive`
--- and `Meta/Finding - PsiIso tower mismatch (2026-08-26).md`). `sigmaA_succ_stage`
--- and `sigmaB_succ_stage` had already been proven FALSE (2026-08-25/26); the
--- residual `sigmaC_succ_stage_minimality` was deleted with the rest of the
--- `sigma`/Ψ-dynamics thread. The `PsiIso`-free `Stage` API above survives, as
--- does `lemma_A3_free` (the cardinality-based, `PsiIso`-free reconstruction of
--- `lemma_A3`'s content) in `section Lemma_A3_PsiIsoFree` below.
-
 end StageAndLemmaA2
 
--- Lemma A3. The original `PsiIso`-conditional `lemma_A3` (`sigmaA/B/C` injective +
--- pairwise-disjoint ranges) was deleted with `axiom PsiIso` (2026-08-26). Its content
--- survives `PsiIso`-free as `lemma_A3_free` in `section Lemma_A3_PsiIsoFree` below, via
--- a cardinality argument (`|DBilimit| = 𝔠`) in place of `PsiIso.symm`.
 section LemmaA3
 
--- Unfolds the tag-B canonGen value at constScottHom v into a plain v = ⊥ case split.
+-- [D-1201] canonGen_tagB_constScottHom_eq
 theorem canonGen_tagB_constScottHom_eq (v : DBilimit) :
     canonGen scottEndPId (Sum.inr (Sum.inl (constScottHom v))) =
       if v = (⊥ : DBilimit) then Sum.inl (scottEndPId : ScottEndP DBilimit)
       else Sum.inr (Sum.inl (constScottHom v)) := by
   simp only [canonGen, constScottHom_eq_bot_iff]
 
--- Unfolds sigmaC's underlying canonGen value at constScottHom v into a plain v = ⊥ case split.
+-- [D-1202] canonGen_tagC_constScottHom_eq
 theorem canonGen_tagC_constScottHom_eq (v : DBilimit) :
     canonGen scottEndPId (Sum.inr (Sum.inr (constScottHom v))) =
       if v = (⊥ : DBilimit) then Sum.inl (⊤ : ScottEndP DBilimit)
@@ -3629,36 +3568,29 @@ theorem canonGen_tagC_constScottHom_eq (v : DBilimit) :
   rw [if_neg (scottEndPId_ne_constScottHom v).symm]
   simp only [constScottHom_eq_bot_iff]
 
-/-! Reconstructs `lemma_A3`'s 6-fact package (`lemma_A3_free`) — injectivity of each
-generator, pairwise range disjointness, and the `sigmaA'/sigmaC'` collision
-characterization — **without** `PsiIso`, via a cardinality argument: `|DBilimit| = 𝔠`
-(branching lower bound + algebraicity upper bound), `ScottEndP DBilimit` embeds into
-`(Σ k, D k) → DBilimit`, and `𝔠 ^ ℵ₀ = 𝔠` closes the sandwich into an actual injection
-`GlueCarGen (ScottEndP DBilimit) scottEndPId ↪ DBilimit` (`rhoDF`), used in place of the
-former `PsiIso.symm`. `#print axioms lemma_A3_free` = `[propext, choice, Quot.sound]`. -/
-
+-- [D-1203] §Reconstructs-lemma-A3-s-6-fact-package-lemma-A3
 section PsiIsoFreeLemmaA3
 
+-- [D-1204] pD_glueA
 theorem pD_glueA (k : ℕ) (f : EndP (D k)) :
     pD k (glueA (markedPt k) f) = f (⊥ : D k) := rfl
 
 section BranchSeq
 
--- An infinite tag-A branching sequence into DBilimit: at each level, chase the anchor
--- value through branchF1/branchF2 (whichever `b k` selects). `glueA_ne_top` (library)
--- keeps the anchor forever ≠ ⊤, so — unlike a tag-C branch, which collapses everything
--- below it to ⊤ after one step — this chains indefinitely.
+-- [D-1205] branchSeq
 noncomputable def branchSeq (b : ℕ → Bool) : (k : ℕ) → D k
   | 0 => (⊥ : D 0)
   | (k + 1) => glueA (markedPt k)
       (cond (b k) (branchF1 (branchSeq b k)) (branchF2 (branchSeq b k)))
 
+-- [D-1206] branchSeq_ne_top
 theorem branchSeq_ne_top (b : ℕ → Bool) : ∀ k, branchSeq b k ≠ (⊤ : D k)
   | 0 => bot_ne_top_of_nontrivial
   | (k + 1) =>
       glueA_ne_top (markedPt k) (D_marked_point_nondegenerate k).1
         (D_marked_point_nondegenerate k).2.1 (D_marked_point_nondegenerate k).2.2 _
 
+-- [D-1207] branchSeq_succ_apply_bot
 theorem branchSeq_succ_apply_bot (b : ℕ → Bool) (k : ℕ) :
     pD k (branchSeq b (k + 1)) = branchSeq b k := by
   show pD k (glueA (markedPt k)
@@ -3668,10 +3600,11 @@ theorem branchSeq_succ_apply_bot (b : ℕ → Bool) (k : ℕ) :
   | true => simp only [cond_true]; exact branchF1_apply_bot (branchSeq b k)
   | false => simp only [cond_false]; exact branchF2_apply_bot (branchSeq b k)
 
--- The DBilimit point picked out by an infinite bit-sequence of branch choices.
+-- [D-1208] branchPoint
 noncomputable def branchPoint (b : ℕ → Bool) : DBilimit :=
   ⟨branchSeq b, branchSeq_succ_apply_bot b⟩
 
+-- [D-1209] branchSeq_agree_of_agree
 theorem branchSeq_agree_of_agree (b b' : ℕ → Bool) (n : ℕ)
     (hagree : ∀ i < n, b i = b' i) : branchSeq b n = branchSeq b' n := by
   induction n with
@@ -3686,6 +3619,7 @@ theorem branchSeq_agree_of_agree (b b' : ℕ → Bool) (n : ℕ)
         (cond (b' n) (branchF1 (branchSeq b' n)) (branchF2 (branchSeq b' n)))
     rw [hprev, hbn]
 
+-- [D-1210] branchSeq_succ_ne
 theorem branchSeq_succ_ne (b b' : ℕ → Bool) (n : ℕ)
     (hagree : ∀ i < n, b i = b' i) (hne : b n ≠ b' n) :
     branchSeq b (n + 1) ≠ branchSeq b' (n + 1) := by
@@ -3711,7 +3645,7 @@ theorem branchSeq_succ_ne (b b' : ℕ → Bool) (n : ℕ)
       exact (branchF1_ne_branchF2 (branchSeq b' n) (hprev ▸ hv) hbtn) h1.symm
     | false => exact hne (hbk.trans hbk'.symm)
 
--- The branching lower bound: |DBilimit| ≥ 2^ℵ0, unconditionally.
+-- [D-1211] branchPoint_injective
 theorem branchPoint_injective : Function.Injective branchPoint := by
   intro b b' h
   by_contra hne
@@ -3734,8 +3668,7 @@ end BranchSeq
 
 section ScottExt
 
--- A Scott-continuous self-map of DBilimit is determined by its values on compacts
--- (algebraicity + Scott-continuity preserves the directed sup over compacts-below-y).
+-- [D-1212] scottEndP_ext
 theorem scottEndP_ext {F G : ScottEndP DBilimit}
     (h : ∀ (k : ℕ) (x : D k), F.1 (insertAtLevel k x) = G.1 (insertAtLevel k x)) : F = G := by
   have hFG : ∀ z : DBilimit, IsCompactElement z → F.1 z = G.1 z := by
@@ -3761,7 +3694,7 @@ theorem scottEndP_ext {F G : ScottEndP DBilimit}
   rw [himg] at hFLUB
   exact hFLUB.unique hGLUB
 
--- Restricting to (Σ k, D k) is injective, mirroring scottEndP_ext.
+-- [D-1213] scottEndP_restrict_injective
 theorem scottEndP_restrict_injective :
     Function.Injective
       (fun F : ScottEndP DBilimit => fun p : Σ k, D k => F.1 (insertAtLevel p.1 p.2)) := by
@@ -3774,10 +3707,7 @@ end ScottExt
 
 section ScottEndPDirectedSup
 
--- Existence half of sigmaA/B/C_succ_stage (see `Meta/Scoping - GlueCarGen(ScottEndP
--- DBilimit) Compactness (2026-08-25).md`). Evaluation at a fixed point is
--- monotone/directedness-preserving on a directed set of Scott-continuous
--- (hence monotone) self-maps of DBilimit.
+-- [D-1214] scottEndP_directed_image
 theorem scottEndP_directed_image (x : DBilimit) {S : Set (ScottEndP DBilimit)}
     (hdir : DirectedOn (· ≤ ·) S) :
     DirectedOn (· ≤ ·) ((fun F : ScottEndP DBilimit => F.1 x) '' S) := by
@@ -3785,20 +3715,20 @@ theorem scottEndP_directed_image (x : DBilimit) {S : Set (ScottEndP DBilimit)}
   obtain ⟨H, hH, hFH, hGH⟩ := hdir F hF G hG
   exact ⟨H.1 x, ⟨H, hH, rfl⟩, hFH x, hGH x⟩
 
--- The pointwise sup, at a single point x, of a nonempty directed family S of
--- Scott-continuous self-maps of DBilimit -- built via DBilimit's own dcpo
--- structure (DBilimit.exists_isLUB_of_directedOn, already proven).
+-- [D-1215] scottEndPSupFun
 noncomputable def scottEndPSupFun {S : Set (ScottEndP DBilimit)} (hne : S.Nonempty)
     (hdir : DirectedOn (· ≤ ·) S) (x : DBilimit) : DBilimit :=
   (DBilimit.exists_isLUB_of_directedOn ((fun F : ScottEndP DBilimit => F.1 x) '' S)
     (hne.image _) (scottEndP_directed_image x hdir)).choose
 
+-- [D-1216] scottEndPSupFun_isLUB
 theorem scottEndPSupFun_isLUB {S : Set (ScottEndP DBilimit)} (hne : S.Nonempty)
     (hdir : DirectedOn (· ≤ ·) S) (x : DBilimit) :
     IsLUB ((fun F : ScottEndP DBilimit => F.1 x) '' S) (scottEndPSupFun hne hdir x) :=
   (DBilimit.exists_isLUB_of_directedOn ((fun F : ScottEndP DBilimit => F.1 x) '' S)
     (hne.image _) (scottEndP_directed_image x hdir)).choose_spec
 
+-- [D-1217] scottEndPSupFun_monotone
 theorem scottEndPSupFun_monotone {S : Set (ScottEndP DBilimit)} (hne : S.Nonempty)
     (hdir : DirectedOn (· ≤ ·) S) : Monotone (scottEndPSupFun hne hdir) := by
   intro x y hxy
@@ -3806,8 +3736,7 @@ theorem scottEndPSupFun_monotone {S : Set (ScottEndP DBilimit)} (hne : S.Nonempt
   rintro _ ⟨F, hF, rfl⟩
   exact (F.1.monotone hxy).trans ((scottEndPSupFun_isLUB hne hdir y).1 ⟨F, hF, rfl⟩)
 
--- The crux lemma: pointwise sup of a directed family of Scott-continuous maps
--- is itself Scott-continuous.
+-- [D-1218] scottEndPSupFun_scottContinuous
 theorem scottEndPSupFun_scottContinuous {S : Set (ScottEndP DBilimit)} (hne : S.Nonempty)
     (hdir : DirectedOn (· ≤ ·) S) : ScottContinuous (scottEndPSupFun hne hdir) := by
   intro T hTne hTdir y0 hy0
@@ -3824,12 +3753,13 @@ theorem scottEndPSupFun_scottContinuous {S : Set (ScottEndP DBilimit)} (hne : S.
       (scottEndPSupFun_isLUB hne hdir t).1 ⟨F, hF, rfl⟩
     exact h1.trans (hc ⟨t, ht, rfl⟩)
 
--- Bundled: the actual LUB of S within ScottEndP DBilimit.
+-- [D-1219] scottEndPSup
 noncomputable def scottEndPSup {S : Set (ScottEndP DBilimit)} (hne : S.Nonempty)
     (hdir : DirectedOn (· ≤ ·) S) : ScottEndP DBilimit :=
   ⟨⟨scottEndPSupFun hne hdir, scottEndPSupFun_monotone hne hdir⟩,
     scottEndPSupFun_scottContinuous hne hdir⟩
 
+-- [D-1220] scottEndPSup_isLUB
 theorem scottEndPSup_isLUB {S : Set (ScottEndP DBilimit)} (hne : S.Nonempty)
     (hdir : DirectedOn (· ≤ ·) S) : IsLUB S (scottEndPSup hne hdir) := by
   constructor
@@ -3838,12 +3768,12 @@ theorem scottEndPSup_isLUB {S : Set (ScottEndP DBilimit)} (hne : S.Nonempty)
   · intro G hG x
     exact (scottEndPSupFun_isLUB hne hdir x).2 (by rintro _ ⟨F, hF, rfl⟩; exact hG hF x)
 
--- ScottEndP DBilimit is a genuine dcpo.
+-- [D-1221] ScottEndP.exists_isLUB_of_directedOn
 theorem ScottEndP.exists_isLUB_of_directedOn (S : Set (ScottEndP DBilimit))
     (hne : S.Nonempty) (hdir : DirectedOn (· ≤ ·) S) : ∃ u, IsLUB S u :=
   ⟨scottEndPSup hne hdir, scottEndPSup_isLUB hne hdir⟩
 
--- Any given LUB agrees pointwise with scottEndPSupFun (uniqueness transport).
+-- [D-1222] _root_.IsLUB.scottEndP_apply
 theorem _root_.IsLUB.scottEndP_apply {S : Set (ScottEndP DBilimit)} {u : ScottEndP DBilimit}
     (hu : IsLUB S u) (hne : S.Nonempty) (hdir : DirectedOn (· ≤ ·) S) (x : DBilimit) :
     u.1 x = scottEndPSupFun hne hdir x := by
@@ -3854,8 +3784,7 @@ end ScottEndPDirectedSup
 
 section ConstScottHomCompact
 
--- The constant Scott-continuous map at a compact point of DBilimit is itself
--- compact in ScottEndP DBilimit.
+-- [D-1223] constScottHom_isCompactElement_of_isCompactElement
 theorem constScottHom_isCompactElement_of_isCompactElement {v : DBilimit}
     (hv : IsCompactElement v) : IsCompactElement (constScottHom v) := by
   intro s u hsne hsdir hu hle
@@ -3875,21 +3804,7 @@ end ConstScottHomCompact
 
 section ScottEndPIdNonCompact
 
--- Settles, decisively, whether the tag-C-style compactness-transfer technique
--- (`tagCGen_isCompactElement`) can mirror to tag-B for the real application:
--- it needs `m` compact in `P` (leGlue_tagB_tagC_iffGen's "m ≤ y", independent
--- of the copy-B value, means any directed set of copy-C points with sup
--- exactly m collapses to skelG3 as an upper bound for ALL of copy B at once
--- -- the "⊔m-absorption" phenomenon flagged in the scoping doc's Update 2,
--- tied to the 2026-08-21 copy-B Θ-exclusion session). Answer: NO, `m :=
--- scottEndPId` (the real application's marked point) is not compact -- built
--- via the standard "identity is the directed sup of its own level-k
--- truncations, none of which reach `topSeq`" argument, using
--- `liftEndPHom`/`chainSet`/`insertAtLevel_topSeq_ne` (all pre-existing).
-
--- `topSeq` itself is not compact in `DBilimit` (the dual fact to
--- `botSeq_isCompactElement`) -- `chainSet topSeq`'s own approximants never
--- reach it, by `insertAtLevel_topSeq_ne`.
+-- [D-1224] topSeq_not_isCompactElement
 theorem topSeq_not_isCompactElement : ¬ IsCompactElement topSeq := by
   intro hc
   obtain ⟨x, hxmem, hxle⟩ :=
@@ -3898,9 +3813,7 @@ theorem topSeq_not_isCompactElement : ¬ IsCompactElement topSeq := by
   obtain ⟨n, rfl⟩ := hxmem
   exact insertAtLevel_topSeq_ne n (le_antisymm (insertAtLevel_le_self topSeq n) hxle)
 
--- `constScottHom '' chainSet topSeq` -- the constant Scott maps at `topSeq`'s
--- own chain approximants -- is directed (image of the directed `chainSet
--- topSeq` under monotone `constScottHom`).
+-- [D-1225] constScottHom_chainSet_topSeq_directedOn
 theorem constScottHom_chainSet_topSeq_directedOn :
     DirectedOn (· ≤ ·) (constScottHom '' chainSet topSeq) := by
   rintro _ ⟨a, ha, rfl⟩ _ ⟨b, hb, rfl⟩
@@ -3908,8 +3821,7 @@ theorem constScottHom_chainSet_topSeq_directedOn :
   exact ⟨constScottHom c, ⟨c, hcmem, rfl⟩,
     constScottHom_monotone hac, constScottHom_monotone hbc⟩
 
--- ...and has LUB exactly `⊤ : ScottEndP DBilimit` (= the constant-`topSeq`
--- map), computed pointwise from `chainSet_isLUB topSeq` at every argument.
+-- [D-1226] constScottHom_chainSet_topSeq_isLUB
 theorem constScottHom_chainSet_topSeq_isLUB :
     IsLUB (constScottHom '' chainSet topSeq) (⊤ : ScottEndP DBilimit) := by
   constructor
@@ -3920,13 +3832,7 @@ theorem constScottHom_chainSet_topSeq_isLUB :
       exact hG ⟨_, ⟨n, rfl⟩, rfl⟩ x
     exact (chainSet_isLUB topSeq).2 hub
 
--- `⊤ : ScottEndP DBilimit` (the constant-`topSeq` Scott map) is likewise not
--- compact: the directed set above has LUB `⊤` yet no member equals `⊤` (its
--- approximants all miss `topSeq`, `insertAtLevel_topSeq_ne`). Dual to
--- `topSeq_not_isCompactElement`; settles the "is `⊤` compact in `ScottEndP
--- DBilimit`?" question the scoping doc's Update 8 flagged open, and (via
--- `isCompactElement_of_tagAGen_isCompactElement`, `GLUE2_not_isCompactElement`
--- below) makes `GLUE2 = tag_A(⊤)` non-compact too.
+-- [D-1227] scottEndPTop_not_isCompactElement
 theorem scottEndPTop_not_isCompactElement :
     ¬ IsCompactElement (⊤ : ScottEndP DBilimit) := by
   intro hc
@@ -3940,12 +3846,14 @@ theorem scottEndPTop_not_isCompactElement :
     top_le_iff.mp hFle
   exact insertAtLevel_topSeq_ne n (constScottHom_eq_top_iff.mp htop)
 
--- `Gk k`: the level-k truncation of the identity, `x ↦ insertAtLevel k (x.1 k)`.
+-- [D-1228] Gk
 noncomputable def Gk (k : ℕ) : ScottEndP DBilimit := liftEndPHom k (OrderHom.id)
 
+-- [D-1229] Gk_apply
 theorem Gk_apply (k : ℕ) (x : DBilimit) : (Gk k).1 x = insertAtLevel k (x.1 k) :=
   liftEndPHom_apply k OrderHom.id x
 
+-- [D-1230] Gk_mono_succ
 theorem Gk_mono_succ (k : ℕ) (x : DBilimit) : (Gk k).1 x ≤ (Gk (k + 1)).1 x := by
   rw [Gk_apply, Gk_apply, insertAtLevel_le_iff]
   show x.1 k ≤ (insertAtLevel (k + 1) (x.1 (k + 1))).1 k
@@ -3955,21 +3863,22 @@ theorem Gk_mono_succ (k : ℕ) (x : DBilimit) : (Gk k).1 x ≤ (Gk (k + 1)).1 x 
     rw [dif_pos (Nat.le_succ k)]
   rw [h1, pLe_succ (le_refl k) (Nat.le_succ k), pLe_self k (le_refl k), x.2 k]
 
+-- [D-1231] Gk_mono
 theorem Gk_mono : Monotone Gk := by
   intro k k' hkk'
   induction hkk' with
   | refl => exact le_refl _
   | step _ ih => exact fun x => (ih x).trans (Gk_mono_succ _ x)
 
+-- [D-1232] Gk_range_directedOn
 theorem Gk_range_directedOn : DirectedOn (· ≤ ·) (Set.range Gk) := by
   rintro _ ⟨k, rfl⟩ _ ⟨k', rfl⟩
   exact ⟨Gk (max k k'), ⟨max k k', rfl⟩, Gk_mono (le_max_left k k'), Gk_mono (le_max_right k k')⟩
 
+-- [D-1233] Gk_range_nonempty
 theorem Gk_range_nonempty : (Set.range Gk).Nonempty := ⟨Gk 0, 0, rfl⟩
 
--- {Gk k} is directed with LUB exactly scottEndPId (the "upper bound" half is
--- `insertAtLevel_le_self`; the "least" half reuses `chainSet_isLUB x`
--- pointwise, at every x, via DBilimit's own algebraicity).
+-- [D-1234] Gk_isLUB_scottEndPId
 theorem Gk_isLUB_scottEndPId : IsLUB (Set.range Gk) scottEndPId := by
   constructor
   · rintro _ ⟨k, rfl⟩ x
@@ -3983,20 +3892,14 @@ theorem Gk_isLUB_scottEndPId : IsLUB (Set.range Gk) scottEndPId := by
     have hzn : (Gk n).1 x ≤ z.1 x := hz (Set.mem_range_self n) x
     rwa [Gk_apply] at hzn
 
--- No individual Gk k dominates scottEndPId (they all miss topSeq, by
--- `insertAtLevel_topSeq_ne` -- the same fact `counterF`/`toEndPBilimit_ofEndPBilimit_not_roundtrip`
--- already established this DOES happen for `topSeq` specifically).
+-- [D-1235] Gk_not_ge_scottEndPId
 theorem Gk_not_ge_scottEndPId (k : ℕ) : ¬ scottEndPId ≤ Gk k := by
   intro hle
   have h : topSeq ≤ (Gk k).1 topSeq := hle topSeq
   rw [Gk_apply] at h
   exact insertAtLevel_topSeq_ne k (le_antisymm (insertAtLevel_le_self topSeq k) h)
 
--- **The payoff**: `scottEndPId` is not compact in `ScottEndP DBilimit`. This
--- means `tagBGen_isCompactElement` (the tag-B mirror of `tagCGen_isCompactElement`)
--- cannot be proved for the real application by the same technique -- a
--- genuinely different route (or a different domain restriction) is needed
--- for `sigmaB_succ_stage`'s existence half, not just "more of the same work."
+-- [D-1236] scottEndPId_not_isCompactElement
 theorem scottEndPId_not_isCompactElement :
     ¬ IsCompactElement (scottEndPId : ScottEndP DBilimit) := by
   intro hc
@@ -4006,11 +3909,13 @@ theorem scottEndPId_not_isCompactElement :
   obtain ⟨k, rfl⟩ := hFmem
   exact Gk_not_ge_scottEndPId k hFle
 
+-- [D-1237] tagBGenC
 noncomputable def tagBGenC (v : ScottEndP DBilimit) :
     GlueCarGen (P := ScottEndP DBilimit) scottEndPId :=
   ⟨canonGen scottEndPId (Sum.inr (Sum.inl v)),
     canonGen_idem scottEndPId scottEndPId_ne_bot scottEndPBot_ne_top _⟩
 
+-- [D-1238] Gk_ne_bot
 theorem Gk_ne_bot (k : ℕ) : Gk k ≠ (⊥ : ScottEndP DBilimit) := by
   intro h
   have h1 : (Gk k).1 topSeq = (⊥ : ScottEndP DBilimit).1 topSeq := by rw [h]
@@ -4020,10 +3925,12 @@ theorem Gk_ne_bot (k : ℕ) : Gk k ≠ (⊥ : ScottEndP DBilimit) := by
     rwa [insertAtLevel_self] at h3
   exact bot_ne_top_of_nontrivial h2.symm
 
+-- [D-1239] Gk_ne_scottEndPId
 theorem Gk_ne_scottEndPId (k : ℕ) : Gk k ≠ scottEndPId := by
   intro h
   exact Gk_not_ge_scottEndPId k (h ▸ le_refl _)
 
+-- [D-1240] tagCFam_directedOn
 theorem tagCFam_directedOn : letI := psiTargetOrder
     DirectedOn (· ≤ ·) (Set.range (fun k =>
       tagCGen scottEndPId scottEndPId_ne_bot scottEndPBot_ne_top (Gk k))) := by
@@ -4050,6 +3957,7 @@ theorem tagCFam_directedOn : letI := psiTargetOrder
     exact (leGlue_tagC_tagC_iffGen scottEndPId (Gk k') (Gk (max k k'))).mpr
       (Gk_mono (le_max_right k k'))
 
+-- [D-1241] tagCFam_isLUB_skelG3
 theorem tagCFam_isLUB_skelG3 : letI := psiTargetOrder
     IsLUB (Set.range (fun k => tagCGen scottEndPId scottEndPId_ne_bot scottEndPBot_ne_top (Gk k)))
       (skelG3Gen scottEndPId scottEndPId_ne_bot scottEndPBot_ne_top) := by
@@ -4096,10 +4004,7 @@ theorem tagCFam_isLUB_skelG3 : letI := psiTargetOrder
         rintro _ ⟨k, rfl⟩; exact hmc k)
       exact (leGlue_tagB_tagC_iffGen scottEndPId (⊤ : ScottEndP DBilimit) c').mpr hmc'
 
--- **The payoff**: `tagBGenC v` is never compact in the real `GlueCarGen`, for
--- any `v ≠ ⊥` (the only case that matters: `v = ⊥` redirects to `tag_A(m)`,
--- a separate question, and `x0 = ⊥` is already excluded from `sigmaB`'s own
--- domain of interest by `insertAtLevel_bot`).
+-- [D-1242] tagBGenC_not_isCompactElement
 theorem tagBGenC_not_isCompactElement {v : ScottEndP DBilimit} (hvb : v ≠ ⊥) :
     letI := psiTargetOrder
     ¬ IsCompactElement (tagBGenC v) := by
@@ -4128,11 +4033,13 @@ theorem tagBGenC_not_isCompactElement {v : ScottEndP DBilimit} (hvb : v ≠ ⊥)
   have hmk : scottEndPId ≤ Gk k := (leGlue_tagB_tagC_iffGen scottEndPId v (Gk k)).mp hxle'
   exact Gk_not_ge_scottEndPId k hmk
 
+-- [D-1243] tagBGenC_val
 theorem tagBGenC_val {v : ScottEndP DBilimit} (hv : v ≠ (⊥ : ScottEndP DBilimit)) :
     (tagBGenC v).1 = Sum.inr (Sum.inl v) := by
   show canonGen scottEndPId (Sum.inr (Sum.inl v)) = Sum.inr (Sum.inl v)
   simp only [canonGen]; rw [if_neg hv]
 
+-- [D-1244] chainSet_topSeq_constScottHom_ne_bot
 theorem chainSet_topSeq_constScottHom_ne_bot {w : DBilimit} (hw : w ∈ chainSet topSeq) :
     constScottHom w ≠ (⊥ : ScottEndP DBilimit) := by
   obtain ⟨n, rfl⟩ := hw
@@ -4143,15 +4050,14 @@ theorem chainSet_topSeq_constScottHom_ne_bot {w : DBilimit} (hw : w ∈ chainSet
     rwa [insertAtLevel_self] at h3
   exact bot_ne_top_of_nontrivial h2.symm
 
+-- [D-1245] chainSet_topSeq_constScottHom_ne_top
 theorem chainSet_topSeq_constScottHom_ne_top {w : DBilimit} (hw : w ∈ chainSet topSeq) :
     constScottHom w ≠ (⊤ : ScottEndP DBilimit) := by
   obtain ⟨n, rfl⟩ := hw
   intro h
   exact insertAtLevel_topSeq_ne n (constScottHom_eq_top_iff.mp h)
 
--- The tag-B family for the `sigmaA` refutation: `tag_B(constScottHom w)` for
--- `w` ranging over `topSeq`'s chain approximants. Directed (image of the
--- directed `chainSet topSeq`).
+-- [D-1246] sigmaAFam_directedOn
 theorem sigmaAFam_directedOn : letI := psiTargetOrder
     DirectedOn (· ≤ ·)
       ((fun w : DBilimit => tagBGenC (constScottHom w)) '' chainSet topSeq) := by
@@ -4172,9 +4078,7 @@ theorem sigmaAFam_directedOn : letI := psiTargetOrder
       (chainSet_topSeq_constScottHom_ne_top hcmem)
       (chainSet_topSeq_constScottHom_ne_bot hb)).mpr (constScottHom_monotone hbc)
 
--- ...with LUB EXACTLY `skelG3Gen`: b-values → `⊤ : ScottEndP DBilimit`
--- (`constScottHom_chainSet_topSeq_isLUB`) without reaching it, and `tag_B(⊤)`
--- IS `skelG3`.
+-- [D-1247] sigmaAFam_isLUB_skelG3
 theorem sigmaAFam_isLUB_skelG3 : letI := psiTargetOrder
     IsLUB ((fun w : DBilimit => tagBGenC (constScottHom w)) '' chainSet topSeq)
       (skelG3Gen scottEndPId scottEndPId_ne_bot scottEndPBot_ne_top) := by
@@ -4212,10 +4116,7 @@ theorem sigmaAFam_isLUB_skelG3 : letI := psiTargetOrder
         exact (leGlue_tagB_tagC_iffGen scottEndPId (constScottHom w0) c').mp h0
       exact (leGlue_tagB_tagC_iffGen scottEndPId (⊤ : ScottEndP DBilimit) c').mpr hmc
 
--- **The payoff**: `Psi x0` is never compact for `x0 ≠ ⊥`. `tag_A(constScottHom
--- x0) ≤ skelG3Gen` unconditionally, yet no `tag_B(constScottHom w)` in the
--- family dominates it (`leGlue_tagA_tagB_iffGen` needs `constScottHom x0 ≤
--- scottEndPId`, i.e. `x0 = ⊥`).
+-- [D-1248] Psi_not_isCompactElement
 theorem Psi_not_isCompactElement {x0 : DBilimit} (hx0 : x0 ≠ (⊥ : DBilimit)) :
     letI := psiTargetOrder
     ¬ IsCompactElement (Psi x0) := by
@@ -4244,6 +4145,7 @@ theorem Psi_not_isCompactElement {x0 : DBilimit} (hx0 : x0 ≠ (⊥ : DBilimit))
 
 end ScottEndPIdNonCompact
 section DBilimitUpperBound
+-- [D-1249] DBilimit_injective_compactSetBelow
 theorem DBilimit_injective_compactSetBelow :
     Function.Injective (fun y : DBilimit => {z : DBilimit | IsCompactElement z ∧ z ≤ y}) := by
   intro y y' h
@@ -4253,7 +4155,7 @@ theorem DBilimit_injective_compactSetBelow :
   have hLUBy' := DBilimit_isLUB_compacts_le y'
   exact hLUBy.unique hLUBy'
 
--- The compact-set-below-y is exactly the image of the (countable) representation set below y.
+-- [D-1250] compactSetBelow_eq_image
 theorem compactSetBelow_eq_image (y : DBilimit) :
     {z : DBilimit | IsCompactElement z ∧ z ≤ y} =
       (fun p : Σ k, D k => insertAtLevel p.1 p.2) ''
@@ -4266,7 +4168,7 @@ theorem compactSetBelow_eq_image (y : DBilimit) :
   · rintro ⟨⟨k, x⟩, hp, rfl⟩
     exact ⟨insertAtLevel_isCompactElement k x, hp⟩
 
--- Hence DBilimit injects into Set (Σ k, D k), a countably-indexed power set: |DBilimit| ≤ 2^ℵ0.
+-- [D-1251] DBilimit_injective_repsBelow
 theorem DBilimit_injective_repsBelow :
     Function.Injective (fun y : DBilimit => {p : Σ k, D k | insertAtLevel p.1 p.2 ≤ y}) := by
   intro y y' h
@@ -4275,10 +4177,10 @@ theorem DBilimit_injective_repsBelow :
   show {z : DBilimit | IsCompactElement z ∧ z ≤ y} = {z : DBilimit | IsCompactElement z ∧ z ≤ y'}
   rw [compactSetBelow_eq_image, compactSetBelow_eq_image, h]
 
+-- [D-1252] inst-Countable
 instance : Countable (Σ k : ℕ, D k) := inferInstance
 
--- The cardinality sandwich closes: |DBilimit| = 𝔠 exactly (branching lower bound,
--- algebraicity upper bound).
+-- [D-1253] dbilimit_mk_eq_continuum
 open Cardinal in
 theorem dbilimit_mk_eq_continuum : Cardinal.mk DBilimit = Cardinal.continuum := by
   apply le_antisymm
@@ -4301,7 +4203,7 @@ section FinalAssembly
 
 open Cardinal
 
--- |Σ k, D k → DBilimit| ≤ |DBilimit|, since |DBilimit| = 𝔠 and 𝔠 ^ ℵ₀ = 𝔠.
+-- [D-1254] mk_arrow_dbilimit_le
 theorem mk_arrow_dbilimit_le : Cardinal.mk ((Σ k, D k) → DBilimit) ≤ Cardinal.mk DBilimit := by
   rw [Cardinal.mk_arrow, dbilimit_mk_eq_continuum, Cardinal.lift_id, Cardinal.lift_id]
   calc Cardinal.continuum ^ Cardinal.mk (Σ k, D k)
@@ -4309,14 +4211,15 @@ theorem mk_arrow_dbilimit_le : Cardinal.mk ((Σ k, D k) → DBilimit) ≤ Cardin
         Cardinal.power_le_power_left Cardinal.continuum_ne_zero Cardinal.mk_le_aleph0
     _ = Cardinal.continuum := Cardinal.continuum_power_aleph0
 
+-- [D-1255] scottEndP_dbilimit_mk_le
 theorem scottEndP_dbilimit_mk_le : Cardinal.mk (ScottEndP DBilimit) ≤ Cardinal.mk DBilimit :=
   (Cardinal.mk_le_of_injective scottEndP_restrict_injective).trans mk_arrow_dbilimit_le
 
--- Extract an actual injection (using choice, same style as the rest of this project).
+-- [D-1256] scottEndP_to_dbilimit_inj
 noncomputable def scottEndP_to_dbilimit_inj : ScottEndP DBilimit ↪ DBilimit :=
   Classical.choice (Cardinal.le_def _ _ |>.mp scottEndP_dbilimit_mk_le)
 
--- Extend to the full 3-copy GlueCarGen carrier: still ≤ 𝔠 = |DBilimit|.
+-- [D-1257] glueCarGen_dbilimit_mk_le
 theorem glueCarGen_dbilimit_mk_le :
     Cardinal.mk (GlueCarGen (P := ScottEndP DBilimit) scottEndPId) ≤ Cardinal.mk DBilimit := by
   have h1 : Cardinal.mk (GlueCarGen (P := ScottEndP DBilimit) scottEndPId) ≤
@@ -4338,7 +4241,7 @@ theorem glueCarGen_dbilimit_mk_le :
     _ ≤ Cardinal.continuum := h2
     _ = Cardinal.mk DBilimit := dbilimit_mk_eq_continuum.symm
 
--- The PsiIso-free replacement for `PsiIso.symm`.
+-- [D-1258] glueCarGen_to_dbilimit_inj
 noncomputable def glueCarGen_to_dbilimit_inj :
     GlueCarGen (P := ScottEndP DBilimit) scottEndPId ↪ DBilimit :=
   Classical.choice (Cardinal.le_def _ _ |>.mp glueCarGen_dbilimit_mk_le)
@@ -4347,31 +4250,39 @@ end FinalAssembly
 
 section Lemma_A3_PsiIsoFree
 
+-- [D-1259] rhoDF
 noncomputable def rhoDF : GlueCarGen (P := ScottEndP DBilimit) scottEndPId → DBilimit :=
   glueCarGen_to_dbilimit_inj
 
+-- [D-1260] rhoDF_injective
 theorem rhoDF_injective : Function.Injective rhoDF := glueCarGen_to_dbilimit_inj.injective
 
+-- [D-1261] inst-Nonempty
 noncomputable instance : Nonempty (GlueCarGen (P := ScottEndP DBilimit) scottEndPId) := ⟨botGen⟩
 
--- The PsiIso-free replacement for `PsiIso` itself: any left inverse of rhoDF.
+-- [D-1262] psiDF
 noncomputable def psiDF : DBilimit → GlueCarGen (P := ScottEndP DBilimit) scottEndPId :=
   Function.invFun rhoDF
 
+-- [D-1263] psiDF_rhoDF
 theorem psiDF_rhoDF (w : GlueCarGen (P := ScottEndP DBilimit) scottEndPId) :
     psiDF (rhoDF w) = w :=
   Function.leftInverse_invFun rhoDF_injective w
 
+-- [D-1264] sigmaA'
 noncomputable def sigmaA' (x : DBilimit) : DBilimit := rhoDF (Psi x)
 
+-- [D-1265] sigmaB'
 noncomputable def sigmaB' (x : DBilimit) : DBilimit :=
   rhoDF ⟨canonGen scottEndPId (Sum.inr (Sum.inl (constScottHom x))),
     canonGen_idem scottEndPId scottEndPId_ne_bot scottEndPBot_ne_top _⟩
 
+-- [D-1266] sigmaC'
 noncomputable def sigmaC' (x : DBilimit) : DBilimit :=
   rhoDF ⟨canonGen scottEndPId (Sum.inr (Sum.inr (constScottHom x))),
     canonGen_idem scottEndPId scottEndPId_ne_bot scottEndPBot_ne_top _⟩
 
+-- [D-1267] sigmaA'_injective
 theorem sigmaA'_injective : Function.Injective sigmaA' := by
   intro x x' h
   have h1 : Psi x = Psi x' := rhoDF_injective h
@@ -4379,6 +4290,7 @@ theorem sigmaA'_injective : Function.Injective sigmaA' := by
   rw [Psi_apply, Psi_apply] at h2
   exact constScottHom_injective (Sum.inl.inj h2)
 
+-- [D-1268] sigmaB'_injective
 theorem sigmaB'_injective : Function.Injective sigmaB' := by
   intro x x' h
   have h1 : (⟨canonGen scottEndPId (Sum.inr (Sum.inl (constScottHom x))), _⟩ :
@@ -4399,6 +4311,7 @@ theorem sigmaB'_injective : Function.Injective sigmaB' := by
     · rw [if_neg hx, if_neg hx'] at h2
       exact constScottHom_injective (Sum.inl.inj (Sum.inr.inj h2))
 
+-- [D-1269] sigmaC'_injective
 theorem sigmaC'_injective : Function.Injective sigmaC' := by
   intro x x' h
   have h1 : (⟨canonGen scottEndPId (Sum.inr (Sum.inr (constScottHom x))), _⟩ :
@@ -4419,7 +4332,7 @@ theorem sigmaC'_injective : Function.Injective sigmaC' := by
     · rw [if_neg hx, if_neg hx'] at h2
       exact constScottHom_injective (Sum.inr.inj (Sum.inr.inj h2))
 
--- sigmaA' and sigmaB' have disjoint ranges, unconditionally, PsiIso-free.
+-- [D-1270] sigmaA'_ne_sigmaB'
 theorem sigmaA'_ne_sigmaB' (x x' : DBilimit) : sigmaA' x ≠ sigmaB' x' := by
   intro h
   have h1 : psiDF (sigmaA' x) = psiDF (sigmaB' x') := congrArg psiDF h
@@ -4441,7 +4354,7 @@ theorem sigmaA'_ne_sigmaB' (x x' : DBilimit) : sigmaA' x ≠ sigmaB' x' := by
   · rw [if_neg hx'] at h2
     exact Sum.inl_ne_inr h2
 
--- sigmaB' and sigmaC' have disjoint ranges, unconditionally, PsiIso-free.
+-- [D-1271] sigmaB'_ne_sigmaC'
 theorem sigmaB'_ne_sigmaC' (x x' : DBilimit) : sigmaB' x ≠ sigmaC' x' := by
   intro h
   have h1 : (⟨canonGen scottEndPId (Sum.inr (Sum.inl (constScottHom x))), _⟩ :
@@ -4463,8 +4376,7 @@ theorem sigmaB'_ne_sigmaC' (x x' : DBilimit) : sigmaB' x ≠ sigmaC' x' := by
     · rw [if_neg hx, if_neg hx'] at h2
       exact absurd (Sum.inr.inj h2) Sum.inl_ne_inr
 
--- The GlueCarGen-level bridge fact: Psi topSeq is literally the tag-C embedding of botSeq.
--- (PsiIso-free — only about Psi/canonGen/topSeq/botSeq, not about rhoDF at all.)
+-- [D-1272] psi_topSeq_eq_tagC_botSeq
 theorem psi_topSeq_eq_tagC_botSeq :
     Psi topSeq = (⟨canonGen scottEndPId (Sum.inr (Sum.inr (constScottHom botSeq))),
       canonGen_idem scottEndPId scottEndPId_ne_bot scottEndPBot_ne_top _⟩ :
@@ -4477,9 +4389,11 @@ theorem psi_topSeq_eq_tagC_botSeq :
   rw [if_pos hbot]
   exact congrArg Sum.inl (constScottHom_eq_top_iff.mpr rfl)
 
+-- [D-1273] sigmaC'_botSeq_eq_sigmaA'_topSeq
 theorem sigmaC'_botSeq_eq_sigmaA'_topSeq : sigmaC' botSeq = sigmaA' topSeq :=
   congrArg rhoDF psi_topSeq_eq_tagC_botSeq.symm
 
+-- [D-1274] sigmaA'_eq_sigmaC'_iff
 theorem sigmaA'_eq_sigmaC'_iff {x x' : DBilimit} :
     sigmaA' x = sigmaC' x' ↔ x = topSeq ∧ x' = botSeq := by
   constructor
@@ -4498,7 +4412,7 @@ theorem sigmaA'_eq_sigmaC'_iff {x x' : DBilimit} :
     subst hx; subst hx'
     exact sigmaC'_botSeq_eq_sigmaA'_topSeq.symm
 
--- The PsiIso-free counterpart of `lemma_A3`, same 6-fact shape.
+-- [D-1275] lemma_A3_free
 theorem lemma_A3_free :
     Function.Injective sigmaA' ∧ Function.Injective sigmaB' ∧ Function.Injective sigmaC' ∧
     (∀ x x' : DBilimit, sigmaA' x ≠ sigmaB' x') ∧ (∀ x x' : DBilimit, sigmaB' x ≠ sigmaC' x') ∧
@@ -4510,6 +4424,7 @@ end Lemma_A3_PsiIsoFree
 
 end PsiIsoFreeLemmaA3
 
+-- [D-1276] botSeq_isCompactElement
 theorem botSeq_isCompactElement : IsCompactElement botSeq := by
   intro s _u hs _hdir _hlub _hle
   obtain ⟨w, hws⟩ := hs
@@ -4517,6 +4432,7 @@ theorem botSeq_isCompactElement : IsCompactElement botSeq := by
 
 end LemmaA3
 section Phase4ConstCNeverStabilizes
+-- [D-1277] prependAddr_constC
 theorem prependAddr_constC :
     prependAddr (2 : Fin 3) (fun _ => (2 : Fin 3)) = fun _ => (2 : Fin 3) := by
   funext n
@@ -4525,6 +4441,7 @@ theorem prependAddr_constC :
   | succ n => rfl
 
 end Phase4ConstCNeverStabilizes
+-- [D-1278] constScottHom_isLUB
 theorem constScottHom_isLUB {S : Set DBilimit} {a : DBilimit} (ha : IsLUB S a) :
     IsLUB (constScottHom '' S) (constScottHom a) := by
   constructor
@@ -4538,6 +4455,7 @@ theorem constScottHom_isLUB {S : Set DBilimit} {a : DBilimit} (ha : IsLUB S a) :
     exact hv ⟨s, hs, rfl⟩ x
 
 section Phase4ConstBIsFixedPt
+-- [D-1279] leGlueGen_tagB_tagC_iff
 theorem leGlueGen_tagB_tagC_iff {P : Type u} [DecidableEq P] [PartialOrder P] [BoundedOrder P]
     (m w y : P) : leGlueGen m (Sum.inr (Sum.inl w)) (Sum.inr (Sum.inr y)) ↔ m ≤ y := by
   constructor
@@ -4560,6 +4478,7 @@ theorem leGlueGen_tagB_tagC_iff {P : Type u} [DecidableEq P] [PartialOrder P] [B
   · intro hmy
     exact ⟨Sum.inr (Sum.inl w), self_mem_occsGen m _, Sum.inr (Sum.inr y), self_mem_occsGen m _, hmy⟩
 
+-- [D-1280] prependAddr_constB
 theorem prependAddr_constB :
     prependAddr (1 : Fin 3) (fun _ => (1 : Fin 3)) = fun _ => (1 : Fin 3) := by
   funext n
@@ -4569,12 +4488,13 @@ theorem prependAddr_constB :
 
 end Phase4ConstBIsFixedPt
 section TagStabilizes
+-- [D-1281] tagOf
 def tagOf {P : Type u} : P ⊕ P ⊕ P → Fin 3
   | Sum.inl _ => 0
   | Sum.inr (Sum.inl _) => 1
   | Sum.inr (Sum.inr _) => 2
 
--- General (GlueCar (EndP L) id) form: ⊥ is always tag A.
+-- [D-1282] tagOf_glueOrderBot
 theorem tagOf_glueOrderBot {L : Type u} [DecidableEq L] [Lattice L] [BoundedOrder L] [Fintype L] (m : EndP L)
     (hm : m ≠ ⊥) (hmt : m ≠ ⊤)
     (hbt : (⊥ : EndP L) ≠ (⊤ : EndP L)) :
@@ -4585,7 +4505,7 @@ theorem tagOf_glueOrderBot {L : Type u} [DecidableEq L] [Lattice L] [BoundedOrde
   letI := glueOrderBot m hm hmt hbt
   rfl
 
--- General form: ⊤ is always tag C.
+-- [D-1283] tagOf_glueOrderTop
 theorem tagOf_glueOrderTop {L : Type u} [DecidableEq L] [Lattice L] [BoundedOrder L] [Fintype L] (m : EndP L)
     (hm : m ≠ ⊥) (hmt : m ≠ ⊤)
     (hbt : (⊥ : EndP L) ≠ (⊤ : EndP L)) :
@@ -4606,22 +4526,17 @@ theorem tagOf_glueOrderTop {L : Type u} [DecidableEq L] [Lattice L] [BoundedOrde
   rw [hval, hcanon]
   rfl
 
--- Tower instantiation: ⊥ : D (k+1) is always tag A.
+-- [D-1284] tagOf_bot
 theorem tagOf_bot (k : ℕ) : tagOf (⊥ : D (k + 1)).1 = 0 := by
   have h := D_marked_point_nondegenerate k
   exact tagOf_glueOrderBot (L := D k) (markedPt k) h.1 h.2.1 h.2.2
 
--- Tower instantiation: ⊤ : D (k+1) is always tag C.
+-- [D-1285] tagOf_top
 theorem tagOf_top (k : ℕ) : tagOf (⊤ : D (k + 1)).1 = 2 := by
   have h := D_marked_point_nondegenerate k
   exact tagOf_glueOrderTop (L := D k) (markedPt k) h.1 h.2.1 h.2.2
 
--- **CORRECTED FOR THE NORMALIZED TOWER (2026-08-28).**  The `m = id` version of
--- this theorem read "`p_k w` avoids `⊥`/`⊤` ⇒ `w` is tag `A`", and it is **false**
--- here.  `pGen`'s copy-`B` branch returned `⊥`, which is what made `⊥`-avoidance
--- exclude copy `B`; `pGenM`'s returns `mid`, which is interior by construction.
--- So a tag-`B` point with `f ≠ ⊤` has `p_k w = dMid k` — interior, and not tag
--- `A`.  The marked point has to be excluded too.
+-- [D-1286] interior_forces_tagA
 theorem interior_forces_tagA (k : ℕ) (w : D (k + 1)) (h1 : pD k w ≠ ⊥) (h2 : pD k w ≠ ⊤)
     (h3 : pD k w ≠ dMid k) : tagOf w.1 = 0 := by
   obtain ⟨wv, hwv⟩ := w
@@ -4636,9 +4551,7 @@ theorem interior_forces_tagA (k : ℕ) (w : D (k + 1)) (h1 : pD k w ≠ ⊥) (h2
     simp only [pD, pGenM] at h2
     exact h2 rfl
 
--- The converse half: a tag-`B` point over a non-`⊤` fibre sits exactly over the
--- marked point.  This is the *only* new behaviour the normalization introduces,
--- and it is what makes the corrected `tag_stabilizes` argument work.
+-- [D-1287] tagB_forces_prev_mid
 theorem tagB_forces_prev_mid (k : ℕ) (w : D (k + 1)) (h : tagOf w.1 = 1)
     (h2 : pD k w ≠ ⊤) : pD k w = dMid k := by
   obtain ⟨wv, hwv⟩ := w
@@ -4650,8 +4563,7 @@ theorem tagB_forces_prev_mid (k : ℕ) (w : D (k + 1)) (h : tagOf w.1 = 1)
     · rfl
   · exact absurd (show (2 : Fin 3) = 1 from h) (by decide)
 
--- Interiority still excludes tag `C` — that branch of `pGenM` is the constant
--- `⊤`, exactly as `pGen`'s was.
+-- [D-1288] tagOf_ne_two_of_ne_top
 theorem tagOf_ne_two_of_ne_top (k : ℕ) (w : D (k + 1)) (h2 : pD k w ≠ ⊤) :
     tagOf w.1 ≠ 2 := by
   obtain ⟨wv, hwv⟩ := w
@@ -4662,15 +4574,14 @@ theorem tagOf_ne_two_of_ne_top (k : ℕ) (w : D (k + 1)) (h2 : pD k w ≠ ⊤) :
     simp only [pD, pGenM] at h2
     exact h2 rfl
 
--- The marked point of level `k+1` is a copy-`A` point sitting over the marked
--- point of level `k` — both by `rfl`, since `midM mid = iotaGenM mid mid`.
+-- [D-1289] pD_dMid_succ
 theorem pD_dMid_succ (k : ℕ) : pD k (dMid (k + 1)) = dMid k :=
   pGenM_section (dMid k) (dMid k)
 
+-- [D-1290] tagOf_dMid_succ
 theorem tagOf_dMid_succ (k : ℕ) : tagOf (dMid (k + 1)).1 = 0 := rfl
 
--- x-level restatement, folding in DBilimit's compatibility condition.  Carries
--- the extra `≠ dMid k` hypothesis forced above.
+-- [D-1291] interior_gives_tagA
 theorem interior_gives_tagA (x : DBilimit) (k : ℕ) (h1 : x.1 k ≠ ⊥) (h2 : x.1 k ≠ ⊤)
     (h3 : x.1 k ≠ dMid k) : tagOf (x.1 (k + 1)).1 = 0 := by
   apply interior_forces_tagA k (x.1 (k + 1))
@@ -4678,24 +4589,18 @@ theorem interior_gives_tagA (x : DBilimit) (k : ℕ) (h1 : x.1 k ≠ ⊥) (h2 : 
   · rw [x.2 k]; exact h2
   · rw [x.2 k]; exact h3
 
--- Interiority (≠⊥,≠⊤) at level k propagates to level k+1.
+-- [D-1292] interior_persists
 theorem interior_persists (x : DBilimit) (k : ℕ) (h1 : x.1 k ≠ ⊥) (h2 : x.1 k ≠ ⊤) :
     x.1 (k + 1) ≠ ⊥ ∧ x.1 (k + 1) ≠ ⊤ := by
   constructor
   · intro hbot; exact h1 (by rw [← x.2 k, hbot, pD_bot])
   · intro htop; exact h2 (by rw [← x.2 k, htop, pD_top])
 
--- tag_stabilizes: for any x : DBilimit, the tag of x.1 (k+1) is eventually constant as k → ∞.
+-- [D-1293] tag_stabilizes
 theorem tag_stabilizes (x : DBilimit) :
     ∃ N, ∀ k ≥ N, tagOf (x.1 (k + 1)).1 = tagOf (x.1 (N + 1)).1 := by
   by_cases hex : ∃ N, x.1 N ≠ ⊥ ∧ x.1 N ≠ ⊤
-  · -- **Rebuilt for the normalized tower.**  The `id` proof said: interior
-    -- forever ⇒ tag `A` forever.  That step is gone (`interior_forces_tagA`
-    -- above).  What replaces it: tag `B` can occur **at most once** along a
-    -- compatible sequence.  A tag-`B` entry at `j'+1` pins `x j' = dMid j'`,
-    -- and `pD k (dMid (k+1)) = dMid k` propagates that *downwards* to every
-    -- earlier level; but `dMid (j+1)` is a copy-`A` point, so no earlier index
-    -- can also be tag `B`.  Two tag-`B` indices therefore contradict.
+  ·
     obtain ⟨N, hb, ht⟩ := hex
     have hint : ∀ k ≥ N, x.1 k ≠ ⊥ ∧ x.1 k ≠ ⊤ := by
       intro k hk
@@ -4794,6 +4699,7 @@ section ColimitCoconeIso
 
 variable {X : Type*} [PartialOrder X] {eX : ∀ k, D k → X} {pX : ∀ k, X → D k}
 
+-- [D-1294] IsColimitCocone.proj_tower
 theorem IsColimitCocone.proj_tower (h : IsColimitCocone eX pX)
     (hpX : ∀ k, Monotone (pX k)) (heX : ∀ k, Monotone (eX k))
     (k : ℕ) (x : X) : pX k x = pD k (pX (k + 1) x) := by
@@ -4812,7 +4718,7 @@ theorem IsColimitCocone.proj_tower (h : IsColimitCocone eX pX)
     have := hpX k h2
     rwa [h.retraction k (pD k (pX (k + 1) x))] at this
 
-/-- Iterated `proj_tower`: `pX j x = pLe hjn (pX n x)` for `j ≤ n`. -/
+-- [D-1295] IsColimitCocone.proj_pLe
 theorem IsColimitCocone.proj_pLe (h : IsColimitCocone eX pX)
     (hpX : ∀ k, Monotone (pX k)) (heX : ∀ k, Monotone (eX k))
     {j : ℕ} : ∀ {n : ℕ} (hjn : j ≤ n) (x : X), pX j x = pLe hjn (pX n x) := by
@@ -4824,17 +4730,17 @@ theorem IsColimitCocone.proj_pLe (h : IsColimitCocone eX pX)
       rw [pLe_succ hjn (Nat.le_succ_of_le hjn), ← h.proj_tower hpX heX n x]
       exact ih x
 
-/-- The `DBilimit` point a colimit cocone assigns to `x` — its tower
-    approximation sequence `(pX k x)_k`, compatible by `proj_tower`. -/
+-- [D-1296] IsColimitCocone.toDBil
 noncomputable def IsColimitCocone.toDBil (h : IsColimitCocone eX pX)
     (hpX : ∀ k, Monotone (pX k)) (heX : ∀ k, Monotone (eX k)) (x : X) : DBilimit :=
   ⟨fun k => pX k x, fun k => (h.proj_tower hpX heX k x).symm⟩
 
+-- [D-1297] IsColimitCocone.toDBil_apply
 @[simp] theorem IsColimitCocone.toDBil_apply (h : IsColimitCocone eX pX)
     (hpX : ∀ k, Monotone (pX k)) (heX : ∀ k, Monotone (eX k)) (x : X) (k : ℕ) :
     (h.toDBil hpX heX x).1 k = pX k x := rfl
 
-/-- `toDBil` reflects and preserves `≤` — a genuine order embedding. -/
+-- [D-1298] IsColimitCocone.toDBil_le_iff
 theorem IsColimitCocone.toDBil_le_iff (h : IsColimitCocone eX pX)
     (hpX : ∀ k, Monotone (pX k)) (heX : ∀ k, Monotone (eX k)) (x x' : X) :
     h.toDBil hpX heX x ≤ h.toDBil hpX heX x' ↔ x ≤ x' := by
@@ -4849,6 +4755,7 @@ theorem IsColimitCocone.toDBil_le_iff (h : IsColimitCocone eX pX)
     show ∀ k, pX k x ≤ pX k x'
     exact fun k => hpX k hle
 
+-- [D-1299] IsColimitCocone.toDBil_injective
 theorem IsColimitCocone.toDBil_injective (h : IsColimitCocone eX pX)
     (hpX : ∀ k, Monotone (pX k)) (heX : ∀ k, Monotone (eX k)) :
     Function.Injective (h.toDBil hpX heX) := by
@@ -4856,9 +4763,7 @@ theorem IsColimitCocone.toDBil_injective (h : IsColimitCocone eX pX)
   exact le_antisymm ((h.toDBil_le_iff hpX heX a b).mp (le_of_eq hab))
     ((h.toDBil_le_iff hpX heX b a).mp (le_of_eq hab.symm))
 
-/-- Surjectivity of `toDBil`, given `X` carries the `eX`-chain sups (`hsup`,
-    a dcpo condition) and each `pX j` preserves them (`hcont`, Scott
-    continuity along the specific chain). -/
+-- [D-1300] IsColimitCocone.toDBil_surjective
 theorem IsColimitCocone.toDBil_surjective (h : IsColimitCocone eX pX)
     (hpX : ∀ k, Monotone (pX k)) (heX : ∀ k, Monotone (eX k))
     (hsup : ∀ d : DBilimit, ∃ x : X, IsLUB (Set.range (fun k => eX k (d.1 k))) x)
@@ -4909,7 +4814,7 @@ theorem IsColimitCocone.toDBil_surjective (h : IsColimitCocone eX pX)
         _ ≤ w := hw ⟨j, rfl⟩
   exact hlub2.unique hLUB_dj
 
-/-- **A colimit cocone with the chain sups is order-isomorphic to `DBilimit`.** -/
+-- [D-1301] IsColimitCocone.orderIsoDBil
 noncomputable def IsColimitCocone.orderIsoDBil (h : IsColimitCocone eX pX)
     (hpX : ∀ k, Monotone (pX k)) (heX : ∀ k, Monotone (eX k))
     (hsup : ∀ d : DBilimit, ∃ x : X, IsLUB (Set.range (fun k => eX k (d.1 k))) x)
@@ -4925,13 +4830,12 @@ noncomputable def IsColimitCocone.orderIsoDBil (h : IsColimitCocone eX pX)
 
 end ColimitCoconeIso
 
-/-- `DBilimit`'s own colimit cocone `(eK, projK)` sends `z` to `z` itself. -/
+-- [D-1302] DBilimit_isColimitCocone_toDBil
 theorem DBilimit_isColimitCocone_toDBil (z : DBilimit) :
     DBilimit_isColimitCocone.toDBil (fun k => projK_monotone k) (fun k => eK_monotone k) z = z :=
   Subtype.ext (funext (fun _ => rfl))
 
-/-- **Any two colimit cocones over the tower are canonically order-isomorphic.**
-    (Route 6, step 1 of the `PsiIso` construction plan — `PsiIso`-free.) -/
+-- [D-1303] isColimitCocone_orderIso
 noncomputable def isColimitCocone_orderIso
     {X Y : Type*} [PartialOrder X] [PartialOrder Y]
     {eX : ∀ k, D k → X} {pX : ∀ k, X → D k}

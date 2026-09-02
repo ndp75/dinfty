@@ -1,93 +1,14 @@
 import Dinfty.ProdAut
 
-/-!
-# No infinite absorption: `X ≇ X × 2` for the tower's restricted product
-
-`Indecomposable` reduced §17's two-seed question to a statement in poset
-algebra and then stopped there, with the remaining question named exactly:
-
-> **Does not settle:** whether such an infinite absorption exists here.  The
-> factors `(D j)ᵒᵖ` are pairwise non-isomorphic … but "no shift" is not a proof,
-> and unique factorization can fail for infinite products.
-
-**It does not exist**, and the proof needs neither unique factorization nor
-pairwise-distinctness of the factors — only the property `Indecomposable`
-already isolated, that **each factor has a least non-`⊥` element**.
-
-## The invariant: the atom-factor
-
-For an atom `α` of a poset with `⊥`, put
-
-```lean
-atomFactor L α = {w | ∀ β, IsAtom β → β ≤ w → β = α}
-```
-
-— everything whose atoms are all `α`.  It is order-theoretic, so an isomorphism
-carries `atomFactor L α` onto `atomFactor L' (e α)` (`atomFactorIso`).
-
-Now look at `L × C₂`.  Its extra atom is `z = (⊥, 1)`, and — as soon as `L` is
-atomic — `atomFactor (L × C₂) z` is **exactly `{⊥, z}`**, two elements
-(`atomFactor_prodTwo_top`).  So:
-
-```lean
-no_iso_prod_two :
-  (∀ α, IsAtom α → ∃ w ∈ atomFactor L α, w ≠ ⊥ ∧ w ≠ α) → IsEmpty (L ≃o L × C₂)
-```
-
-An isomorphism would produce an atom of `L` whose own atom-factor has only two
-elements.  **A two-element factor cannot be hidden**: it is visible from the
-atom alone.
-
-## Instantiated at the restricted product
-
-`WeakProd D` is `{x : ∀ j, D j // x j = ⊥ for large j}`, ordered pointwise —
-the object `Indecomposable` calls `⨁_j (D j)ᵒᵖ`, up to the dualisation that
-`§17`'s recursion introduces.  If every `D j` has a least non-`⊥` element
-`lam j`, then
-
-* every atom of `WeakProd D` is a `single j (lam j)` (`atom_eq_single`),
-* and `atomFactor (WeakProd D) (single j (lam j))` is the `j`-th axis
-  (`atomFactor_single`) — i.e. `D j` itself.
-
-So the hypothesis of `no_iso_prod_two` says exactly *no `D j` has only two
-elements*, and
-
-```lean
-weakProd_no_absorb_two : IsEmpty (WeakProd D ≃o WeakProd D × C₂)
-```
-
-Every `D k` of the tower has a least non-`⊥` element
-(`UniqueAtomCoatom.unique_atom`, carried at every level) and has more than two
-(already `|D 0| = 3`), so the tower's family satisfies both hypotheses.
-
-## Scope — read this before citing it
-
-This closes the poset-algebra question `Indecomposable` left open, and with it
-the only route by which the two seeds of §17 could have been identified.  It
-does **not** close `TwoPointFixed`.
-
-Two things stand between them, and both are unformalised:
-
-1. that `JBelow midInf` and `JBelow (toD 0 ⊤)` really are `WeakProd`-shaped
-   with seeds `1` and `C₂` — the down-set/join-irreducible recursion at the
-   *colimit*, which exists in the notes and not in Lean;
-2. and, even granted that, seed separation quantifies over **all** of stage
-   `N`, not just the two points.  Non-isomorphism of these two seeds is
-   necessary, not sufficient.
-
-So: the seeds do not collide.  Whether some *third* element shares `midInf`'s
-seed is untouched.
--/
-
+-- [D-1459] §No-infinite-absorption-X-X-2-for-the-tower-s
 open scoped Classical
 
 universe u v
 
 namespace WeakProductAbsorption
 
-/-! ## The atom-factor -/
-
-/-- Atoms transport along an order-isomorphism. -/
+-- [D-1460] §The-atom-factor
+-- [D-1461] orderIso_isAtom
 theorem orderIso_isAtom {L : Type u} {L' : Type v} [PartialOrder L] [OrderBot L]
     [PartialOrder L'] [OrderBot L'] (e : L ≃o L') {a : L} (ha : IsAtom a) :
     IsAtom (e a) := by
@@ -104,16 +25,17 @@ theorem orderIso_isAtom {L : Type u} {L' : Type v} [PartialOrder L] [OrderBot L]
     have h3 := congrArg e h2
     rwa [e.apply_symm_apply, e.map_bot] at h3
 
-/-- Everything whose atoms are all `α`.  `⊥` is in it vacuously. -/
+-- [D-1462] atomFactor
 def atomFactor (L : Type u) [PartialOrder L] [OrderBot L] (α : L) : Set L :=
   {w | ∀ β : L, IsAtom β → β ≤ w → β = α}
 
+-- [D-1463] bot_mem_atomFactor
 theorem bot_mem_atomFactor {L : Type u} [PartialOrder L] [OrderBot L] (α : L) :
     (⊥ : L) ∈ atomFactor L α := by
   intro β hβ hle
   exact absurd (le_bot_iff.mp hle) hβ.1
 
-/-- **The atom-factor is an isomorphism invariant.** -/
+-- [D-1464] mem_atomFactor_map
 theorem mem_atomFactor_map {L : Type u} {L' : Type v} [PartialOrder L] [OrderBot L]
     [PartialOrder L'] [OrderBot L'] (e : L ≃o L') (α : L) {w : L}
     (hw : w ∈ atomFactor L α) : e w ∈ atomFactor L' (e α) := by
@@ -125,13 +47,12 @@ theorem mem_atomFactor_map {L : Type u} {L' : Type v} [PartialOrder L] [OrderBot
   have h2 := hw _ hβ' hle'
   rw [← h2, e.apply_symm_apply]
 
-/-! ## Two elements is two elements: the `× C₂` obstruction -/
-
+-- [D-1465] §Two-elements-is-two-elements-the-C-obstruction
 section ProdTwo
 
 variable {L : Type u} [PartialOrder L] [OrderBot L]
 
-/-- `(⊥, 1)` is an atom of `L × Fin 2`. -/
+-- [D-1466] isAtom_prodTop
 theorem isAtom_prodTop : IsAtom (((⊥ : L), (1 : Fin 2))) := by
   constructor
   · intro hcon
@@ -149,8 +70,7 @@ theorem isAtom_prodTop : IsAtom (((⊥ : L), (1 : Fin 2))) := by
     rw [h0 i hi]
     rfl
 
-/-- **The extra factor is visible.**  When `L` is atomic, the atom-factor of
-`(⊥, 1)` in `L × Fin 2` is exactly `{⊥, (⊥,1)}`. -/
+-- [D-1467] atomFactor_prodTwo_top
 theorem atomFactor_prodTwo_top [IsAtomic L] {w : L × Fin 2}
     (hw : w ∈ atomFactor (L × Fin 2) ((⊥ : L), (1 : Fin 2))) :
     w = ⊥ ∨ w = ((⊥ : L), (1 : Fin 2)) := by
@@ -183,8 +103,7 @@ theorem atomFactor_prodTwo_top [IsAtomic L] {w : L × Fin 2}
   · exact Or.inl rfl
   · exact Or.inr rfl
 
-/-- **No poset absorbs a two-element factor**, provided every one of its own
-atom-factors has a third element. -/
+-- [D-1468] no_iso_prod_two
 theorem no_iso_prod_two [IsAtomic L]
     (h : ∀ α : L, IsAtom α → ∃ w, w ∈ atomFactor L α ∧ w ≠ ⊥ ∧ w ≠ α) :
     IsEmpty (L ≃o (L × Fin 2)) := by
@@ -204,26 +123,30 @@ theorem no_iso_prod_two [IsAtomic L]
 
 end ProdTwo
 
-/-! ## The restricted product -/
-
+-- [D-1469] §The-restricted-product
 section WeakProdDef
 
 variable {D : ℕ → Type u} [∀ j, PartialOrder (D j)] [∀ j, OrderBot (D j)]
 
-/-- `{x : ∀ j, D j // x j = ⊥ for all large j}`, ordered pointwise. -/
+-- [D-1470] WeakProd
 def WeakProd (D : ℕ → Type u) [∀ j, PartialOrder (D j)] [∀ j, OrderBot (D j)] : Type u :=
   {x : ∀ j, D j // ∃ N, ∀ j, N ≤ j → x j = ⊥}
 
+-- [D-1471] inst-PartialOrder
 instance : PartialOrder (WeakProd D) := Subtype.partialOrder _
 
+-- [D-1472] WeakProd.le_def
 theorem WeakProd.le_def {x y : WeakProd D} : x ≤ y ↔ ∀ j, x.1 j ≤ y.1 j := Iff.rfl
 
+-- [D-1473] inst-OrderBot
 instance : OrderBot (WeakProd D) where
   bot := ⟨fun _ => ⊥, ⟨0, fun _ _ => rfl⟩⟩
   bot_le _ := fun _ => bot_le
 
+-- [D-1474] WeakProd.bot_apply
 @[simp] theorem WeakProd.bot_apply (j : ℕ) : (⊥ : WeakProd D).1 j = ⊥ := rfl
 
+-- [D-1475] WeakProd.eq_bot_iff'
 theorem WeakProd.eq_bot_iff' {x : WeakProd D} : x = ⊥ ↔ ∀ j, x.1 j = ⊥ := by
   constructor
   · rintro rfl j
@@ -231,21 +154,24 @@ theorem WeakProd.eq_bot_iff' {x : WeakProd D} : x = ⊥ ↔ ∀ j, x.1 j = ⊥ :
   · intro h
     exact Subtype.ext (funext h)
 
-/-- The element supported at `j` with value `a`. -/
+-- [D-1476] single
 def single (j : ℕ) (a : D j) : WeakProd D :=
   ⟨Function.update (fun i => (⊥ : D i)) j a, ⟨j + 1, by
     intro i hi
     rw [Function.update_of_ne (by omega)]⟩⟩
 
+-- [D-1477] single_apply_self
 @[simp] theorem single_apply_self (j : ℕ) (a : D j) : (single j a).1 j = a := by
   show Function.update (fun i => (⊥ : D i)) j a j = a
   simp
 
+-- [D-1478] single_apply_ne
 @[simp] theorem single_apply_ne {j i : ℕ} (h : i ≠ j) (a : D j) :
     (single j a).1 i = ⊥ := by
   show Function.update (fun i => (⊥ : D i)) j a i = ⊥
   rw [Function.update_of_ne h]
 
+-- [D-1479] single_le_iff
 theorem single_le_iff {j : ℕ} {a : D j} {x : WeakProd D} :
     single j a ≤ x ↔ a ≤ x.1 j := by
   constructor
@@ -261,8 +187,7 @@ theorem single_le_iff {j : ℕ} {a : D j} {x : WeakProd D} :
 
 end WeakProdDef
 
-/-! ## Atoms and atom-factors of the restricted product -/
-
+-- [D-1480] §Atoms-and-atom-factors-of-the-restricted-product
 section WeakProdAtoms
 
 variable {D : ℕ → Type u} [∀ j, PartialOrder (D j)] [∀ j, OrderBot (D j)]
@@ -271,6 +196,7 @@ variable (hlam_ne : ∀ j, lam j ≠ ⊥) (hlam_le : ∀ j (z : D j), z ≠ ⊥ 
 
 include hlam_ne hlam_le
 
+-- [D-1481] isAtom_single
 theorem isAtom_single (j : ℕ) : IsAtom (single j (lam j) : WeakProd D) := by
   constructor
   · intro hcon
@@ -290,8 +216,7 @@ theorem isAtom_single (j : ℕ) : IsAtom (single j (lam j) : WeakProd D) := by
       rw [single_apply_ne hij] at h3
       exact le_bot_iff.mp h3
 
-/-- **Every atom of the restricted product is a `single`** — this is where the
-least non-`⊥` element is spent. -/
+-- [D-1482] atom_eq_single
 theorem atom_eq_single {β : WeakProd D} (hβ : IsAtom β) :
     ∃ j, β = single j (lam j) := by
   have hne : ∃ j, β.1 j ≠ ⊥ := by
@@ -305,7 +230,7 @@ theorem atom_eq_single {β : WeakProd D} (hβ : IsAtom β) :
   · exact absurd h (isAtom_single lam hlam_ne hlam_le j).1
   · exact h.symm
 
-/-- **The atom-factor of the `j`-th atom is the `j`-th axis.** -/
+-- [D-1483] atomFactor_single
 theorem atomFactor_single {j : ℕ} {w : WeakProd D}
     (hw : w ∈ atomFactor (WeakProd D) (single j (lam j))) (i : ℕ) (hij : i ≠ j) :
     w.1 i = ⊥ := by
@@ -316,6 +241,7 @@ theorem atomFactor_single {j : ℕ} {w : WeakProd D}
   rw [single_apply_self, single_apply_ne hij] at h2
   exact hlam_ne i h2
 
+-- [D-1484] mem_atomFactor_single
 theorem mem_atomFactor_single {j : ℕ} (a : D j) :
     (single j a : WeakProd D) ∈ atomFactor (WeakProd D) (single j (lam j)) := by
   intro β hβ hle
@@ -328,6 +254,7 @@ theorem mem_atomFactor_single {j : ℕ} (a : D j) :
     rw [single_apply_ne hij] at h1
     exact hlam_ne i (le_bot_iff.mp h1)
 
+-- [D-1485] isAtomic_weakProd
 theorem isAtomic_weakProd : IsAtomic (WeakProd D) := by
   refine ⟨fun x => ?_⟩
   by_cases hx : x = ⊥
@@ -338,11 +265,7 @@ theorem isAtomic_weakProd : IsAtomic (WeakProd D) := by
     exact Or.inr ⟨single j (lam j), isAtom_single lam hlam_ne hlam_le j,
       single_le_iff.mpr (hlam_le j _ hj)⟩
 
-/-- **The restricted product absorbs no two-element factor.**
-
-The only hypothesis beyond "each factor has a least non-`⊥` element" is that
-each factor has a *third* element — for the tower, `|D 0| = 3` and the levels
-only grow. -/
+-- [D-1486] weakProd_no_absorb_two
 theorem weakProd_no_absorb_two (c : ∀ j, D j)
     (hc_ne : ∀ j, c j ≠ ⊥) (hc_lam : ∀ j, c j ≠ lam j) :
     IsEmpty (WeakProd D ≃o (WeakProd D × Fin 2)) := by

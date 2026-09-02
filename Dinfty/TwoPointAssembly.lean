@@ -2,37 +2,7 @@ import Dinfty.CopyBCStructure
 
 open GluingTowerLibrary SierpinskiApplication
 
-/-!
-# Both halves of `TwoPointFixed`, from one theorem
-
-§34 did the `midInf` half and §35 noted that the `toD 0 ⊤` half needed
-`no_iso_of_small_pieces` generalised to a finite piece on the **left**, because
-`topJ`'s seed is `WeakProd (Fam 0) × C₂` rather than a bare `WeakProd`.
-
-With `WeakProdFactorization.no_iso_of_small_piecesL` in hand, the two halves are
-**the same theorem**: the copy-`A` argument never looks at the finite piece `T`
-on the left beyond needing it to be atomic, so it can be run against any point
-whose seed has the product shape.  `midInf` takes `T` = its one-point level-`0`
-seed and `topJ` takes `T` = its two-chain — and neither has to be identified with
-anything.
-
-```lean
-seedSeparates_gen (z) (hz : (JBelow z)ᵒᵈ ≃o WeakProd (Fam 0) × T)
-    (hbase) (h : CopyBCExcludedFor z) :
-    ∀ N y, JoinIrred (D N) y → Nonempty (JBelow (toD N y) ≃o JBelow z) → toD N y = z
-```
-
-so
-
-```lean
-twoPointFixed (h₁ : CopyBCExcludedFor midInf) (h₂ : CopyBCExcludedFor (toD 0 ⊤)) :
-    TwoPointFixed
-```
-
-**`TwoPointFixed` is now exactly two `Prop`s**, one per point, both about copies
-`B` and `C`.  §35's item 3 is closed; items 1 and 2 remain.
--/
-
+-- [D-1922] §Both-halves-of-TwoPointFixed-from-one-theorem
 open scoped Classical
 
 namespace TwoPointAssembly
@@ -42,19 +12,22 @@ open WeakProdFactorization TowerCardGrowth TowerNoAbsorption ChainUnion
 open SeedSeparation MidAnchor SeedChain JSeedRecursion AtomFactorGeneration
 open JoinIrredLevelStable JoinIrredDInfty TwoPointHypothesis
 
+-- [D-1923] hmk
 private theorem hmk (k : ℕ) : (markedPt k) ≠ ⊥ := (D_marked_point_nondegenerate k).1
+-- [D-1924] hmtk
 private theorem hmtk (k : ℕ) : (markedPt k) ≠ ⊤ := (D_marked_point_nondegenerate k).2.1
+-- [D-1925] hbtk
 private theorem hbtk (k : ℕ) : (⊥ : EndP (D k)) ≠ ⊤ := (D_marked_point_nondegenerate k).2.2
 
-/-! ## The dualised seed of a join-irreducible has a bottom -/
-
+-- [D-1926] §The-dualised-seed-of-a-join-irreducible-has
+-- [D-1927] levelSeedDualBot
 noncomputable def levelSeedDualBot {N : ℕ} {y : D N} (hy : JoinIrred (D N) y) :
     OrderBot ((LevelSeed N y)ᵒᵈ) :=
   { bot := (⟨y, hy, le_refl y⟩ : LevelSeed N y)
     bot_le := fun a => a.2.2 }
 
-/-! ## The copy-`A` exclusion, with an arbitrary finite piece on the left -/
-
+-- [D-1928] §The-copy-A-exclusion-with-an-arbitrary-finite
+-- [D-1929] copyA_forces_bot_gen
 theorem copyA_forces_bot_gen {T : Type} [PartialOrder T] [OrderBot T] [IsAtomic T]
     (k : ℕ) {p : D k} (hp : p ≠ ⊥) (q : {x : D k // JoinIrred (D k) x})
     (e : (WeakProd (Fam 0) × T) ≃o (WeakProd (Fam (k + 1)) ×
@@ -87,8 +60,8 @@ theorem copyA_forces_bot_gen {T : Type} [PartialOrder T] [OrderBot T] [IsAtomic 
     k hsmall hA hB
   exact hempty.elim e'
 
-/-! ## The induction step, for any point with the product shape -/
-
+-- [D-1930] §The-induction-step-for-any-point-with
+-- [D-1931] copyA_step_gen
 theorem copyA_step_gen (z : DInfty) {T : Type} [PartialOrder T] [OrderBot T] [IsAtomic T]
     (hz : (JBelow z)ᵒᵈ ≃o (WeakProd (Fam 0) × T))
     (k : ℕ) (F : EndP (D k)) (hF : JoinIrred (EndP (D k)) F)
@@ -125,20 +98,14 @@ theorem copyA_step_gen (z : DInfty) {T : Type} [PartialOrder T] [OrderBot T] [Is
          iotaLe_self (le_refl k) aq.2.1] at h2
   exact ⟨aq.2.1, aq.2.2, hiota, ⟨hstep ▸ e⟩⟩
 
-/-! ## The induction -/
-
-/-- The remaining input, for a point `z`.
-
-**The join-irreducibility hypothesis is not decoration.**  Without it the seed
-`LevelSeed (k+1) y` has no maximum, so its dual has no `⊥` and `seedShape` does
-not apply — the statement would not be provable.  It costs nothing: the only
-place this `Prop` is used (`seedSeparates_gen`) has `JoinIrred` in hand, because
-an order-automorphism carries join-irreducibles to join-irreducibles. -/
+-- [D-1932] §The-induction
+-- [D-1933] CopyBCExcludedFor
 def CopyBCExcludedFor (z : DInfty) : Prop :=
   ∀ (k : ℕ) (y : D (k + 1)), JoinIrred (D (k + 1)) y →
     (¬ ∃ F : EndP (D k), y = glueA (markedPt k) F) →
     ¬ Nonempty (JBelow (toD (k + 1) y) ≃o JBelow z)
 
+-- [D-1934] seedSeparates_gen
 theorem seedSeparates_gen (z : DInfty) {T : Type} [PartialOrder T] [OrderBot T] [IsAtomic T]
     (hz : (JBelow z)ᵒᵈ ≃o (WeakProd (Fam 0) × T))
     (hbase : ∀ y : D 0, JoinIrred (D 0) y →
@@ -164,17 +131,21 @@ theorem seedSeparates_gen (z : DInfty) {T : Type} [PartialOrder T] [OrderBot T] 
         exact ih q hq hqe
       · exact absurd he (h k y hy hA)
 
-/-! ## The two instances -/
-
+-- [D-1935] §The-two-instances
+-- [D-1936] inst-OrderBot
 noncomputable instance : OrderBot (Base 0 (dMid 0)) :=
   levelSeedDualBot SeedsDiffer.joinIrred_D0_mid
 
+-- [D-1937] inst-IsAtomic
 noncomputable instance : IsAtomic (Base 0 (dMid 0)) := GluingTowerLibrary.isAtomic_of_finite
 
+-- [D-1938] inst-OrderBot
 noncomputable instance : OrderBot (Base 0 (⊤ : D 0)) := levelSeedDualBot joinIrred_D0_top
 
+-- [D-1939] inst-IsAtomic
 noncomputable instance : IsAtomic (Base 0 (⊤ : D 0)) := GluingTowerLibrary.isAtomic_of_finite
 
+-- [D-1940] base_midInf
 theorem base_midInf : ∀ y : D 0, JoinIrred (D 0) y →
     Nonempty (JBelow (toD 0 y) ≃o JBelow midInf) → toD 0 y = midInf := by
   intro y hy he
@@ -182,6 +153,7 @@ theorem base_midInf : ∀ y : D 0, JoinIrred (D 0) y →
   · rfl
   · exact SeedsDiffer.jBelow_midInf_not_iso_topJ.elim he.some.symm
 
+-- [D-1941] base_topJ
 theorem base_topJ : ∀ y : D 0, JoinIrred (D 0) y →
     Nonempty (JBelow (toD 0 y) ≃o JBelow (toD 0 (⊤ : D 0))) → toD 0 y = toD 0 (⊤ : D 0) := by
   intro y hy he
@@ -189,21 +161,21 @@ theorem base_topJ : ∀ y : D 0, JoinIrred (D 0) y →
   · exact SeedsDiffer.jBelow_midInf_not_iso_topJ.elim he.some
   · rfl
 
-/-- **Every automorphism fixes the seam**, given the copy-`B`/`C` exclusion. -/
+-- [D-1942] midInf_fixed
 theorem midInf_fixed (h : CopyBCExcludedFor midInf) (θ : DInfty ≃o DInfty) :
     θ midInf = midInf :=
   fixed_of_seedSeparates_ji joinIrred_midInf
     (seedSeparates_gen midInf (seedShape 0 (dMid 0) SeedsDiffer.joinIrred_D0_mid)
       base_midInf h) θ
 
-/-- **…and the stage-`0` top.** -/
+-- [D-1943] topJ_fixed
 theorem topJ_fixed (h : CopyBCExcludedFor (toD 0 (⊤ : D 0))) (θ : DInfty ≃o DInfty) :
     θ (toD 0 (⊤ : D 0)) = toD 0 (⊤ : D 0) :=
   fixed_of_seedSeparates_ji joinIrred_toD_zero_top
     (seedSeparates_gen (toD 0 (⊤ : D 0)) (seedShape 0 (⊤ : D 0) joinIrred_D0_top)
       base_topJ h) θ
 
-/-- **`TwoPointFixed`, reduced to two `Prop`s.** -/
+-- [D-1944] twoPointFixed
 theorem twoPointFixed (h₁ : CopyBCExcludedFor midInf)
     (h₂ : CopyBCExcludedFor (toD 0 (⊤ : D 0))) : TwoPointFixed :=
   fun θ => ⟨midInf_fixed h₁ θ, topJ_fixed h₂ θ⟩

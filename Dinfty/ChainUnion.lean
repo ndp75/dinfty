@@ -1,50 +1,14 @@
 import Mathlib.Order.Hom.Basic
 import Mathlib.Order.Bounds.Basic
 
-/-!
-# Increasing unions of posets, and isomorphisms between them
-
-The remaining input to `TwoPointFixed` is that the seed of a stage-`N`
-join-irreducible has a product shape.  Both sides of that identification are
-**increasing unions of finite pieces**:
-
-* `JBelow z` is the union of the level-wise seeds, along `iotaD`;
-* `WeakProd P × S` is the union of the finite prefixes `∏_{j<k} P j × S`, along
-  padding with `⊥`.
-
-So the identification follows from levelwise isomorphisms, provided they commute
-with the two chains.  That is this module: a `ChainUnion` presentation, and
-
-```lean
-chainUnionIso : (∀ k, Ak k ≃o Bk k) → (commuting) → A ≃o B
-```
-
-Nothing here mentions `DInfty` — it is a general fact about directed unions
-along order-embeddings, which is what makes it worth isolating.
-
-## The presentation
-
-```lean
-structure ChainUnion (A) (Ak : ℕ → Type) where
-  step  : ∀ k, Ak k → Ak (k+1)
-  incl  : ∀ k, Ak k → A
-  incl_le_iff : ∀ k a b, incl k a ≤ incl k b ↔ a ≤ b     -- each level embeds
-  incl_step   : ∀ k a, incl (k+1) (step k a) = incl k a  -- the chain is coherent
-  incl_surj   : ∀ a, ∃ k b, incl k b = a                 -- and exhausts A
-```
-
-`incl_le_iff` gives injectivity of each `incl k` for free, and that is what makes
-"two representatives of the same element agree once pushed to a common level"
-(`eq_of_incl_eq`) — the only real lemma here.
--/
-
+-- [D-1441] §Increasing-unions-of-posets-and-isomorphisms
 open scoped Classical
 
 universe u v w
 
 namespace ChainUnion
 
-/-- An increasing-union presentation of `A` by the chain `Ak`. -/
+-- [D-1442] Pres
 structure Pres (A : Type u) [PartialOrder A] (Ak : ℕ → Type v)
     [∀ k, PartialOrder (Ak k)] where
   step : ∀ k, Ak k → Ak (k + 1)
@@ -58,15 +22,17 @@ namespace Pres
 variable {A : Type u} [PartialOrder A] {Ak : ℕ → Type v} [∀ k, PartialOrder (Ak k)]
 variable (S : Pres A Ak)
 
+-- [D-1443] incl_injective
 theorem incl_injective (k : ℕ) : Function.Injective (S.incl k) := fun a b h =>
   le_antisymm ((S.incl_le_iff k a b).mp (le_of_eq h))
     ((S.incl_le_iff k b a).mp (le_of_eq h.symm))
 
-/-- Push a level-`k` element up `d` steps. -/
+-- [D-1444] stepPow
 def stepPow (k : ℕ) : ∀ (d : ℕ), Ak k → Ak (k + d)
   | 0, a => a
   | d + 1, a => S.step (k + d) (stepPow k d a)
 
+-- [D-1445] incl_stepPow
 theorem incl_stepPow (k d : ℕ) (a : Ak k) : S.incl (k + d) (S.stepPow k d a) = S.incl k a := by
   induction d with
   | zero => rfl
@@ -75,16 +41,14 @@ theorem incl_stepPow (k d : ℕ) (a : Ak k) : S.incl (k + d) (S.stepPow k d a) =
       rw [S.incl_step (k + d) (S.stepPow k d a)]
       exact ih
 
-/-- **Two representatives of the same element agree at a common level.** -/
+-- [D-1446] stepPow_eq_of_incl_eq
 theorem stepPow_eq_of_incl_eq {k d : ℕ} {a : Ak k} {b : Ak (k + d)}
     (h : S.incl k a = S.incl (k + d) b) : S.stepPow k d a = b :=
   S.incl_injective (k + d) ((S.incl_stepPow k d a).trans h)
 
 end Pres
 
-
-/-- **A presentation dualises.**  `OrderDual` is the same type, and
-`incl_le_iff` just reads with its two sides swapped. -/
+-- [D-1447] Pres.dual
 def Pres.dual {A : Type u} [PartialOrder A] {Ak : ℕ → Type v} [∀ k, PartialOrder (Ak k)]
     (S : Pres A Ak) : Pres Aᵒᵈ (fun k => (Ak k)ᵒᵈ) where
   step k := S.step k
@@ -93,7 +57,7 @@ def Pres.dual {A : Type u} [PartialOrder A] {Ak : ℕ → Type v} [∀ k, Partia
   incl_step := S.incl_step
   incl_surj := S.incl_surj
 
-/-- `(A × B)ᵒᵈ` and `Aᵒᵈ × Bᵒᵈ` are the same ordered set. -/
+-- [D-1448] prodDualIso
 def prodDualIso (A : Type u) (B : Type u) [PartialOrder A] [PartialOrder B] :
     (A × B)ᵒᵈ ≃o (Aᵒᵈ × Bᵒᵈ) where
   toFun x := x
@@ -102,7 +66,7 @@ def prodDualIso (A : Type u) (B : Type u) [PartialOrder A] [PartialOrder B] :
   right_inv _ := rfl
   map_rel_iff' := Iff.rfl
 
-/-- `Aᵒᵈᵒᵈ` is `A`. -/
+-- [D-1449] dualDualIso
 def dualDualIso (A : Type u) [PartialOrder A] : Aᵒᵈᵒᵈ ≃o A where
   toFun x := x
   invFun x := x
@@ -110,8 +74,7 @@ def dualDualIso (A : Type u) [PartialOrder A] : Aᵒᵈᵒᵈ ≃o A where
   right_inv _ := rfl
   map_rel_iff' := Iff.rfl
 
-/-! ## Transporting an isomorphism along two presentations -/
-
+-- [D-1450] §Transporting-an-isomorphism-along-two
 section Transport
 
 variable {A : Type u} [PartialOrder A] {Ak : ℕ → Type w} [∀ k, PartialOrder (Ak k)]
@@ -119,7 +82,7 @@ variable {B : Type v} [PartialOrder B] {Bk : ℕ → Type w} [∀ k, PartialOrde
 variable (SA : Pres A Ak) (SB : Pres B Bk)
 variable (e : ∀ k, Ak k ≃o Bk k)
 
-/-- Any two elements are represented at a **common** level. -/
+-- [D-1451] exists_common
 theorem exists_common (a a' : A) :
     ∃ (n : ℕ) (b b' : Ak n), SA.incl n b = a ∧ SA.incl n b' = a' := by
   obtain ⟨k, b, hb⟩ := SA.incl_surj a
@@ -130,6 +93,7 @@ theorem exists_common (a a' : A) :
   · obtain ⟨d, rfl⟩ := Nat.le.dest hk
     exact ⟨k' + d, b, SA.stepPow k' d b', hb, (SA.incl_stepPow k' d b').trans hb'⟩
 
+-- [D-1452] e_stepPow
 theorem e_stepPow (hcomm : ∀ (k : ℕ) (a : Ak k), e (k + 1) (SA.step k a) = SB.step k (e k a))
     (k d : ℕ) (a : Ak k) :
     e (k + d) (SA.stepPow k d a) = SB.stepPow k d (e k a) := by
@@ -140,7 +104,7 @@ theorem e_stepPow (hcomm : ∀ (k : ℕ) (a : Ak k), e (k + 1) (SA.step k a) = S
         = SB.step (k + d) (SB.stepPow k d (e k a))
       rw [hcomm (k + d) (SA.stepPow k d a), ih]
 
-/-- **The level-wise images agree whenever the level-wise sources do.** -/
+-- [D-1453] incl_e_eq
 theorem incl_e_eq
     (hcomm : ∀ (k : ℕ) (a : Ak k), e (k + 1) (SA.step k a) = SB.step k (e k a))
     (i : ℕ) (u : Ak i) (j : ℕ) (v : Ak j) (huv : SA.incl i u = SA.incl j v) :
@@ -161,18 +125,18 @@ theorem incl_e_eq
           rw [e_stepPow SA SB e hcomm j d v]
       _ = SB.incl j (e j v) := SB.incl_stepPow j d (e j v)
 
-/-- The transported map, defined on a chosen representative. -/
+-- [D-1454] transfer
 noncomputable def transfer (a : A) : B :=
   SB.incl (SA.incl_surj a).choose (e _ (SA.incl_surj a).choose_spec.choose)
 
-/-- **…and it does not depend on the representative.** -/
+-- [D-1455] transfer_eq
 theorem transfer_eq
     (hcomm : ∀ (k : ℕ) (a : Ak k), e (k + 1) (SA.step k a) = SB.step k (e k a))
     (k : ℕ) (b : Ak k) : transfer SA SB e (SA.incl k b) = SB.incl k (e k b) :=
   incl_e_eq SA SB e hcomm _ ((SA.incl_surj (SA.incl k b)).choose_spec.choose) k b
     (SA.incl_surj (SA.incl k b)).choose_spec.choose_spec
 
-/-- The commuting square, transported to the inverses. -/
+-- [D-1456] hcomm_symm
 theorem hcomm_symm
     (hcomm : ∀ (k : ℕ) (a : Ak k), e (k + 1) (SA.step k a) = SB.step k (e k a))
     (k : ℕ) (b : Bk k) :
@@ -180,7 +144,7 @@ theorem hcomm_symm
   apply (e (k + 1)).injective
   rw [OrderIso.apply_symm_apply, hcomm k ((e k).symm b), OrderIso.apply_symm_apply]
 
-/-- The underlying bijection. -/
+-- [D-1457] chainUnionEquiv
 noncomputable def chainUnionEquiv
     (hcomm : ∀ (k : ℕ) (a : Ak k), e (k + 1) (SA.step k a) = SB.step k (e k a)) :
     A ≃ B where
@@ -199,8 +163,7 @@ noncomputable def chainUnionEquiv
         transfer_eq SA SB e hcomm k ((e k).symm c),
         OrderIso.apply_symm_apply]
 
-/-- **Two increasing unions with compatible levelwise isomorphisms are
-isomorphic.** -/
+-- [D-1458] chainUnionIso
 noncomputable def chainUnionIso
     (hcomm : ∀ (k : ℕ) (a : Ak k), e (k + 1) (SA.step k a) = SB.step k (e k a)) :
     A ≃o B where

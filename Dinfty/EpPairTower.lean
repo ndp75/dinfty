@@ -1,20 +1,3 @@
-/-
-  EpPairTower — an abstract ω-tower of embedding/projection pairs and its
-  bilimit, with the "any two colimit cocones over the tower are canonically
-  order-isomorphic" lemma.
-
-  This is the tower-agnostic form of `SierpinskiApplication.lean`'s
-  `section ColimitCoconeIso` (which is hard-wired to the `(D k, iotaD k, pD k)`
-  tower and `DBilimit`).  It is `PsiIso`-free and imports only Mathlib.
-
-  Purpose: instantiate it twice — once with the constant-embedding tower
-  `(D k, iotaD k, pD k)` (recovering `DBilimit`), once with the F-iterate
-  tower `(D k, e'_k, p'_k)` with `e'_{k+1} = glueAA k` — so that
-  `D∞^F ≃o F(D∞^F)` becomes a corollary of the shifted-cocone form of the
-  lemma below.  See `Meta/Finding - PsiIso tower mismatch (2026-08-26).md`
-  (remediation path 1).
--/
-
 import Mathlib.Order.ScottContinuity
 import Mathlib.Order.Bounds.Basic
 import Mathlib.Order.Directed
@@ -27,9 +10,7 @@ open Set
 
 universe u
 
-/-- An ω-chain of embedding/projection pairs:
-    `carrier k ⇄ carrier (k+1)` with `prj k ∘ emb k = id` and
-    `emb k ∘ prj k ≤ id`, both maps monotone. -/
+-- [D-2137] EpPairTower
 structure EpPairTower where
   carrier : ℕ → Type u
   order : ∀ k, PartialOrder (carrier k)
@@ -46,41 +27,46 @@ namespace EpPairTower
 
 variable (T : EpPairTower)
 
-/-- `emb k (prj k z) ≤ z` — deflation, spelled with the instance resolved. -/
+-- [D-2138] emb_prj_le
 theorem emb_prj_le (k : ℕ) (z : T.carrier (k + 1)) : T.emb k (T.prj k z) ≤ z :=
   T.deflation k z
 
-/-! ### Iterated embedding / projection along the chain -/
-
-/-- Transport a point up from level `k` to level `n ≥ k` by iterating `emb`. -/
+-- [D-2139] §Iterated-embedding-projection-along-the-chain
+-- [D-2140] embLe
 noncomputable def embLe {k n : ℕ} (h : k ≤ n) : T.carrier k → T.carrier n :=
   Nat.leRecOn h (fun {j} => T.emb j)
 
-/-- Transport a point down from level `n` to level `j ≤ n` by iterating `prj`. -/
+-- [D-2141] prjLe
 noncomputable def prjLe {j n : ℕ} (h : j ≤ n) : T.carrier n → T.carrier j :=
   Nat.leRecOn (C := fun n => T.carrier n → T.carrier j) h
     (fun {n} (f : T.carrier n → T.carrier j) => f ∘ T.prj n) id
 
 variable {T}
 
+-- [D-2142] embLe_self
 @[simp] theorem embLe_self {k : ℕ} (h : k ≤ k) (x : T.carrier k) : T.embLe h x = x :=
   Nat.leRecOn_self x
 
+-- [D-2143] embLe_succ
 theorem embLe_succ {k n : ℕ} (h : k ≤ n) (h' : k ≤ n + 1) (x : T.carrier k) :
     T.embLe h' x = T.emb n (T.embLe h x) :=
   Nat.leRecOn_succ h x
 
+-- [D-2144] embLe_trans
 theorem embLe_trans {k n m : ℕ} (h1 : k ≤ n) (h2 : n ≤ m) (x : T.carrier k) :
     T.embLe (h1.trans h2) x = T.embLe h2 (T.embLe h1 x) :=
   Nat.leRecOn_trans h1 h2 x
 
+-- [D-2145] prjLe_self
 @[simp] theorem prjLe_self (j : ℕ) (h : j ≤ j) (x : T.carrier j) : T.prjLe h x = x := by
   unfold prjLe; rw [Nat.leRecOn_self]; rfl
 
+-- [D-2146] prjLe_succ
 theorem prjLe_succ {j n : ℕ} (h : j ≤ n) (h' : j ≤ n + 1) (w : T.carrier (n + 1)) :
     T.prjLe h' w = T.prjLe h (T.prj n w) := by
   unfold prjLe; rw [Nat.leRecOn_succ h]; rfl
 
+-- [D-2147] embLe_mono
 theorem embLe_mono {k n : ℕ} (h : k ≤ n) : Monotone (T.embLe h) := by
   induction n, h using Nat.le_induction with
   | base => intro x y hxy; rwa [embLe_self, embLe_self]
@@ -89,6 +75,7 @@ theorem embLe_mono {k n : ℕ} (h : k ≤ n) : Monotone (T.embLe h) := by
       rw [embLe_succ hkn (Nat.le_succ_of_le hkn), embLe_succ hkn (Nat.le_succ_of_le hkn)]
       exact T.emb_mono n (ih hxy)
 
+-- [D-2148] prjLe_mono
 theorem prjLe_mono {j n : ℕ} (h : j ≤ n) : Monotone (T.prjLe h) := by
   induction n, h using Nat.le_induction with
   | base => intro x y hxy; rwa [prjLe_self, prjLe_self]
@@ -97,7 +84,7 @@ theorem prjLe_mono {j n : ℕ} (h : j ≤ n) : Monotone (T.prjLe h) := by
       rw [prjLe_succ hjn (Nat.le_succ_of_le hjn), prjLe_succ hjn (Nat.le_succ_of_le hjn)]
       exact ih (T.prj_mono n hxy)
 
-/-- `prj` commutes with `prjLe` across a change of the bottom index. -/
+-- [D-2149] prj_prjLe_comm
 theorem prj_prjLe_comm {j : ℕ} : ∀ {k : ℕ} (h1 : j + 1 ≤ k) (h2 : j ≤ k) (y : T.carrier k),
     T.prj j (T.prjLe h1 y) = T.prjLe h2 y := by
   intro k h1
@@ -111,6 +98,7 @@ theorem prj_prjLe_comm {j : ℕ} : ∀ {k : ℕ} (h1 : j + 1 ≤ k) (h2 : j ≤ 
       rw [prjLe_succ hjk (Nat.le_succ_of_le hjk) y, prjLe_succ (Nat.le_of_succ_le hjk) h2 y]
       exact ih (Nat.le_of_succ_le hjk) (T.prj k y)
 
+-- [D-2150] prjLe_trans
 theorem prjLe_trans {j n m : ℕ} (h1 : j ≤ n) (h2 : n ≤ m) (x : T.carrier m) :
     T.prjLe (h1.trans h2) x = T.prjLe h1 (T.prjLe h2 x) := by
   induction m, h2 using Nat.le_induction with
@@ -119,11 +107,12 @@ theorem prjLe_trans {j n m : ℕ} (h1 : j ≤ n) (h2 : n ≤ m) (x : T.carrier m
       rw [prjLe_succ hnm (Nat.le_succ_of_le hnm) x,
         prjLe_succ (h1.trans hnm) (Nat.le_succ_of_le (h1.trans hnm)) x, ih (T.prj m x)]
 
+-- [D-2151] prj_embLe
 theorem prj_embLe {k n : ℕ} (h : k ≤ n) (h' : k ≤ n + 1) (x : T.carrier k) :
     T.prj n (T.embLe h' x) = T.embLe h x := by
   rw [embLe_succ h h', T.retraction]
 
-/-- One-step order reflection: `emb k x ≤ emb k y ↔ x ≤ y`. -/
+-- [D-2152] emb_le_iff
 theorem emb_le_iff (k : ℕ) (x y : T.carrier k) : T.emb k x ≤ T.emb k y ↔ x ≤ y := by
   constructor
   · intro hle
@@ -131,6 +120,7 @@ theorem emb_le_iff (k : ℕ) (x y : T.carrier k) : T.emb k x ≤ T.emb k y ↔ x
     rwa [T.retraction, T.retraction] at this
   · exact fun hle => T.emb_mono k hle
 
+-- [D-2153] embLe_le_iff
 theorem embLe_le_iff {k : ℕ} : ∀ {n : ℕ} (h : k ≤ n) (x y : T.carrier k),
     T.embLe h x ≤ T.embLe h y ↔ x ≤ y := by
   intro n h
@@ -142,30 +132,33 @@ theorem embLe_le_iff {k : ℕ} : ∀ {n : ℕ} (h : k ≤ n) (x y : T.carrier k)
         emb_le_iff]
       exact ih x y
 
+-- [D-2154] embLe_injective
 theorem embLe_injective {k n : ℕ} (h : k ≤ n) : Function.Injective (T.embLe h) := by
   intro x y hxy
   exact ((embLe_le_iff h x y).mp hxy.le).antisymm ((embLe_le_iff h y x).mp hxy.ge)
 
-/-! ### The bilimit -/
-
+-- [D-2155] §The-bilimit
 variable (T)
 
-/-- The bilimit: compatible sequences under the tower's projections. -/
+-- [D-2156] Bilim
 def Bilim : Type u := {x : ∀ k, T.carrier k // ∀ k, T.prj k (x (k + 1)) = x k}
 
+-- [D-2157] inst-PartialOrder
 noncomputable instance : PartialOrder T.Bilim := Subtype.partialOrder _
 
+-- [D-2158] Bilim.le_def
 theorem Bilim.le_def {x y : T.Bilim} : x ≤ y ↔ ∀ k, x.1 k ≤ y.1 k := Iff.rfl
 
 variable {T}
 
-/-- Chasing a bilimit point down agrees with reading it off at the lower level. -/
+-- [D-2159] Bilim_prjLe_eq
 theorem Bilim_prjLe_eq (z : T.Bilim) {k : ℕ} : ∀ {n : ℕ} (h : k ≤ n), T.prjLe h (z.1 n) = z.1 k := by
   intro n h
   induction n, h using Nat.le_induction with
   | base => exact prjLe_self k (le_refl k) (z.1 k)
   | succ n hn ih => rw [prjLe_succ hn (hn.trans (Nat.le_succ n)), z.2 n]; exact ih
 
+-- [D-2160] Bilim.emb_le
 theorem Bilim.emb_le (z : T.Bilim) {k : ℕ} : ∀ {n : ℕ} (h : k ≤ n), T.embLe h (z.1 k) ≤ z.1 n := by
   intro n h
   induction n, h using Nat.le_induction with
@@ -176,17 +169,16 @@ theorem Bilim.emb_le (z : T.Bilim) {k : ℕ} : ∀ {n : ℕ} (h : k ≤ n), T.em
       rw [show z.1 n = T.prj n (z.1 (n + 1)) from (z.2 n).symm]
       exact T.deflation n (z.1 (n + 1))
 
-/-! ### The staged sequence of a compact -/
-
+-- [D-2161] §The-staged-sequence-of-a-compact
 variable (T)
 
-/-- The compatible sequence a point `w : carrier N` determines: chase down
-    below `N`, chase up above `N`. -/
+-- [D-2162] seqOf
 noncomputable def seqOf (N : ℕ) (w : T.carrier N) (j : ℕ) : T.carrier j :=
   if h : j ≤ N then T.prjLe h w else T.embLe (not_le.mp h).le w
 
 variable {T}
 
+-- [D-2163] seqOf_compat
 theorem seqOf_compat (N : ℕ) (w : T.carrier N) (j : ℕ) :
     T.prj j (T.seqOf N w (j + 1)) = T.seqOf N w j := by
   by_cases h1 : j + 1 ≤ N
@@ -212,7 +204,7 @@ theorem seqOf_compat (N : ℕ) (w : T.carrier N) (j : ℕ) :
         embLe_succ (not_le.mp h2).le (not_le.mp h1).le w
       rw [heq, T.retraction]
 
-/-- Moving the basepoint up one tower step doesn't change `seqOf`. -/
+-- [D-2164] seqOf_emb_step
 theorem seqOf_emb_step (N : ℕ) (w : T.carrier N) :
     T.seqOf (N + 1) (T.emb N w) = T.seqOf N w := by
   funext j
@@ -235,6 +227,7 @@ theorem seqOf_emb_step (N : ℕ) (w : T.carrier N) :
       rw [this, show T.embLe (Nat.le_succ N) w = T.emb N w from by
         rw [embLe_succ (le_refl N) (Nat.le_succ N), embLe_self]]
 
+-- [D-2165] seqOf_embLe_invariant
 theorem seqOf_embLe_invariant (N : ℕ) (w : T.carrier N) : ∀ {n : ℕ} (h : N ≤ n),
     T.seqOf n (T.embLe h w) = T.seqOf N w := by
   intro n h
@@ -243,29 +236,33 @@ theorem seqOf_embLe_invariant (N : ℕ) (w : T.carrier N) : ∀ {n : ℕ} (h : N
   | succ n hpn ih =>
       rw [embLe_succ hpn (Nat.le_succ_of_le hpn), seqOf_emb_step n (T.embLe hpn w)]; exact ih
 
-/-! ### `ins` : the canonical embedding of level `k` into the bilimit -/
-
+-- [D-2166] §ins-the-canonical-embedding-of-level-k-into
 variable (T)
 
-/-- Insert a point of `carrier k` into the bilimit as the sequence it stages. -/
+-- [D-2167] ins
 noncomputable def ins (k : ℕ) (w : T.carrier k) : T.Bilim :=
   ⟨T.seqOf k w, seqOf_compat k w⟩
 
 variable {T}
 
+-- [D-2168] ins_apply
 @[simp] theorem ins_apply (k : ℕ) (w : T.carrier k) (j : ℕ) :
     (T.ins k w).1 j = T.seqOf k w j := rfl
 
+-- [D-2169] ins_self
 @[simp] theorem ins_self (k : ℕ) (w : T.carrier k) : (T.ins k w).1 k = w := by
   show (if h : k ≤ k then T.prjLe h w else T.embLe (not_le.mp h).le w) = w
   rw [dif_pos (le_refl k), prjLe_self k (le_refl k) w]
 
+-- [D-2170] ins_emb
 theorem ins_emb (k : ℕ) (w : T.carrier k) : T.ins (k + 1) (T.emb k w) = T.ins k w :=
   Subtype.ext (seqOf_emb_step k w)
 
+-- [D-2171] ins_embLe
 theorem ins_embLe {k n : ℕ} (h : k ≤ n) (w : T.carrier k) : T.ins n (T.embLe h w) = T.ins k w :=
   Subtype.ext (seqOf_embLe_invariant k w h)
 
+-- [D-2172] ins_monotone
 theorem ins_monotone (k : ℕ) : Monotone (T.ins k) := by
   intro w w' hle j
   show (if h : j ≤ k then T.prjLe h w else T.embLe (not_le.mp h).le w)
@@ -274,10 +271,11 @@ theorem ins_monotone (k : ℕ) : Monotone (T.ins k) := by
   · rw [dif_pos h, dif_pos h]; exact prjLe_mono h hle
   · rw [dif_neg h, dif_neg h]; exact (embLe_le_iff (not_le.mp h).le w w').mpr hle
 
+-- [D-2173] embLe_bilim_le
 theorem embLe_bilim_le (y : T.Bilim) {n : ℕ} : ∀ {n' : ℕ} (h : n ≤ n'),
     T.embLe h (y.1 n) ≤ y.1 n' := fun h => Bilim.emb_le y h
 
-/-- `ins n (y.1 n) ≤ y` — exact agreement below `n`, deflation above. -/
+-- [D-2174] ins_le_self
 theorem ins_le_self (y : T.Bilim) (n : ℕ) : T.ins n (y.1 n) ≤ y := by
   intro j
   show (if h : j ≤ n then T.prjLe h (y.1 n) else T.embLe (not_le.mp h).le (y.1 n)) ≤ y.1 j
@@ -285,6 +283,7 @@ theorem ins_le_self (y : T.Bilim) (n : ℕ) : T.ins n (y.1 n) ≤ y := by
   · rw [dif_pos hjn, Bilim_prjLe_eq y hjn]
   · rw [dif_neg hjn]; exact Bilim.emb_le y (not_le.mp hjn).le
 
+-- [D-2175] ins_chain_mono
 theorem ins_chain_mono (y : T.Bilim) {n n' : ℕ} (h : n ≤ n') :
     T.ins n (y.1 n) ≤ T.ins n' (y.1 n') := by
   intro j
@@ -303,13 +302,10 @@ theorem ins_chain_mono (y : T.Bilim) {n n' : ℕ} (h : n ≤ n') :
       rw [show T.embLe hnj (y.1 n) = T.embLe hn'j (T.embLe h (y.1 n)) from embLe_trans h hn'j (y.1 n)]
       exact (embLe_le_iff hn'j _ _).mpr (Bilim.emb_le y h)
 
-/-! ### dcpo structure -/
-
+-- [D-2176] §dcpo-structure
 variable (T)
 
-/-- Directed-completeness of the levels plus Scott-continuity of the
-    projections — the extra hypotheses that make the bilimit a dcpo and the
-    colimit-cocone lemma go through. -/
+-- [D-2177] IsDcpo
 structure IsDcpo : Prop where
   carrier_lub : ∀ (k : ℕ) (S : Set (T.carrier k)), S.Nonempty → DirectedOn (· ≤ ·) S →
     ∃ s, IsLUB S s
@@ -317,14 +313,14 @@ structure IsDcpo : Prop where
 
 variable {T}
 
-/-- Projecting a directed set of compatible sequences to one level stays directed. -/
+-- [D-2178] Bilim_directed_image
 theorem Bilim_directed_image (k : ℕ) {S : Set T.Bilim} (hdir : DirectedOn (· ≤ ·) S) :
     DirectedOn (· ≤ ·) ((fun x : T.Bilim => x.1 k) '' S) := by
   rintro _ ⟨x, hx, rfl⟩ _ ⟨y, hy, rfl⟩
   obtain ⟨z, hz, hxz, hyz⟩ := hdir x hx y hy
   exact ⟨z.1 k, ⟨z, hz, rfl⟩, hxz k, hyz k⟩
 
-/-- A point whose every level is the levelwise LUB is the LUB in the bilimit. -/
+-- [D-2179] Bilim_levelwise_isLUB
 theorem Bilim_levelwise_isLUB {S : Set T.Bilim} {a : T.Bilim}
     (hk : ∀ k, IsLUB ((fun x : T.Bilim => x.1 k) '' S) (a.1 k)) : IsLUB S a := by
   constructor
@@ -333,8 +329,8 @@ theorem Bilim_levelwise_isLUB {S : Set T.Bilim} {a : T.Bilim}
 
 variable (hT : T.IsDcpo)
 
+-- [D-2180] exists_levelwise_lub
 include hT in
-/-- The compatible sequence assembled levelwise from a directed set. -/
 theorem exists_levelwise_lub (S : Set T.Bilim) (hne : S.Nonempty)
     (hdir : DirectedOn (· ≤ ·) S) :
     ∃ b : T.Bilim, ∀ k, IsLUB ((fun x : T.Bilim => x.1 k) '' S) (b.1 k) := by
@@ -355,30 +351,32 @@ theorem exists_levelwise_lub (S : Set T.Bilim) (hne : S.Nonempty)
     exact hlub_img.unique (hsup k)
   exact ⟨⟨sup, hcompat⟩, hsup⟩
 
+-- [D-2181] Bilim.exists_isLUB_of_directedOn
 include hT in
-/-- The bilimit is a dcpo. -/
 theorem Bilim.exists_isLUB_of_directedOn (S : Set T.Bilim) (hne : S.Nonempty)
     (hdir : DirectedOn (· ≤ ·) S) : ∃ y, IsLUB S y := by
   obtain ⟨b, hb⟩ := exists_levelwise_lub hT S hne hdir
   exact ⟨b, Bilim_levelwise_isLUB hb⟩
 
-/-! ### The approximating chain of a bilimit point -/
-
+-- [D-2182] §The-approximating-chain-of-a-bilimit-point
 variable (T)
 
-/-- `y` is the least upper bound of `{ins n (y.1 n) : n}`. -/
+-- [D-2183] chainSet
 noncomputable def chainSet (y : T.Bilim) : Set T.Bilim :=
   Set.range (fun n => T.ins n (y.1 n))
 
 variable {T}
 
+-- [D-2184] chainSet_nonempty
 theorem chainSet_nonempty (y : T.Bilim) : (T.chainSet y).Nonempty := ⟨_, 0, rfl⟩
 
+-- [D-2185] chainSet_directedOn
 theorem chainSet_directedOn (y : T.Bilim) : DirectedOn (· ≤ ·) (T.chainSet y) := by
   rintro _ ⟨n1, rfl⟩ _ ⟨n2, rfl⟩
   exact ⟨T.ins (max n1 n2) (y.1 (max n1 n2)), ⟨max n1 n2, rfl⟩,
     ins_chain_mono y (le_max_left n1 n2), ins_chain_mono y (le_max_right n1 n2)⟩
 
+-- [D-2186] chainSet_isLUB
 theorem chainSet_isLUB (y : T.Bilim) : IsLUB (T.chainSet y) y := by
   constructor
   · rintro _ ⟨n, rfl⟩; exact ins_le_self y n
@@ -387,8 +385,8 @@ theorem chainSet_isLUB (y : T.Bilim) : IsLUB (T.chainSet y) y := by
     show y.1 j ≤ z.1 j
     rwa [show (T.ins j (y.1 j)).1 j = y.1 j from ins_self j (y.1 j)] at hzj
 
+-- [D-2187] isLUB_bilim_apply
 include hT in
-/-- The levelwise reading of a directed LUB is the LUB of the levelwise images. -/
 theorem isLUB_bilim_apply {S : Set T.Bilim} {a : T.Bilim} (ha : IsLUB S a)
     (hne : S.Nonempty) (hdir : DirectedOn (· ≤ ·) S) (k : ℕ) :
     IsLUB ((fun x : T.Bilim => x.1 k) '' S) (a.1 k) := by
@@ -396,6 +394,7 @@ theorem isLUB_bilim_apply {S : Set T.Bilim} {a : T.Bilim} (ha : IsLUB S a)
   rw [ha.unique (Bilim_levelwise_isLUB hb)]
   exact hb k
 
+-- [D-2188] seqOf_eq_embLe
 theorem seqOf_eq_embLe (N : ℕ) (w : T.carrier N) {n : ℕ} (h : N ≤ n) :
     T.seqOf N w n = T.embLe h w := by
   show (if hh : n ≤ N then T.prjLe hh w else T.embLe (not_le.mp hh).le w) = T.embLe h w
@@ -405,13 +404,10 @@ theorem seqOf_eq_embLe (N : ℕ) (w : T.carrier N) {n : ℕ} (h : N ≤ n) :
     rw [dif_pos hh, prjLe_self n hh w, embLe_self h w]
   · rw [dif_neg hh]
 
-/-! ### Colimit cocones over the tower -/
-
+-- [D-2189] §Colimit-cocones-over-the-tower
 variable (T)
 
-/-- A cocone `(e, p)` over the tower is *colimiting* iff its legs form ep-pairs
-    with each level, `e` is compatible with `emb`, and each `z` is the LUB of
-    its approximations `e k (p k z)`. -/
+-- [D-2190] IsColimitCocone
 structure IsColimitCocone {X : Type u} [PartialOrder X]
     (e : ∀ k, T.carrier k → X) (p : ∀ k, X → T.carrier k) : Prop where
   retraction : ∀ k x, p k (e k x) = x
@@ -425,7 +421,7 @@ namespace IsColimitCocone
 
 variable {X : Type u} [PartialOrder X] {e : ∀ k, T.carrier k → X} {p : ∀ k, X → T.carrier k}
 
-/-- `p k z = prj k (p (k+1) z)` — from the four fields + monotone legs. -/
+-- [D-2191] proj_tower
 theorem proj_tower (h : T.IsColimitCocone e p)
     (hp : ∀ k, Monotone (p k)) (he : ∀ k, Monotone (e k)) (k : ℕ) (x : X) :
     p k x = T.prj k (p (k + 1) x) := by
@@ -444,6 +440,7 @@ theorem proj_tower (h : T.IsColimitCocone e p)
     have := hp k h2
     rwa [h.retraction k (T.prj k (p (k + 1) x))] at this
 
+-- [D-2192] proj_prjLe
 theorem proj_prjLe (h : T.IsColimitCocone e p)
     (hp : ∀ k, Monotone (p k)) (he : ∀ k, Monotone (e k)) {j : ℕ} :
     ∀ {n : ℕ} (hjn : j ≤ n) (x : X), p j x = T.prjLe hjn (p n x) := by
@@ -455,15 +452,17 @@ theorem proj_prjLe (h : T.IsColimitCocone e p)
       rw [prjLe_succ hjn (Nat.le_succ_of_le hjn), ← h.proj_tower hp he n x]
       exact ih x
 
-/-- The `Bilim` point a colimit cocone assigns to `x`. -/
+-- [D-2193] toBilim
 noncomputable def toBilim (h : T.IsColimitCocone e p)
     (hp : ∀ k, Monotone (p k)) (he : ∀ k, Monotone (e k)) (x : X) : T.Bilim :=
   ⟨fun k => p k x, fun k => (h.proj_tower hp he k x).symm⟩
 
+-- [D-2194] toBilim_apply
 @[simp] theorem toBilim_apply (h : T.IsColimitCocone e p)
     (hp : ∀ k, Monotone (p k)) (he : ∀ k, Monotone (e k)) (x : X) (k : ℕ) :
     (h.toBilim hp he x).1 k = p k x := rfl
 
+-- [D-2195] toBilim_le_iff
 theorem toBilim_le_iff (h : T.IsColimitCocone e p)
     (hp : ∀ k, Monotone (p k)) (he : ∀ k, Monotone (e k)) (x x' : X) :
     h.toBilim hp he x ≤ h.toBilim hp he x' ↔ x ≤ x' := by
@@ -478,6 +477,7 @@ theorem toBilim_le_iff (h : T.IsColimitCocone e p)
     show ∀ k, p k x ≤ p k x'
     exact fun k => hp k hle
 
+-- [D-2196] toBilim_injective
 theorem toBilim_injective (h : T.IsColimitCocone e p)
     (hp : ∀ k, Monotone (p k)) (he : ∀ k, Monotone (e k)) :
     Function.Injective (h.toBilim hp he) := by
@@ -485,6 +485,7 @@ theorem toBilim_injective (h : T.IsColimitCocone e p)
   exact le_antisymm ((h.toBilim_le_iff hp he a b).mp (le_of_eq hab))
     ((h.toBilim_le_iff hp he b a).mp (le_of_eq hab.symm))
 
+-- [D-2197] toBilim_surjective
 theorem toBilim_surjective (h : T.IsColimitCocone e p)
     (hp : ∀ k, Monotone (p k)) (he : ∀ k, Monotone (e k))
     (hsup : ∀ d : T.Bilim, ∃ x : X, IsLUB (Set.range (fun k => e k (d.1 k))) x)
@@ -526,7 +527,7 @@ theorem toBilim_surjective (h : T.IsColimitCocone e p)
         _ ≤ w := hw ⟨j, rfl⟩
   exact (hcont d x hx j).unique hLUB_dj
 
-/-- **A colimit cocone with the chain sups is order-isomorphic to `Bilim`.** -/
+-- [D-2198] orderIsoBilim
 noncomputable def orderIsoBilim (h : T.IsColimitCocone e p)
     (hp : ∀ k, Monotone (p k)) (he : ∀ k, Monotone (e k))
     (hsup : ∀ d : T.Bilim, ∃ x : X, IsLUB (Set.range (fun k => e k (d.1 k))) x)
@@ -540,7 +541,7 @@ noncomputable def orderIsoBilim (h : T.IsColimitCocone e p)
 
 end IsColimitCocone
 
-/-- `Bilim`'s own colimit cocone `(ins, proj)`. -/
+-- [D-2199] Bilim_isColimitCocone
 theorem Bilim_isColimitCocone :
     T.IsColimitCocone (fun k => T.ins k) (fun k (z : T.Bilim) => z.1 k) where
   retraction k w := ins_self k w
@@ -551,7 +552,7 @@ theorem Bilim_isColimitCocone :
     have : T.chainSet z = Set.range (fun k => T.ins k (z.1 k)) := rfl
     rwa [this] at h
 
-/-- **Any two colimit cocones over the tower are canonically order-isomorphic.** -/
+-- [D-2200] isColimitCocone_orderIso
 noncomputable def isColimitCocone_orderIso
     {X Y : Type u} [PartialOrder X] [PartialOrder Y]
     {eX : ∀ k, T.carrier k → X} {pX : ∀ k, X → T.carrier k}

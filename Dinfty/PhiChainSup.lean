@@ -2,37 +2,24 @@ import Dinfty.PhiCocone
 
 open GluingTowerLibrary SierpinskiApplication
 
-/-!
-# Chain suprema in `D∞^Φ` and in `ScottEndP (D∞^Φ)`
-
-The first half of surjectivity.  `PhiSupExists` asks for the supremum of a chain
-in `Φ(D∞^Φ)`; below the glue that is a chain in `ScottEndP B`, and this module
-builds it.
-
-Nothing here is deep, and in particular the Scott-continuity of the pointwise
-supremum needs **no interchange-of-suprema lemma**: to bound `G a` by `w` it is
-enough to bound each `F k a`, which is the supremum of `F k '' S` because `F k`
-is Scott-continuous, and each of those terms is `≤ G s ≤ w`.  The two suprema
-are never swapped; one is only ever pushed through the other's leastness.
--/
-
+-- [D-2458] §Chain-suprema-in-D-and-in-ScottEndP-D
 namespace PhiChainSup
 
 open PhiIterateTower PhiBilimit EpPairTower
 
 attribute [-instance] OrderHom.instDecidableEqOfForall
 
-/-! ## Monotone `ℕ`-families -/
-
+-- [D-2459] §Monotone-families
+-- [D-2460] range_nonempty
 theorem range_nonempty {α : Type*} (f : ℕ → α) : (Set.range f).Nonempty := ⟨f 0, 0, rfl⟩
 
+-- [D-2461] range_directedOn
 theorem range_directedOn {α : Type*} [Preorder α] {f : ℕ → α} (hf : Monotone f) :
     DirectedOn (· ≤ ·) (Set.range f) := by
   rintro _ ⟨i, rfl⟩ _ ⟨j, rfl⟩
   exact ⟨f (max i j), ⟨max i j, rfl⟩, hf (le_max_left i j), hf (le_max_right i j)⟩
 
-/-- A bounded monotone `ℕ → ℕ` is eventually constant.  Used for the tag of a
-point of the tower, which is monotone along the tower and bounded by `2`. -/
+-- [D-2462] exists_eventually_const
 theorem exists_eventually_const {f : ℕ → ℕ} (hf : Monotone f) {b : ℕ}
     (hb : ∀ k, f k ≤ b) : ∃ N, ∀ k, N ≤ k → f k = f N := by
   classical
@@ -51,37 +38,38 @@ theorem exists_eventually_const {f : ℕ → ℕ} (hf : Monotone f) {b : ℕ}
   rw [hN]
   exact hub k
 
-/-! ## `B` has the suprema of chains -/
-
+-- [D-2463] §B-has-the-suprema-of-chains
+-- [D-2464] exists_chain_lub
 theorem exists_chain_lub {y : ℕ → B} (hy : Monotone y) : ∃ b : B, IsLUB (Set.range y) b :=
   Bilim.exists_isLUB_of_directedOn phiTowerEP_isDcpo _ (range_nonempty y) (range_directedOn hy)
 
-/-! ## …and so does `ScottEndP B`, pointwise -/
-
+-- [D-2465] §and-so-does-ScottEndP-B-pointwise
+-- [D-2466] ptwise_mono
 theorem ptwise_mono (F : ℕ → ScottEndP B) (hF : Monotone F) (y : B) :
     Monotone fun k => (F k).1 y :=
   fun _ _ h => scottEndP_le_def.mp (hF h) y
 
+-- [D-2467] ptwise_ex
 private theorem ptwise_ex (F : ℕ → ScottEndP B) (hF : Monotone F) (y : B) :
     ∃ b : B, IsLUB (Set.range fun k => (F k).1 y) b :=
   exists_chain_lub (ptwise_mono F hF y)
 
-/-- The pointwise supremum, as a bare function. -/
+-- [D-2468] supFun
 noncomputable def supFun (F : ℕ → ScottEndP B) (hF : Monotone F) (y : B) : B :=
   (ptwise_ex F hF y).choose
 
+-- [D-2469] supFun_isLUB
 theorem supFun_isLUB (F : ℕ → ScottEndP B) (hF : Monotone F) (y : B) :
     IsLUB (Set.range fun k => (F k).1 y) (supFun F hF y) := (ptwise_ex F hF y).choose_spec
 
+-- [D-2470] supFun_mono
 theorem supFun_mono (F : ℕ → ScottEndP B) (hF : Monotone F) : Monotone (supFun F hF) := by
   intro y y' h
   refine (supFun_isLUB F hF y).2 ?_
   rintro _ ⟨k, rfl⟩
   exact le_trans ((F k).1.monotone h) ((supFun_isLUB F hF y').1 ⟨k, rfl⟩)
 
-/-- **No interchange lemma is needed.**  For leastness, bound `supFun a` by
-bounding each `(F k).1 a`; that is the supremum of `(F k).1 '' S`, and each of
-*those* is `≤ supFun s ≤ w`. -/
+-- [D-2471] supFun_scott
 theorem supFun_scott (F : ℕ → ScottEndP B) (hF : Monotone F) :
     ScottContinuous (supFun F hF) := by
   intro S hne hdir a ha
@@ -95,13 +83,15 @@ theorem supFun_scott (F : ℕ → ScottEndP B) (hF : Monotone F) :
     rintro _ ⟨s, hs, rfl⟩
     exact le_trans ((supFun_isLUB F hF s).1 ⟨k, rfl⟩) (hw ⟨s, hs, rfl⟩)
 
-/-- The supremum of a chain in `ScottEndP B`. -/
+-- [D-2472] chainSup
 noncomputable def chainSup (F : ℕ → ScottEndP B) (hF : Monotone F) : ScottEndP B :=
   ⟨⟨supFun F hF, supFun_mono F hF⟩, supFun_scott F hF⟩
 
+-- [D-2473] chainSup_apply
 @[simp] theorem chainSup_apply (F : ℕ → ScottEndP B) (hF : Monotone F) (y : B) :
     (chainSup F hF).1 y = supFun F hF y := rfl
 
+-- [D-2474] chainSup_isLUB
 theorem chainSup_isLUB (F : ℕ → ScottEndP B) (hF : Monotone F) :
     IsLUB (Set.range F) (chainSup F hF) := by
   constructor
@@ -113,12 +103,8 @@ theorem chainSup_isLUB (F : ℕ → ScottEndP B) (hF : Monotone F) :
     rintro _ ⟨k, rfl⟩
     exact scottEndP_le_def.mp (hw ⟨k, rfl⟩) y
 
-/-! ## The projection legs carry those suprema
-
-`projEndDown j` reads a level of the bilimit, and reading a level of a directed
-supremum is `EpPairTower.isLUB_bilim_apply`.  Pointwise suprema in `EndP` are
-suprema by `EndLocalContinuity.isLUB_orderHom_of_pointwise`. -/
-
+-- [D-2475] §The-projection-legs-carry-those-suprema
+-- [D-2476] projEndDown_isLUB
 theorem projEndDown_isLUB (F : ℕ → ScottEndP B) (hF : Monotone F) (j : ℕ) :
     IsLUB (Set.range fun k => (PhiCocone.projEndDown j).toFun (F k))
       ((PhiCocone.projEndDown j).toFun (chainSup F hF)) := by

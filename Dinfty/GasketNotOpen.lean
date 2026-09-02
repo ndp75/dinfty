@@ -1,48 +1,12 @@
 import Dinfty.GasketCoreIFS
 
-/-!
-# `TheoremAData.quotient_map` asks for something false
-
-`CoreIFS.TheoremAData` requires
-
-```lean
-quotient_map : Continuous rho ∧ Function.Surjective rho ∧ IsOpenMap rho
-```
-
-The first two hold for the gasket coding map.  **The third does not**, and this
-module proves it:
-
-```lean
-notOpen : ¬ IsOpenMap codeGamma
-```
-
-The witness is the cylinder `{w | w 0 = A}`, which is open in the address space
-and whose image is the sub-gasket `h_A(Γ)`.  That image is not open in `Γ`:
-
-* the gasket sits in the unit ball (`gasketSet_subset_closedBall`), so every
-  point of `h_A(Γ)` has first coordinate `≤ 1/2`;
-* the contact point `m = (1/2, 0) = h_A(v_B)` **is** in `h_A(Γ)`;
-* but `h_B(h_A^[n] v_B) = (1/2 + 2^{-(n+1)}, 0)` lies in `Γ`, has first
-  coordinate `> 1/2`, and converges to `m`.
-
-So every neighbourhood of `m` in `Γ` leaves `h_A(Γ)`.  The sharp constant in
-`dist_step_vA_le` is exactly what makes the first bullet work: with the crude
-bound the three sub-gaskets are not separated by the coordinate test.
-
-**Consequence.**  `TheoremAData` cannot be instantiated by any coding map, at
-`Γ` or anywhere the same geometry holds.  The field should read
-`IsQuotientMap rho` — which is true, and is `isQuotientMap_codeGamma`.  This is
-a defect in the framework, not in the gasket: a continuous surjection from a
-compact space onto a Hausdorff space is a quotient map but is essentially never
-open.
--/
-
+-- [D-2754] §TheoremAData-quotient-map-asks-for-something
 open Metric Set Filter Topology
 
 namespace Gasket
 
-/-! ## 1.  Coordinates on the gasket -/
-
+-- [D-2755] §1-Coordinates-on-the-gasket
+-- [D-2756] fst_le_one
 theorem fst_le_one {q : E} (hq : q ∈ gasketSet) : q.1 ≤ 1 := by
   have h := gasketSet_subset_closedBall hq
   rw [mem_closedBall, Prod.dist_eq] at h
@@ -52,13 +16,15 @@ theorem fst_le_one {q : E} (hq : q ∈ gasketSet) : q.1 ≤ 1 := by
   have h3 : q.1 - vA.1 ≤ 1 := (abs_le.1 h2).2
   simpa [vA] using h3
 
+-- [D-2757] contract_cA_fst
 theorem contract_cA_fst (q : E) : (contract cA q).1 = 2⁻¹ * q.1 := by
   simp [contract, cA]
 
+-- [D-2758] contract_cB_fst
 theorem contract_cB_fst (q : E) : (contract cB q).1 = 2⁻¹ * q.1 + 2⁻¹ := by
   simp [contract, cB]
 
-/-- Every point of the `A`-copy has first coordinate at most `1/2`. -/
+-- [D-2759] fst_le_half_of_mem_imageA
 theorem fst_le_half_of_mem_imageA {p : E} (hp : p ∈ contract cA '' gasketSet) :
     p.1 ≤ 2⁻¹ := by
   obtain ⟨q, hq, rfl⟩ := hp
@@ -66,23 +32,27 @@ theorem fst_le_half_of_mem_imageA {p : E} (hp : p ∈ contract cA '' gasketSet) 
   have := fst_le_one hq
   linarith
 
-/-! ## 2.  The contact point, and points of `Γ` approaching it from the `B` side -/
-
-/-- `m = h_A(v_B)`, the midpoint of the `A`–`B` edge. -/
+-- [D-2760] §2-The-contact-point-and-points-of-approaching
+-- [D-2761] mid
 noncomputable def mid : E := contract cA vB
 
+-- [D-2762] mid_mem_imageA
 theorem mid_mem_imageA : mid ∈ contract cA '' gasketSet := ⟨vB, vB_mem, rfl⟩
 
+-- [D-2763] mid_mem
 theorem mid_mem : mid ∈ gasketSet := mapsTo_cA vB_mem
 
+-- [D-2764] mid_eq
 theorem mid_eq : mid = ((2⁻¹ : ℝ), (0 : ℝ)) := by
   simp [mid, contract, cA, vB, Prod.ext_iff]
 
-/-- `h_A^[n] v_B = (2⁻ⁿ, 0)`. -/
+-- [D-2765] qq
 noncomputable def qq (n : ℕ) : E := (contract cA)^[n] vB
 
+-- [D-2766] qq_mem
 theorem qq_mem (n : ℕ) : qq n ∈ gasketSet := mapsTo_cA.iterate n vB_mem
 
+-- [D-2767] qq_eq
 theorem qq_eq (n : ℕ) : qq n = (((2⁻¹ : ℝ) ^ n), (0 : ℝ)) := by
   induction n with
   | zero => simp [qq, vB]
@@ -93,16 +63,18 @@ theorem qq_eq (n : ℕ) : qq n = (((2⁻¹ : ℝ) ^ n), (0 : ℝ)) := by
       simp [contract, cA, Prod.ext_iff, pow_succ]
       ring
 
-/-- The approaching sequence: `h_B(h_A^[n] v_B)`. -/
+-- [D-2768] pp
 noncomputable def pp (n : ℕ) : E := contract cB (qq n)
 
+-- [D-2769] pp_mem
 theorem pp_mem (n : ℕ) : pp n ∈ gasketSet := mapsTo_cB (qq_mem n)
 
+-- [D-2770] pp_eq
 theorem pp_eq (n : ℕ) : pp n = ((2⁻¹ : ℝ) * (2⁻¹ : ℝ) ^ n + 2⁻¹, (0 : ℝ)) := by
   rw [pp, qq_eq]
   simp [contract, cB, Prod.ext_iff]
 
-/-- The approaching points are strictly to the right of the `A`-copy. -/
+-- [D-2771] pp_not_mem_imageA
 theorem pp_not_mem_imageA (n : ℕ) : pp n ∉ contract cA '' gasketSet := by
   intro h
   have h1 := fst_le_half_of_mem_imageA h
@@ -111,13 +83,14 @@ theorem pp_not_mem_imageA (n : ℕ) : pp n ∉ contract cA '' gasketSet := by
   simp only at h1
   linarith
 
+-- [D-2772] dist_pp_mid
 theorem dist_pp_mid (n : ℕ) : dist (pp n) mid = (2⁻¹ : ℝ) * (2⁻¹ : ℝ) ^ n := by
   rw [pp_eq, mid_eq, Prod.dist_eq]
   have h2 : (0:ℝ) ≤ (2⁻¹ : ℝ) * (2⁻¹ : ℝ) ^ n := by positivity
   simp [Real.dist_eq, abs_of_nonneg h2]
 
-/-! ## 3.  The `A`-copy is not open in `Γ` -/
-
+-- [D-2773] §3-The-A-copy-is-not-open
+-- [D-2774] not_isOpen_imageA
 theorem not_isOpen_imageA :
     ¬ IsOpen {x : Gamma | (x : E) ∈ contract cA '' gasketSet} := by
   intro hopen
@@ -137,9 +110,8 @@ theorem not_isOpen_imageA :
     exact hn
   exact pp_not_mem_imageA n (hball hin)
 
-/-! ## 4.  …hence `π` is not an open map -/
-
-/-- The image of the `A`-cylinder is exactly the `A`-copy. -/
+-- [D-2775] §4-hence-is-not-an-open-map
+-- [D-2776] image_cylinder
 theorem image_cylinder :
     codeGamma '' {w : ℕ → Fin 3 | w 0 = 0}
       = {x : Gamma | (x : E) ∈ contract cA '' gasketSet} := by
@@ -162,13 +134,13 @@ theorem image_cylinder :
     show contract cA (coding w) = (x : E)
     rw [hw, hqx]
 
+-- [D-2777] isOpen_cylinder
 theorem isOpen_cylinder : IsOpen {w : ℕ → Fin 3 | w 0 = 0} := by
   have h : {w : ℕ → Fin 3 | w 0 = 0} = (fun w : ℕ → Fin 3 => w 0) ⁻¹' {0} := rfl
   rw [h]
   exact IsOpen.preimage (continuous_apply 0) (isOpen_discrete _)
 
-/-- **The refutation.**  `TheoremAData.quotient_map`'s `IsOpenMap` field is
-unsatisfiable for the gasket coding map. -/
+-- [D-2778] notOpen
 theorem notOpen : ¬ IsOpenMap codeGamma := by
   intro h
   exact not_isOpen_imageA (image_cylinder ▸ h _ isOpen_cylinder)

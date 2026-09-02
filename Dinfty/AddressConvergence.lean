@@ -2,47 +2,7 @@ import Dinfty.RhoContinuity
 
 open GluingTowerLibrary SierpinskiApplication
 
-/-!
-# `AddressesConverge`, proved
-
-The residue left by `RhoContinuity.chainContinuous_of_addressesConverge` is not
-an analytic statement at all.  It is the **same shape** as `tag_stabilizes` in
-the tower: a tag takes finitely many values, the order only lets it move one
-way, so along an increasing chain it is eventually constant — and then one
-recurses into the copy it settled in.
-
-## The argument
-
-1.  **The head can only move up.**  Give `Fin 3` its own value as a rank.  Then
-    `codeB u ≤ codeB v → (u 0 : ℕ) ≤ (v 0 : ℕ)`, because the three descending
-    moves are all blocked:
-
-    * `B → A` — copy `B` is never below copy `A` (`not_leGlue_tagB_tagAGen`),
-      and in the degenerate case where the tail codes `⊥` the tag-`B` point is
-      `tag_A m`, which would force `m ≤ strictConst y`; evaluate at `⊥`:
-      `midB ≤ ⊥`, false;
-    * `C → A` — likewise, with `⊤` in place of `m`, and `strictConst` is never
-      `⊤`;
-    * `C → B` — `not_leGlue_tagC_tagBGen`, plus the two degenerate cases, which
-      both come down to `markedB ≠ ⊤`.
-
-2.  **So the head is eventually constant**, by
-    `PhiChainSup.exists_eventually_const` — a monotone `ℕ`-sequence bounded by
-    `2`.  This is the step that is literally the `tag_stabilizes` pattern.
-
-3.  **The settled head is the supremum's head.**  Past the stabilisation point
-    every term is `σ_h (…)`; `sig_isLUB` moves the supremum inside, and the
-    three images are disjoint (`sig_ne_of_ne`), so `v 0 = h`.  Injectivity of
-    `σ_h` then identifies the inner supremum as `codeB (tail v)`.
-
-4.  **Recurse.**  `codeB_tail_le` makes the tails an increasing chain, and the
-    induction hypothesis handles the next `k` symbols.
-
-Nothing here needs compactness, way-below, or any approximation theory — which
-is why the `A ≤ C` unconditional inequality, fatal to a one-step argument, does
-no harm: it can be taken at most once, and the rank bookkeeping absorbs it.
--/
-
+-- [D-2894] §AddressesConverge-proved
 open Set
 
 namespace CodeB
@@ -51,17 +11,8 @@ open PhiIterateTower PhiBilimit GlueTag InternalIFSInstance SigmaRebuild GenCont
 
 attribute [-instance] OrderHom.instDecidableEqOfForall
 
-/-! ## 1.  The three blocked head moves
-
-**Cross-reference.**  CopyHierarchy.copyIdx_mono is the general form of what
-this section proves: along the glued order the copy index never decreases
-( → {a,b,c},  → {b,c}, c → {c}), and it uses the same three library
-lemmas.  It is stated for *canonical representatives*, so it does not by itself
-give the statement below: at a ⊥ payload the tag and the copy index diverge —
-canonGen moves tag B at ⊥ into copy A at m, and tag C at ⊥ into
-copy A at ⊤.  The three lemmas here are the strictConst-payload refinement
-that covers that seam, which is what codeB needs. -/
-
+-- [D-2895] §1-The-three-blocked-head-moves
+-- [D-2896] not_sig_one_le_zero
 theorem not_sig_one_le_zero (x y : B) : ¬ (sig 1 x ≤ sig 0 y) := by
   intro h
   have hraw : leGlueGen markedB
@@ -81,6 +32,7 @@ theorem not_sig_one_le_zero (x y : B) : ¬ (sig 1 x ≤ sig 0 y) := by
     exact not_leGlue_tagB_tagAGen markedB _ _ markedB_ne_bot endPB_bot_ne_top
       (strictConst_ne_bot hx) hraw
 
+-- [D-2897] not_sig_two_le_zero
 theorem not_sig_two_le_zero (x y : B) : ¬ (sig 2 x ≤ sig 0 y) := by
   intro h
   have hraw : leGlueGen markedB
@@ -96,6 +48,7 @@ theorem not_sig_two_le_zero (x y : B) : ¬ (sig 2 x ≤ sig 0 y) := by
   · rw [tagVal_two_ne hx, tagVal_zero] at hraw
     exact not_leGlue_tagC_tagAGen markedB _ _ (strictConst_ne_bot hx) hraw
 
+-- [D-2898] not_sig_two_le_one
 theorem not_sig_two_le_one (x y : B) : ¬ (sig 2 x ≤ sig 1 y) := by
   intro h
   have hraw : leGlueGen markedB
@@ -121,27 +74,29 @@ theorem not_sig_two_le_one (x y : B) : ¬ (sig 2 x ≤ sig 1 y) := by
     · rw [tagVal_two_ne hx, tagVal_one_ne hy] at hraw
       exact not_leGlue_tagC_tagBGen markedB _ _ (strictConst_ne_top y) hraw
 
-/-! ## 2.  The head can only move up -/
-
-/-- The three descending moves, at the level of `codeB`. -/
+-- [D-2899] §2-The-head-can-only-move-up
+-- [D-2900] not_codeB_le_one_zero
 theorem not_codeB_le_one_zero {u v : ℕ → Fin 3} (h1 : u 0 = 1) (h2 : v 0 = 0) :
     ¬ (codeB u ≤ codeB v) := by
   intro h
   rw [codeB_head u, codeB_head v, h1, h2] at h
   exact not_sig_one_le_zero _ _ h
 
+-- [D-2901] not_codeB_le_two_zero
 theorem not_codeB_le_two_zero {u v : ℕ → Fin 3} (h1 : u 0 = 2) (h2 : v 0 = 0) :
     ¬ (codeB u ≤ codeB v) := by
   intro h
   rw [codeB_head u, codeB_head v, h1, h2] at h
   exact not_sig_two_le_zero _ _ h
 
+-- [D-2902] not_codeB_le_two_one
 theorem not_codeB_le_two_one {u v : ℕ → Fin 3} (h1 : u 0 = 2) (h2 : v 0 = 1) :
     ¬ (codeB u ≤ codeB v) := by
   intro h
   rw [codeB_head u, codeB_head v, h1, h2] at h
   exact not_sig_two_le_one _ _ h
 
+-- [D-2903] head_le_of_codeB_le
 theorem head_le_of_codeB_le {u v : ℕ → Fin 3} (h : codeB u ≤ codeB v) :
     (u 0).val ≤ (v 0).val := by
   rcases fin3_cases (u 0) with h1 | h1 | h1
@@ -157,8 +112,8 @@ theorem head_le_of_codeB_le {u v : ℕ → Fin 3} (h : codeB u ≤ codeB v) :
     · exact absurd h (not_codeB_le_two_one h1 h2)
     · rw [h1, h2]
 
-/-! ## 3.  So the head is eventually constant -/
-
+-- [D-2904] §3-So-the-head-is-eventually-constant
+-- [D-2905] head_eventually_const
 theorem head_eventually_const {w : ℕ → (ℕ → Fin 3)}
     (hm : Monotone fun n => codeB (w n)) :
     ∃ N, ∀ n, N ≤ n → (w n) 0 = (w N) 0 := by
@@ -169,8 +124,8 @@ theorem head_eventually_const {w : ℕ → (ℕ → Fin 3)}
     (fun k => tag_le_two ((w k) 0))
   exact ⟨N, fun n hn => Fin.val_injective (hN n hn)⟩
 
-/-! ## 4.  The induction -/
-
+-- [D-2906] §4-The-induction
+-- [D-2907] prefix_stabilizes
 theorem prefix_stabilizes : ∀ (k : ℕ) (w : ℕ → (ℕ → Fin 3)) (v : ℕ → Fin 3),
     Monotone (fun n => codeB (w n)) →
     IsLUB (Set.range fun n => codeB (w n)) (codeB v) →
@@ -234,23 +189,17 @@ theorem prefix_stabilizes : ∀ (k : ℕ) (w : ℕ → (ℕ → Fin 3)) (v : ℕ
           rw [hnn] at hres
           exact hres
 
-/-! ## 5.  …which is exactly `AddressesConverge` -/
-
+-- [D-2908] §5-which-is-exactly-AddressesConverge
+-- [D-2909] addressesConverge
 theorem addressesConverge : RhoContinuity.AddressesConverge :=
   fun w v hm hlub k => prefix_stabilizes k w v hm hlub
 
-/-- **`ρ` is chain continuous.** -/
+-- [D-2910] rho_chainContinuous
 theorem rho_chainContinuous : RhoContinuity.ChainContinuous rho :=
   RhoContinuity.chainContinuous_of_addressesConverge addressesConverge
 
-/-! ## 6.  Uniqueness of `ρ`, transported to `𝒦`
-
-`Gasket.coding_unique` pins any equivariant map out of the address space, with
-no continuity hypothesis.  `codeB` is an equivariant bijection onto `𝒦`, so the
-same holds there.  This is `TheoremAData`'s `unique` field — and, like
-`coding_unique`, it is stronger than that field, which also assumes continuity
-and surjectivity. -/
-
+-- [D-2911] §6-Uniqueness-of-transported
+-- [D-2912] rho_unique
 theorem rho_unique (r : Attractor → Gasket.Gamma)
     (hA : ∀ b : Attractor, r ⟨sig 0 (b : B), mapsTo_sig 0 b.2⟩ = Gasket.fA (r b))
     (hB : ∀ b : Attractor, r ⟨sig 1 (b : B), mapsTo_sig 1 b.2⟩ = Gasket.fB (r b))

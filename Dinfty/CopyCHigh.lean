@@ -3,78 +3,7 @@ import Dinfty.Assembly
 
 open GluingTowerLibrary SierpinskiApplication
 
-/-!
-# Copy `C` above the marked point
-
-`FirstSliceCut` closed copy `B` and copy-`C`-low at every level and left
-`FirstSliceCHigh` — the case `markedPt n ≤ c` — as pillar B's only open Prop.
-This file does two things to it.
-
-## 1. Copy-`C`-high is far smaller than it looks
-
-A join-irreducible of `EndP (D k)` is a step map `stepMap q p`
-(`jiOrderIso`).  Asking the marked point to lie below it is a *very* strong
-condition:
-
-> **`eq_constHom_of_marked_le`** — if `markedPt k ≤ c` and `c` is
-> join-irreducible, then `c = constHom q` for a join-irreducible `q ≥ dMid k`.
-
-Evaluate at `⊥`: `stepMap q p ⊥` is `q` when `p = ⊥` and `⊥` otherwise, and the
-marked point's value there is `dMid k ≠ ⊥`.  So the threshold must be `⊥`, and
-copy-`C`-high consists of the points `glueC m (constHom q)` for
-`q ∈ J (D k)` with `dMid k ≤ q` — one per such `q`, not one per join-irreducible
-of `EndP (D k)`.  At `k = 1` that is **11** points out of 431 copy-`C` ones.
-
-## 2. …and then it is a counting question
-
-`firstSliceCHigh_of_card` reduces `FirstSliceCHigh n` to
-
-```
-¬ (card (D n) ∣ card (LevelSeed (n+1) (glueC (markedPt n) c)))
-```
-
-because an isomorphism with `D n × T` makes `card (D n)` divide the seed.
-
-That divisibility genuinely fails, and the reason is visible once (1) is in hand.
-The seed splits by tag as
-
-| part | content | size |
-|---|---|---|
-| copy `A` | *all* of `J (EndP (D n))` (`leGlue_tagA_tagC`) | `card (D n) · |J (D n)|` |
-| copy `B` | *all* copy-`B` join-irreducibles (`m ≤ c`), minus the seam `tag_B ⊤` | `card (D n) · |J (D n)| − 1` |
-| copy `C` | `{stepMap q' p ≤ constHom q}` = `D n × (J (D n) ∩ ↓q)`, minus the marked point | `card (D n) · N(q) − 1` |
-
-— the copy-`C` condition is **threshold-free** exactly as in `FirstSliceCut`,
-because `c` is constant by (1).  So
-
-```
-card S ≡ −2   (mod card (D n))
-```
-
-and `card (D n) ≥ 3`, so the divisibility fails.  Measured at `k = 1`: every one
-of the 11 copy-`C`-high seeds has `|S| ≡ 25 (mod 27)`
-(`_archive/check_copyC_high_invariants.py`).
-
-**What is proved here is (1) and (2); the three tag-counts are not yet formalised,
-so `FirstSliceCHigh` is reduced, not closed.**
-
-## A correction to the record
-
-`_archive/check_product_invariants.py` — the source of the "13,616 pairs → 0"
-figure quoted since §63 as "`FirstSlice 1` holds" — contains
-
-```python
-if tg==C and s.JQ1_le[mi][fidx]: continue
-```
-
-which **skips copy-`C`-high**.  Its 851 competitors are copy `B` and
-copy-`C`-low only.  So that sweep established exactly what the cut obstruction
-proves in general, and **`FirstSlice 1` was never checked for copy-`C`-high**.
-Re-running with the class put back (`_archive/check_copyC_high_invariants.py`)
-gives 176 further pairs, all killed by cardinality alone — so `FirstSlice 1` does
-hold, but on evidence gathered today rather than in §63.
--/
-
+-- [D-3212] §Copy-C-above-the-marked-point
 open scoped Classical
 
 namespace CopyCHigh
@@ -86,15 +15,11 @@ open TowerNoAbsorption SeedParametrisation SeedCardBound
 
 variable {k : ℕ}
 
+-- [D-3213] hmk'
 private theorem hmk' (k : ℕ) : (markedPt k) ≠ ⊥ := (D_marked_point_nondegenerate k).1
 
-/-! ## 1. The characterisation -/
-
-/-- **Copy-`C`-high forces threshold `⊥`.**
-
-A join-irreducible of `EndP (D k)` above the marked point is a *constant* map.
-The whole content is the value at `⊥`: a step map with a nonzero threshold sends
-`⊥` to `⊥`, and the marked point's value there is `dMid k ≠ ⊥`. -/
+-- [D-3214] §1-The-characterisation
+-- [D-3215] eq_constHom_of_marked_le
 theorem eq_constHom_of_marked_le {c : EndP (D k)}
     (hc : JoinIrred (EndP (D k)) c) (hmc : markedPt k ≤ c) :
     ∃ q : D k, JoinIrred (D k) q ∧ dMid k ≤ q ∧ c = constHom q := by
@@ -117,8 +42,7 @@ theorem eq_constHom_of_marked_le {c : EndP (D k)}
   · rw [hcv, hpb]
     exact stepMap_bot q
 
-/-- The copy-`C`-high points, listed: one for each join-irreducible above the
-marked value. -/
+-- [D-3216] copyCHigh_shape
 theorem copyCHigh_shape {c : EndP (D k)} (hc : c ≠ ⊥) (hcm : c ≠ markedPt k)
     (hmc : markedPt k ≤ c)
     (hy : JoinIrred (D (k + 1)) (glueC (markedPt k) c hc hcm)) :
@@ -131,10 +55,8 @@ theorem copyCHigh_shape {c : EndP (D k)} (hc : c ≠ ⊥) (hcm : c ≠ markedPt 
   intro hqm
   exact hcm (by rw [hcq, hqm]; rfl)
 
-/-! ## 2. The reduction to divisibility -/
-
-/-- **`FirstSliceCHigh` is a counting question.**  An isomorphism with
-`D n × T` makes `card (D n)` divide the seed, so it is enough that it does not. -/
+-- [D-3217] §2-The-reduction-to-divisibility
+-- [D-3218] firstSliceCHigh_of_card
 theorem firstSliceCHigh_of_card (n : ℕ)
     (hdvd : ∀ (c : EndP (D n)) (hc : c ≠ ⊥) (hcm : c ≠ markedPt n),
       markedPt n ≤ c → JoinIrred (D (n + 1)) (glueC (markedPt n) c hc hcm) →
@@ -149,10 +71,10 @@ theorem firstSliceCHigh_of_card (n : ℕ)
   rw [Fintype.card_prod] at h
   exact h
 
-/-! ## 3. The three tag-parts, and their sizes -/
-
+-- [D-3219] §3-The-three-tag-parts-and-their-sizes
 section Counting
 
+-- [D-3220] subInter
 private def subInter {α : Type*} (p q : α → Prop) :
     {x : {a : α // p a} // q x.1} ≃ {a : α // p a ∧ q a} where
   toFun x := ⟨x.1.1, x.1.2, x.2⟩
@@ -160,6 +82,7 @@ private def subInter {α : Type*} (p q : α → Prop) :
   left_inv _ := rfl
   right_inv _ := rfl
 
+-- [D-3221] sndSub
 private def sndSub {α β : Type*} (p : β → Prop) :
     {s : α × β // p s.2} ≃ α × {b : β // p b} where
   toFun s := (s.1.1, ⟨s.1.2, s.2⟩)
@@ -167,8 +90,7 @@ private def sndSub {α β : Type*} (p : β → Prop) :
   left_inv _ := rfl
   right_inv _ := rfl
 
-/-- Membership below a **constant** map is threshold-free — the same fact that
-made the copy-`A` part of a copy-`B` seed a product, now at `constHom z`. -/
+-- [D-3222] jiOrderIso_le_constHom
 theorem jiOrderIso_le_constHom (z : D k)
     (w : (D k)ᵒᵈ × {q : D k // JoinIrred (D k) q}) :
     (jiOrderIso w).1 ≤ (constHom z : EndP (D k)) ↔ w.2.1 ≤ z := by
@@ -176,7 +98,7 @@ theorem jiOrderIso_le_constHom (z : D k)
   rw [hz, stepMap_le_iff_apply w.2.2.1]
   exact Iff.rfl
 
-/-- **So the join-irreducibles below a constant map form a product.** -/
+-- [D-3223] constSeedEquiv
 noncomputable def constSeedEquiv (z : D k) :
     {f : EndP (D k) // JoinIrred (EndP (D k)) f ∧ f ≤ (constHom z : EndP (D k))}
       ≃ ((D k)ᵒᵈ × {q : D k // JoinIrred (D k) q ∧ q ≤ z}) :=
@@ -188,6 +110,7 @@ noncomputable def constSeedEquiv (z : D k) :
           (Equiv.prodCongr (Equiv.refl _)
             (subInter (fun q : D k => JoinIrred (D k) q) (fun q => q ≤ z)))))))
 
+-- [D-3224] card_constSeed
 theorem card_constSeed (z : D k) :
     Fintype.card {f : EndP (D k) // JoinIrred (EndP (D k)) f
         ∧ f ≤ (constHom z : EndP (D k))}
@@ -198,32 +121,34 @@ theorem card_constSeed (z : D k) :
 
 end Counting
 
-/-! ## 4. The tag partition of a copy-`C`-high seed -/
-
+-- [D-3225] §4-The-tag-partition-of-a-copy-C-high-seed
 section Partition
 
+-- [D-3226] hmtk'
 private theorem hmtk' (k : ℕ) : (markedPt k) ≠ ⊤ := (D_marked_point_nondegenerate k).2.1
+-- [D-3227] hbtk'
 private theorem hbtk' (k : ℕ) : (⊥ : EndP (D k)) ≠ ⊤ := (D_marked_point_nondegenerate k).2.2
 
-/-- Copy `C` is monotone in its argument, ascribed at `D (k+1)`. -/
+-- [D-3228] glueC_le_glueC
 theorem glueC_le_glueC {x y : EndP (D k)} (hx : x ≠ ⊥) (hxm : x ≠ markedPt k)
     (hy : y ≠ ⊥) (hym : y ≠ markedPt k) (h : x ≤ y) :
     (glueC (markedPt k) x hx hxm : D (k + 1)) ≤ glueC (markedPt k) y hy hym :=
   (leGlue_tagC_tagC_iff (markedPt k) x y).mpr h
 
-/-- The copy-`A` part: **all** join-irreducibles of `EndP (D k)`. -/
+-- [D-3229] PartA
 abbrev PartA (k : ℕ) : Type := {v : EndP (D k) // JoinIrred (EndP (D k)) v}
 
-/-- The copy-`B` part: all of them except the seam `⊤`. -/
+-- [D-3230] PartB
 abbrev PartB (k : ℕ) : Type :=
   {b : EndP (D k) // JoinIrred (EndP (D k)) b ∧ b ≠ ⊤}
 
-/-- The copy-`C` part: those below `c`, except the marked point. -/
+-- [D-3231] PartC
 abbrev PartC (k : ℕ) (c : EndP (D k)) : Type :=
   {c' : EndP (D k) // JoinIrred (EndP (D k)) c' ∧ c' ≠ markedPt k ∧ c' ≤ c}
 
 variable {c : EndP (D k)}
 
+-- [D-3232] fromSum
 noncomputable def fromSum (hc : c ≠ ⊥) (hcm : c ≠ markedPt k)
     (hmc : markedPt k ≤ c) :
     PartA k ⊕ PartB k ⊕ PartC k c →
@@ -242,20 +167,24 @@ noncomputable def fromSum (hc : c ≠ ⊥) (hcm : c ≠ markedPt k)
             c'.2.1.1 c'.2.2.1).mpr c'.2.1,
          glueC_le_glueC c'.2.1.1 c'.2.2.1 hc hcm c'.2.2.2⟩))
 
+-- [D-3233] fromSum_A
 @[simp] theorem fromSum_A (hc : c ≠ ⊥) (hcm : c ≠ markedPt k)
     (hmc : markedPt k ≤ c) (v : PartA k) :
     ((fromSum hc hcm hmc (Sum.inl v)).1 : D (k + 1)).1 = Sum.inl v.1 := rfl
 
+-- [D-3234] fromSum_B
 @[simp] theorem fromSum_B (hc : c ≠ ⊥) (hcm : c ≠ markedPt k)
     (hmc : markedPt k ≤ c) (b : PartB k) :
     ((fromSum hc hcm hmc (Sum.inr (Sum.inl b))).1 : D (k + 1)).1
       = Sum.inr (Sum.inl b.1) := rfl
 
+-- [D-3235] fromSum_C
 @[simp] theorem fromSum_C (hc : c ≠ ⊥) (hcm : c ≠ markedPt k)
     (hmc : markedPt k ≤ c) (c' : PartC k c) :
     ((fromSum hc hcm hmc (Sum.inr (Sum.inr c'))).1 : D (k + 1)).1
       = Sum.inr (Sum.inr c'.1) := rfl
 
+-- [D-3236] fromSum_injective
 theorem fromSum_injective (hc : c ≠ ⊥) (hcm : c ≠ markedPt k)
     (hmc : markedPt k ≤ c) : Function.Injective (fromSum hc hcm hmc) := by
   intro x y h
@@ -276,6 +205,7 @@ theorem fromSum_injective (hc : c ≠ ⊥) (hcm : c ≠ markedPt k)
   · exact congrArg (fun w => Sum.inr (Sum.inr w))
       (Subtype.ext (Sum.inr.inj (Sum.inr.inj hv)))
 
+-- [D-3237] fromSum_surjective
 theorem fromSum_surjective (hc : c ≠ ⊥) (hcm : c ≠ markedPt k)
     (hmc : markedPt k ≤ c) : Function.Surjective (fromSum hc hcm hmc) := by
   intro u
@@ -301,13 +231,14 @@ theorem fromSum_surjective (hc : c ≠ ⊥) (hcm : c ≠ markedPt k)
     · exact (leGlue_tagC_tagC_iff (markedPt k) c' c).mp hule
     · exact Subtype.ext rfl
 
-/-- **The seed of a copy-`C`-high point splits by tag.** -/
+-- [D-3238] seedSplit
 noncomputable def seedSplit (hc : c ≠ ⊥) (hcm : c ≠ markedPt k)
     (hmc : markedPt k ≤ c) :
     (PartA k ⊕ PartB k ⊕ PartC k c)
       ≃ LevelSeed (k + 1) (glueC (markedPt k) c hc hcm) :=
   Equiv.ofBijective _ ⟨fromSum_injective hc hcm hmc, fromSum_surjective hc hcm hmc⟩
 
+-- [D-3239] card_seed_split
 theorem card_seed_split (hc : c ≠ ⊥) (hcm : c ≠ markedPt k)
     (hmc : markedPt k ≤ c) :
     Fintype.card (LevelSeed (k + 1) (glueC (markedPt k) c hc hcm))
@@ -318,11 +249,10 @@ theorem card_seed_split (hc : c ≠ ⊥) (hcm : c ≠ markedPt k)
 
 end Partition
 
-/-! ## 5. The three sizes, and the contradiction -/
-
+-- [D-3240] §5-The-three-sizes-and-the-contradiction
 section Sizes
 
-/-- Copy `A` is the whole of `J (EndP (D k))`, and that is a product. -/
+-- [D-3241] card_partA
 theorem card_partA (k : ℕ) :
     Fintype.card (PartA k)
       = Fintype.card (D k) * Fintype.card (FirstSliceCut.JAll k) := by
@@ -331,7 +261,7 @@ theorem card_partA (k : ℕ) :
   exact Fintype.card_congr
     (Equiv.subtypeEquivRight (fun _ => ⟨fun h => ⟨h, le_top⟩, fun h => h.1⟩))
 
-/-- Copy `B` is copy `A` minus the seam. -/
+-- [D-3242] card_partB
 theorem card_partB (k : ℕ) : Fintype.card (PartB k) + 1 = Fintype.card (PartA k) := by
   classical
   have hsplit : Fintype.card {v : PartA k // v.1 = ⊤}
@@ -352,7 +282,7 @@ theorem card_partB (k : ℕ) : Fintype.card (PartB k) + 1 = Fintype.card (PartA 
       (fun f => ¬ f = ⊤))
   omega
 
-/-- Copy `C` is the constant-map product minus the marked point. -/
+-- [D-3243] card_partC
 theorem card_partC (k : ℕ) {q : D k} (hq : JoinIrred (D k) q) (hmq : dMid k ≤ q) :
     Fintype.card (PartC k (constHom q)) + 1
       = Fintype.card (D k)
@@ -391,7 +321,7 @@ theorem card_partC (k : ℕ) {q : D k} (hq : JoinIrred (D k) q) (hmq : dMid k �
       * Fintype.card {q' : D k // JoinIrred (D k) q' ∧ q' ≤ q} := card_constSeed q
   omega
 
-/-- `D k` has at least three elements: `⊥ < dMid k < ⊤`. -/
+-- [D-3244] three_le_card_D
 theorem three_le_card_D (k : ℕ) : 3 ≤ Fintype.card (D k) := by
   classical
   have h : ({⊥, dMid k, ⊤} : Finset (D k)).card ≤ Fintype.card (D k) :=
@@ -404,7 +334,7 @@ theorem three_le_card_D (k : ℕ) : 3 ≤ Fintype.card (D k) := by
       Finset.card_insert_of_notMem (by simp [hmt]), Finset.card_singleton]
   omega
 
-/-- **The divisibility fails.**  `card S ≡ -2 (mod card (D k))`. -/
+-- [D-3245] not_card_dvd
 theorem not_card_dvd (k : ℕ) {c : EndP (D k)} (hc : c ≠ ⊥) (hcm : c ≠ markedPt k)
     (hmc : markedPt k ≤ c)
     (hy : JoinIrred (D (k + 1)) (glueC (markedPt k) c hc hcm)) :
@@ -418,11 +348,9 @@ theorem not_card_dvd (k : ℕ) {c : EndP (D k)} (hc : c ≠ ⊥) (hcm : c ≠ ma
   have hB := card_partB k
   have hC := card_partC k hq hmq
   have h3 : 3 ≤ Fintype.card (D k) := three_le_card_D k
-  -- `N` divides the copy-`A` count and the constant-map product
   have hdA : Fintype.card (D k) ∣ Fintype.card (PartA k) := ⟨_, hA⟩
   have hdC : Fintype.card (D k) ∣ Fintype.card (D k)
       * Fintype.card {q' : D k // JoinIrred (D k) q' ∧ q' ≤ q} := ⟨_, rfl⟩
-  -- so `N` divides `card S + 2`
   have hkey : Fintype.card (D k) ∣ Fintype.card (LevelSeed (k + 1)
       (glueC (markedPt k) (constHom q) hc hcm)) + 2 := by
     have : Fintype.card (LevelSeed (k + 1)
@@ -439,19 +367,19 @@ theorem not_card_dvd (k : ℕ) {c : EndP (D k)} (hc : c ≠ ⊥) (hcm : c ≠ ma
   have := Nat.le_of_dvd (by norm_num) h2
   omega
 
-/-- **`FirstSliceCHigh` holds at every level.** -/
+-- [D-3246] firstSliceCHigh
 theorem firstSliceCHigh (n : ℕ) : FirstSliceCHigh n :=
   firstSliceCHigh_of_card n (fun c hc hcm hmc hy => not_card_dvd n hc hcm hmc hy)
 
-/-- **The first slice, at every level, with no hypothesis left.** -/
+-- [D-3247] firstSlice
 theorem firstSlice (n : ℕ) : FirstSlice n :=
   FirstSliceCut.firstSlice n (firstSliceCHigh n)
 
-/-- **PILLAR B.**  `colimit_compat`, with no hypothesis. -/
+-- [D-3248] colimit_compat
 theorem colimit_compat : Subsingleton (DInfty ≃o DInfty) :=
   FirstSliceCut.colimit_compat_of_firstSliceCHigh firstSliceCHigh
 
-/-- **Theorem B's conclusion at the bilimit**, via the already-proven bridge. -/
+-- [D-3249] DBilimit_rigid
 theorem DBilimit_rigid : Subsingleton (DBilimit ≃o DBilimit) :=
   DBilimit_rigid_of_DInfty_rigid colimit_compat
 

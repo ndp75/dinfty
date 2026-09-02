@@ -2,29 +2,7 @@ import Dinfty.GlueAAGenReflectM
 
 open GluingTowerLibrary
 
-/-!
-# Closing the normalized migration: the lemmas `GlueAAGenReflectM` does not have
-
-`Dinfty/GlueAAGenReflectM.lean` is the `constHom mid` migration and carries the
-hard part — `pGenM` (with the **correct** copy-`B` branch, returning `mid` and
-not `⊥`), `pGenM_section`/`_deflation`/`_monotone`, `iotaGenM`, `midM`,
-`glueAAGenM` and its monotone/reflect/le_iff/injective.
-
-Integrating `SierpinskiApplication.lean.normalized_wip` leaves 16 errors, and
-repointing its declarations at the `*M` versions covers all but four lemmas.
-This module supplies what is missing.
-
-**Read the warning in `GlueAAGenReflectM` first.** `pGenBad_not_monotone` refutes
-the verbatim transplant of `pGen`'s body: its copy-`B` `⊥` is `(OrderHom.id) ⊥`
-in disguise — a *use* of the marked point, not a constant. Anything ported here
-has to respect that; the `mid` in `pGenM`'s copy-`B` branch is load-bearing.
-
-Also note `midM mid = iotaGenM mid mid = tag_A (constHom mid)` — this module is
-on the **tag-`A`** side, per the 2026-08-27 basepoint decision, not Ratnayake's
-`tag_B`. The two differ, and `MarkedPointTranslator` records that no
-automorphism reconciles them.
--/
-
+-- [D-0763] §Closing-the-normalized-migration-the-lemmas
 open scoped Classical
 
 universe u
@@ -33,11 +11,7 @@ section MigrationCloseout
 
 variable {L : Type u} [DecidableEq L] [Lattice L] [BoundedOrder L] [Fintype L]
 
-/-- **`pGenM` sends the top to the top.**  The migrated `pGen_top`.
-
-The top of the glued object is `tag_C ⊤`, and `pGenM`'s copy-`C` branch is the
-constant `⊤` — the one branch where the `id` and `constHom mid` versions agree,
-so the original proof transfers with only the marked point substituted. -/
+-- [D-0764] pGenM_top
 theorem pGenM_top {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid ≠ (⊤ : L))
     (hbt : (⊥ : L) ≠ ⊤) :
     letI := glueCarPartialOrder (constHom mid : EndP L) (hmM_of hmid0) (hmtM_of hmidt)
@@ -63,11 +37,7 @@ theorem pGenM_top {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid ≠ (⊤ : 
   rw [pGenM]
   simp only [hcanon]
 
-/-- **`iotaEndPGenM` on a constant.**  The migrated `iotaEndPGen_constHom`.
-
-This one transfers verbatim, and the reason is worth stating: `constHom x`
-*discards* its argument, so the `pGenM` value never reaches the result and the
-`mid`-versus-`⊥` difference in `pGenM`'s copy-`B` branch cannot bite. -/
+-- [D-0765] iotaEndPGenM_constHom
 theorem iotaEndPGenM_constHom {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid ≠ (⊤ : L))
     (hbt : (⊥ : L) ≠ ⊤) (x : L) :
     letI := glueCarPartialOrder (constHom mid : EndP L) (hmM_of hmid0) (hmtM_of hmidt)
@@ -86,9 +56,7 @@ theorem iotaEndPGenM_constHom {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid
   ext w
   rw [iotaEndPGenM_apply, constHom_apply, constHom_apply]
 
-/-- **Overlap agreement, migrated.**  `glueAAGenM` restricted to `iotaGenM`'s
-image recovers the next level's `iotaGenM` — at the next marked point
-`midM mid`, which is `tag_A (constHom mid)`. -/
+-- [D-0766] glueAAGenM_iotaGenM
 theorem glueAAGenM_iotaGenM {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid ≠ (⊤ : L))
     (hbt : (⊥ : L) ≠ ⊤) (x : L) :
     letI := glueCarPartialOrder (constHom mid : EndP L) (hmM_of hmid0) (hmtM_of hmidt)
@@ -110,12 +78,7 @@ theorem glueAAGenM_iotaGenM {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid �
     = Sum.inl (constHom (iotaGenM mid x))
   rw [iotaEndPGenM_constHom hmid0 hmidt hbt x]
 
--- **Tag-`A` deflation, migrated.**  `glueAAGenM` followed by the next level's
--- projection lands below the point it came from, on copy `A`.
---
--- This transfers because it only ever touches copy `A` and `⊥`, exactly where
--- `pGenM` and `pGen` agree — the divergent copy-`B` branch is never reached.
--- `iotaGenM_bot` and `pGenM_section` replace their `id` counterparts.
+-- [D-0767] glueAAGenM_pGenM_deflation_tagA
 set_option maxHeartbeats 1000000 in
 theorem glueAAGenM_pGenM_deflation_tagA {mid : L} (hmid0 : mid ≠ (⊥ : L))
     (hmidt : mid ≠ (⊤ : L)) (hbt : (⊥ : L) ≠ ⊤) (f : EndP L) :
@@ -150,15 +113,7 @@ theorem glueAAGenM_pGenM_deflation_tagA {mid : L} (hmid0 : mid ≠ (⊥ : L))
   exact (tagA_iso (constHom mid : EndP L) hm0 (constHom (f (⊥ : L))) f).mpr (by
     rw [OrderHom.le_def]; intro z; rw [constHom_apply]; exact f.monotone bot_le)
 
--- **Tag-`B` deflation, migrated — and this one is NOT a transfer.**
---
--- The `id` version concludes via `pGen`'s copy-`B` value `⊥`.  `pGenM`'s copy-`B`
--- value is `mid`, so the migrated statement lands at `midM mid` instead, and the
--- conclusion becomes `midM mid ≤ tag_B f`.  That holds for a different reason
--- than the original: `midM mid = tag_A (constHom mid)`, and copy `A` sits below
--- copy `B` exactly when the copy-`A` value is `≤` the marked point — here
--- `constHom mid ≤ constHom mid`, reflexively.  So the divergence that made
--- `pGenBad` non-monotone is what makes this case work.
+-- [D-0768] glueAAGenM_pGenM_deflation_tagB
 set_option maxHeartbeats 1000000 in
 theorem glueAAGenM_pGenM_deflation_tagB {mid : L} (hmid0 : mid ≠ (⊥ : L))
     (hmidt : mid ≠ (⊤ : L)) (hbt : (⊥ : L) ≠ ⊤) {f : EndP L}
@@ -208,14 +163,7 @@ theorem glueAAGenM_pGenM_deflation_tagB {mid : L} (hmid0 : mid ≠ (⊥ : L))
   exact ⟨Sum.inl (constHom mid : EndP L), self_mem_occs _ _,
     Sum.inr (Sum.inl f), self_mem_occs _ _, le_rfl⟩
 
--- **Cross-tag `C`–`A` sufficiency, migrated.**
---
--- This one IS a clean transfer: every step is stated over an arbitrary marked
--- point `m`, and the only place `pGen`'s value enters is the copy-`C` branch,
--- where `pGen` and `pGenM` agree (both `⊤`).  The copy-`B` branch — the sole
--- site where the two projections differ — is discharged by
--- `leGlue_tagB_tagC_iff`, whose condition `m ≤ f` is the hypothesis, not a
--- fact about the projection.  So the divergence never reaches this proof.
+-- [D-0769] crossTag_CA_sufficientM
 theorem crossTag_CA_sufficientM {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid ≠ (⊤ : L))
     (hbt : (⊥ : L) ≠ ⊤) (f : EndP L)
     (hfb : f ≠ (⊥ : EndP L)) (hfm : f ≠ (constHom mid : EndP L))

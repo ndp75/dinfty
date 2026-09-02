@@ -2,30 +2,7 @@ import Dinfty.TwoPointAssembly
 
 open GluingTowerLibrary SierpinskiApplication
 
-/-!
-# Copy `B`, part 1: the split, and the pieces the argument needs
-
-`TwoPointAssembly` reduced `TwoPointFixed` to `CopyBCExcludedFor` at the two
-points.  `CopyBCExcludedFor` splits along `glueCar_cases` into a copy-`B` and a
-copy-`C` obligation (`copyBC_of_B_and_C`), and §35 showed those need different
-arguments.  This module assembles what the copy-`B` argument needs.
-
-* **`GenByFactors` holds at both left-hand pieces.**  The comparison is
-  `(WeakProd (Fam 0) × T) ≃o (WeakProd (Fam (k+1)) × S_y)`, and generation is
-  multiplicative, so `GenByFactors S_y` is *forced* by the isomorphism — provided
-  `T` itself is generated.  For `midInf`, `T` is a one-point poset
-  (`genByFactors_of_subsingleton`); for `toD 0 ⊤` it is a two-chain, which has a
-  unique atom (`genByFactors_of_atom_unique`).  So refuting `GenByFactors S_y`
-  refutes the isomorphism.
-* **The two witnesses.**  `dMid (k+1)` is in every copy-`B` seed
-  (`CopyBCStructure.dMid_le_glueB`), and so is a copy-`A` element strictly below
-  it — `glueA m (stepMap (dMid k) ⊤)`, whose value is the marked point's own but
-  whose threshold is `⊤`, so it sits strictly under `constHom (dMid k)`.
-
-Those are the `t` and the `w` of
-`AtomFactorGeneration.not_genByFactors_of_strict_upper`.
--/
-
+-- [D-1945] §Copy-B-part-1-the-split-and-the-pieces
 open scoped Classical
 
 namespace CopyBExclusion
@@ -34,37 +11,22 @@ open TwoPointAssembly CopyAClassification CopyBCStructure SeedShapeProof
 open SeedLevelStep WeakProductAbsorption AtomFactorGeneration
 open SeedSeparation MidAnchor SeedChain TwoPointHypothesis
 
+-- [D-1946] hmk'
 private theorem hmk' (k : ℕ) : (markedPt k) ≠ ⊥ := (D_marked_point_nondegenerate k).1
+-- [D-1947] hmtk'
 private theorem hmtk' (k : ℕ) : (markedPt k) ≠ ⊤ := (D_marked_point_nondegenerate k).2.1
+-- [D-1948] hbtk'
 private theorem hbtk' (k : ℕ) : (⊥ : EndP (D k)) ≠ ⊤ := (D_marked_point_nondegenerate k).2.2
 
+-- [D-1949] obMid
 noncomputable local instance obMid : OrderBot (Base 0 (dMid 0)) :=
   TwoPointAssembly.levelSeedDualBot SeedsDiffer.joinIrred_D0_mid
+-- [D-1950] obTop
 noncomputable local instance obTop : OrderBot (Base 0 (⊤ : D 0)) :=
   TwoPointAssembly.levelSeedDualBot joinIrred_D0_top
 
-/-! ## The case split, restated at the tower
-
-`glueCar_cases` cannot be used here: it carries `[Fintype P]`, and
-`Fintype (EndP (D k))` is not globally synthesizable — the library instance
-(`GluingTowerLibrary.lean:485`) asks for `[DecidableRel ((· ≤ ·))]`, a field
-`TowerLevel` does not have.  Supplying it classically then makes the resulting
-`DecidableEq` differ from the one `towerLevelSucc` bakes in, and `canon`'s
-branches are guarded by that instance.
-
-The way round is not to add instances but to **avoid needing them**: the case
-split is about `canon`-fixedness alone, so restating it at `D (k+1)` and proving
-it from `canon` directly needs no `Fintype` at all. -/
-
-/-- `canon_inr_inl_ne_bot` with `m`, `w` **implicit** and no `[Fintype P]`.
-
-Both changes matter.  Dropping `Fintype` is needed because
-`Fintype (EndP (D k))` is not globally synthesizable; making `m` and `w`
-implicit is needed because the tower carries **two** `DecidableEq (EndP (D k))`
-instances (`endPDecidableEq`, baked into `D (k+1)` by `towerLevelSucc`, and
-Mathlib's `OrderHom.instDecidableEqOfForall`, which is what synthesis finds).
-With the arguments implicit, unification reads the instances off the hypothesis
-instead of re-synthesizing them, and the mismatch never arises. -/
+-- [D-1951] §The-case-split-restated-at-the-tower
+-- [D-1952] canonBFix
 theorem canonBFix {P : Type u} [DecidableEq P] [Lattice P] [BoundedOrder P]
     {m w : P} (h : canon m (Sum.inr (Sum.inl w)) = Sum.inr (Sum.inl w)) : w ≠ ⊥ := by
   intro hw
@@ -72,6 +34,7 @@ theorem canonBFix {P : Type u} [DecidableEq P] [Lattice P] [BoundedOrder P]
   simp only [canon] at h
   split_ifs at h <;> simp at h
 
+-- [D-1953] canonCFixBot
 theorem canonCFixBot {P : Type u} [DecidableEq P] [Lattice P] [BoundedOrder P]
     {m w : P} (h : canon m (Sum.inr (Sum.inr w)) = Sum.inr (Sum.inr w)) : w ≠ ⊥ := by
   intro hw
@@ -79,7 +42,7 @@ theorem canonCFixBot {P : Type u} [DecidableEq P] [Lattice P] [BoundedOrder P]
   simp only [canon] at h
   split_ifs at h <;> simp at h
 
-/-- **The case split, at the tower.** -/
+-- [D-1954] dSuccCases
 theorem dSuccCases (k : ℕ) (y : D (k + 1)) :
     (∃ v : EndP (D k), y = glueA (markedPt k) v)
       ∨ (∃ (x : EndP (D k)) (hx : x ≠ ⊥), y = glueB (markedPt k) x hx)
@@ -97,8 +60,8 @@ theorem dSuccCases (k : ℕ) (y : D (k + 1)) :
     · simp at hval
     · exact h2 rfl
 
-/-! ## Splitting the obligation -/
-
+-- [D-1955] §Splitting-the-obligation
+-- [D-1956] copyBC_of_B_and_C
 theorem copyBC_of_B_and_C (z : DInfty)
     (hB : ∀ (k : ℕ) (x : EndP (D k)) (hx : x ≠ ⊥),
       JoinIrred (D (k + 1)) (glueB (markedPt k) x hx) →
@@ -113,8 +76,8 @@ theorem copyBC_of_B_and_C (z : DInfty)
   · exact hB k x hx hy
   · exact hC k x hx hxm hy
 
-/-! ## Generation at the two left-hand pieces -/
-
+-- [D-1957] §Generation-at-the-two-left-hand-pieces
+-- [D-1958] genByFactors_of_subsingleton
 theorem genByFactors_of_subsingleton {L : Type} [PartialOrder L] [OrderBot L]
     [Subsingleton L] : GenByFactors L := by
   intro w
@@ -122,6 +85,7 @@ theorem genByFactors_of_subsingleton {L : Type} [PartialOrder L] [OrderBot L]
   intro v _
   exact le_of_eq (Subsingleton.elim w v)
 
+-- [D-1959] genByFactors_of_atom_unique
 theorem genByFactors_of_atom_unique {L : Type} [PartialOrder L] [OrderBot L] {α : L}
     (hα : IsAtom α) (huniq : ∀ β : L, IsAtom β → β = α) : GenByFactors L := by
   have hfp : ∀ w : L, w ∈ factorPart L := fun _ => ⟨α, hα, fun β hβ _ => huniq β hβ⟩
@@ -130,15 +94,15 @@ theorem genByFactors_of_atom_unique {L : Type} [PartialOrder L] [OrderBot L] {α
   intro v hv
   exact hv ⟨hfp w, le_refl w⟩
 
-/-- `midInf`'s left-hand piece is a single point. -/
+-- [D-1960] genByFactors_base_midInf
 theorem genByFactors_base_midInf : GenByFactors (Base 0 (dMid 0)) :=
   genByFactors_of_subsingleton
 
-/-! ### `topJ`'s left-hand piece is a two-chain, so it has a unique atom -/
-
-/-- The unique atom of `topJ`'s left-hand piece. -/
+-- [D-1961] §topJ-s-left-hand-piece-is-a-two-chain-so-it-has
+-- [D-1962] topAtom
 noncomputable def topAtom : Base 0 (⊤ : D 0) := OrderDual.toDual SeedsDiffer.topSeedOne
 
+-- [D-1963] isAtom_topAtom
 theorem isAtom_topAtom : IsAtom topAtom := by
   constructor
   · intro hcon
@@ -150,31 +114,33 @@ theorem isAtom_topAtom : IsAtom topAtom := by
       exact absurd hb2 (ne_of_lt hb)
     · exact Subtype.ext h
 
+-- [D-1964] atom_base_top_unique
 theorem atom_base_top_unique (β : Base 0 (⊤ : D 0)) (hβ : IsAtom β) : β = topAtom := by
   rcases SeedsDiffer.mem_levelSeedZeroTop (OrderDual.ofDual β) with h | h
   · exact Subtype.ext h
   · exact absurd (Subtype.ext h : β = (⊥ : Base 0 (⊤ : D 0))) hβ.1
 
+-- [D-1965] genByFactors_base_topJ
 theorem genByFactors_base_topJ : GenByFactors (Base 0 (⊤ : D 0)) :=
   genByFactors_of_atom_unique isAtom_topAtom atom_base_top_unique
 
-/-! ## The two witnesses inside a copy-`B` seed -/
-
+-- [D-1966] §The-two-witnesses-inside-a-copy-B-seed
 section Witnesses
 
 variable (k : ℕ) {x : EndP (D k)} (hx : x ≠ ⊥)
 
-/-- The marked point of level `k+1`, as an element of the copy-`B` seed. -/
+-- [D-1967] dMidSeed
 noncomputable def dMidSeed : LevelSeed (k + 1) (glueB (markedPt k) x hx) :=
   ⟨dMid (k + 1), D_mid_joinIrred (k + 1), dMid_le_glueB k hx⟩
 
-/-- A join-irreducible of `EndP (D k)` strictly below the marked point: the same
-value, but thresholded at `⊤`. -/
+-- [D-1968] gLow
 noncomputable def gLow : EndP (D k) := stepMap (dMid k) (⊤ : D k)
 
+-- [D-1969] gLow_joinIrred
 theorem gLow_joinIrred : JoinIrred (EndP (D k)) (gLow k) :=
   (jiEquiv ((⊤ : D k), (⟨dMid k, D_mid_joinIrred k⟩ : {v : D k // JoinIrred (D k) v}))).2
 
+-- [D-1970] gLow_le
 theorem gLow_le : gLow k ≤ markedPt k := by
   intro y
   show stepMap (dMid k) (⊤ : D k) y ≤ (constHom (dMid k) : EndP (D k)) y
@@ -184,6 +150,7 @@ theorem gLow_le : gLow k ≤ markedPt k := by
   · rw [stepMap_apply_of_not_ge (dMid k) (⊤ : D k) h]
     exact bot_le
 
+-- [D-1971] gLow_ne
 theorem gLow_ne : gLow k ≠ markedPt k := by
   intro hcon
   have hbt : (⊥ : D k) ≠ (⊤ : D k) := by
@@ -194,15 +161,17 @@ theorem gLow_ne : gLow k ≠ markedPt k := by
   rw [hcon] at h1
   exact dMid_ne_bot k h1
 
+-- [D-1972] gLow_lt
 theorem gLow_lt : gLow k < markedPt k := lt_of_le_of_ne (gLow_le k) (gLow_ne k)
 
-/-- The copy-`A` witness strictly below the marked point, inside the seed. -/
+-- [D-1973] wSeed
 noncomputable def wSeed : LevelSeed (k + 1) (glueB (markedPt k) x hx) :=
   ⟨glueA (markedPt k) (gLow k),
    (joinIrred_glueA_iff (markedPt k) (hmk' k) (hmtk' k) (hbtk' k) (gLow k)).mpr
      (gLow_joinIrred k),
    leGlue_tagA_tagB_of_le (markedPt k) (gLow k) x (gLow_le k)⟩
 
+-- [D-1974] wSeed_lt_dMidSeed
 theorem wSeed_lt_dMidSeed : wSeed k hx < dMidSeed k hx := by
   refine lt_of_le_of_ne ?_ ?_
   · show glueA (markedPt k) (gLow k) ≤ dMid (k + 1)
@@ -216,54 +185,13 @@ theorem wSeed_lt_dMidSeed : wSeed k hx < dMidSeed k hx := by
 
 end Witnesses
 
-/-! ## What copy `B` needs — now supplied in `Dinfty/CopyBAtoms.lean`
-
-The argument, for the record.  Let `y = glueB m x hx` be join-irreducible and
-`S_y = (LevelSeed (k+1) y)ᵒᵈ`.  An isomorphism with `z`'s seed forces
-`GenByFactors S_y` (the left-hand pieces are generated — above — and generation
-is multiplicative).  Then:
-
-* **`S_y` has ≥ 2 atoms.**  `not_genByFactors_of_strict_upper` applies with
-  `t = dMidSeed`, `w = wSeed` (both built below, `wSeed_lt_dMidSeed`), because
-  every element of `factorPart S_y` is `≥ dMid (k+1)`: copy-`B` elements are
-  (`dMid_le_glueB`), copy-`C` elements are not in the seed at all
-  (`not_leGlue_tagC_tagB`), and a copy-`A` element `glueA m v` with `v ≤ m` lies
-  below **every** copy-`B` atom, so being in some `atomFactor α` would force the
-  atoms to coincide.  That all atoms *are* copy-`B` follows from: a copy-`A`
-  atom must be `dMidSeed` (anything smaller is under it and so not covered by
-  `y`), and if `dMidSeed` were an atom it would be the only one.
-* **`S_y` has exactly 1 atom** (this happens — take `x = atomOf (EndP (D k))`).
-  Then `factorPart S_y = S_y`, so there is exactly **one** atom-factor.
-  `factor_in_finite_pieceL` demands one for each `j ≤ k`, all of them that same
-  set, so `D 0 ≃o D k` and `k = 0`; and then `D 0 ≃o S_y`, against
-  `4 ≤ card S_y` (the three thresholds `⊥ < dMid 0 < ⊤` give three copy-`A`
-  elements, and `y` is the fourth).
-
-Both cases need `x ≠ ⊤`, which the seam section below supplies.
-
-`CopyBAtoms.copyB_excluded_gen` is the result; `CopyBAtoms.twoPointFixed_of_C`
-reduces `TwoPointFixed` to copy `C` alone. -/
-
-/-! ## The seam is not join-irreducible
-
-Copy `B`'s argument needs `x ≠ ⊤`: at `x = ⊤` the point is the seam
-`tag_B ⊤ = tag_C m`, whose seed contains **all** of copy `A`, so it behaves like
-copy `C` and the bound `t = dMid (k+1)` fails.
-
-`not_hasUniqueDownCover_glueB_top` says exactly this but carries `[Fintype P]`
-and `3 ≤ Fintype.card P`, unusable at `P = EndP (D k)`.  Proved from the
-definition instead: `glueA m ⊤` and `glueB m m` are both strictly below the seam
-and their join **is** the seam, because every upper bound of the pair is above
-it.
-
-Every step is ascribed at `D (k+1)`.  Without that the elaborator drops to the
-bare `GlueCar (markedPt k)`, where neither `Max` nor `PartialOrder` is found —
-the same instance diamond as `canonBFix`. -/
-
+-- [D-1975] §What-copy-B-needs-now-supplied-in-Dinfty
+-- [D-1976] §The-seam-is-not-join-irreducible
 section Seam
 
 variable (k : ℕ)
 
+-- [D-1977] seam_not_joinIrred
 theorem seam_not_joinIrred :
     ¬ JoinIrred (D (k + 1))
       (glueB (markedPt k) (⊤ : EndP (D k)) (Ne.symm (hbtk' k))) := by
@@ -306,7 +234,7 @@ theorem seam_not_joinIrred :
     simp only [hYdef, hBdef] at hv
     exact (Sum.inl.inj (Sum.inr.inj hv)).symm
 
-/-- A join-irreducible copy-`B` point is not the seam. -/
+-- [D-1978] copyB_ne_top
 theorem copyB_ne_top {x : EndP (D k)} (hx : x ≠ ⊥)
     (hji : JoinIrred (D (k + 1)) (glueB (markedPt k) x hx)) : x ≠ (⊤ : EndP (D k)) := by
   intro hcon

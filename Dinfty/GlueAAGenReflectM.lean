@@ -2,20 +2,7 @@ import Dinfty.GluingTowerLibrary
 
 open GluingTowerLibrary
 
-/-!
-# `GlueAAGenReflect`, migrated to a constant marked point
-
-Migration experiment (2026-08-27).  `GluingTowerLibrary.lean`'s
-`section GlueAAGenReflect` (lines 7514-7986) is the ep-pair layer's
-order-**reflection** direction, and it hardcodes `m = OrderHom.id` throughout.
-This file re-derives it at `m = constHom mid`, the normalized tower's marked
-point, to separate the occurrences of `OrderHom.id` that are *mentions* (a
-mechanical rename) from those that are *load-bearing* (`id`'s definitional
-`id x = x`).
-
-Everything is suffixed `M` for "migrated".
--/
-
+-- [D-0693] §GlueAAGenReflect-migrated-to-a-constant-marked
 open scoped Classical
 
 universe u
@@ -24,49 +11,51 @@ section MigratedEpPair
 
 variable {L : Type u} [DecidableEq L] [Lattice L] [BoundedOrder L] [Fintype L]
 
-/-! ## The marked point is a constant -/
-
+-- [D-0694] §The-marked-point-is-a-constant
+-- [D-0695] hmM_of
 theorem hmM_of {mid : L} (hmid0 : mid ≠ (⊥ : L)) : (constHom mid : EndP L) ≠ ⊥ := by
   intro h
   exact hmid0 (by simpa using congrArg (fun g : EndP L => g (⊥ : L)) h)
 
+-- [D-0696] hmtM_of
 theorem hmtM_of {mid : L} (hmidt : mid ≠ (⊤ : L)) : (constHom mid : EndP L) ≠ ⊤ := by
   intro h
   exact hmidt (by simpa using congrArg (fun g : EndP L => g (⊥ : L)) h)
 
-/-! ## `pGenM` : the ep-pair projection at a constant marked point
-
-The tag-`B` branch is `mid`, NOT `⊥`.  The `⊥` of the `id` version is
-`(OrderHom.id) ⊥` in disguise; at a general `m` the value forced by
-monotonicity (case `A,B`) is `m ⊥ = mid`. -/
-
+-- [D-0697] §pGenM-the-ep-pair-projection-at-a-constant
+-- [D-0698] pGenM
 noncomputable def pGenM (mid : L) (w : GlueCar (P := EndP L) (constHom mid)) : L :=
   match w.1 with
   | Sum.inl f => f (⊥ : L)
   | Sum.inr (Sum.inl f) => if f = (⊤ : EndP L) then (⊤ : L) else mid
   | Sum.inr (Sum.inr _) => (⊤ : L)
 
+-- [D-0699] iotaGenM
 noncomputable def iotaGenM (mid : L) (x : L) : GlueCar (P := EndP L) (constHom mid) :=
   glueA (constHom mid : EndP L) (constHom x)
 
+-- [D-0700] pGenM_section
 theorem pGenM_section (mid x : L) : pGenM mid (iotaGenM mid x) = x := by
   show (constHom x : EndP L) (⊥ : L) = x
   rw [constHom_apply]
 
+-- [D-0701] iotaGenM_le_iff
 theorem iotaGenM_le_iff {mid : L} (hmid0 : mid ≠ (⊥ : L)) (x y : L) :
     iotaGenM mid x ≤ iotaGenM mid y ↔ x ≤ y :=
   (glueA_le_iff (constHom mid : EndP L) (hmM_of hmid0) (constHom x) (constHom y)).trans
     (constHom_le_iff x y)
 
+-- [D-0702] iotaGenM_injective
 theorem iotaGenM_injective (mid : L) : Function.Injective (iotaGenM mid) := by
   intro x y h
   exact constHom_injective (glueA_injective (constHom mid : EndP L) h)
 
+-- [D-0703] iotaGenM_monotone
 theorem iotaGenM_monotone {mid : L} (hmid0 : mid ≠ (⊥ : L)) {x y : L} (hxy : x ≤ y) :
     iotaGenM mid x ≤ iotaGenM mid y :=
   (iotaGenM_le_iff hmid0 x y).mpr hxy
 
-/-- Deflation `ι(p(w)) ≤ w`, at a constant marked point. -/
+-- [D-0704] pGenM_deflation
 theorem pGenM_deflation (mid : L) (w : GlueCar (P := EndP L) (constHom mid)) :
     leGlue (constHom mid : EndP L) (Sum.inl (constHom (pGenM mid w) : EndP L)) w.1 := by
   obtain ⟨wv, hwv⟩ := w
@@ -91,8 +80,7 @@ theorem pGenM_deflation (mid : L) (w : GlueCar (P := EndP L) (constHom mid)) :
     exact ⟨Sum.inl (constHom (⊤ : L)), self_mem_occs _ _, Sum.inr (Sum.inr f),
       self_mem_occs _ _, trivial⟩
 
-/-- Monotonicity of `pGenM`.  Case `A,B` is the one that FAILS if the tag-`B`
-branch is left at `⊥`: there it needs `f ⊥ ≤ m ⊥`, and `m ⊥ = mid`. -/
+-- [D-0705] pGenM_monotone
 theorem pGenM_monotone {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hbt : (⊥ : L) ≠ ⊤)
     (w w' : GlueCar (P := EndP L) (constHom mid)) (hle : w ≤ w') :
     pGenM mid w ≤ pGenM mid w' := by
@@ -141,17 +129,12 @@ section MigratedLift
 
 variable {L : Type u} [DecidableEq L] [Lattice L] [BoundedOrder L] [Fintype L]
 
-/-! ## The next level's marked point
-
-Under `m = OrderHom.id` the lift's middle correction term is literally `id`
-again, so the two levels' marked points are "the same" by accident of notation.
-Once `m` is a constant the two are genuinely different data and the choice has
-to be made.  `midM` is the choice; `midM_unique` below shows the reflection
-proof leaves no other. -/
-
+-- [D-0706] §The-next-level-s-marked-point
+-- [D-0707] midM
 noncomputable def midM (mid : L) : GlueCar (P := EndP L) (constHom mid) :=
   iotaGenM mid mid
 
+-- [D-0708] midM_ne_bot
 theorem midM_ne_bot {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid ≠ (⊤ : L))
     (hbt : (⊥ : L) ≠ ⊤) :
     letI := glueCarPartialOrder (constHom mid : EndP L) (hmM_of hmid0) (hmtM_of hmidt)
@@ -167,7 +150,7 @@ theorem midM_ne_bot {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid ≠ (⊤ 
   rw [h1, h2] at hv
   exact (hmM_of hmid0) (by simpa using hv)
 
-/-- `iotaGenM` never hits `⊤` — the migrated `iotaGen_ne_top`. -/
+-- [D-0709] iotaGenM_ne_top
 theorem iotaGenM_ne_top {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid ≠ (⊤ : L))
     (hbt : (⊥ : L) ≠ ⊤) (x : L) :
     letI := glueCarPartialOrder (constHom mid : EndP L) (hmM_of hmid0) (hmtM_of hmidt)
@@ -187,6 +170,7 @@ theorem iotaGenM_ne_top {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid ≠ (
   rw [h1, h2] at hv
   exact absurd hv (by simp)
 
+-- [D-0710] midM_ne_top
 theorem midM_ne_top {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid ≠ (⊤ : L))
     (hbt : (⊥ : L) ≠ ⊤) :
     letI := glueCarPartialOrder (constHom mid : EndP L) (hmM_of hmid0) (hmtM_of hmidt)
@@ -195,13 +179,8 @@ theorem midM_ne_top {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid ≠ (⊤ 
     midM mid ≠ (⊤ : GlueCar (P := EndP L) (constHom mid)) :=
   iotaGenM_ne_top hmid0 hmidt hbt mid
 
-/-! ## `midM` is the ONLY possible next marked point
-
-The two clauses are exactly what the reflection proof consumes: `hup` is what
-case `A,B` needs (`iotaEndPGenM f ≤ m'` must force `f ≤ m`), `hdown` is what the
-absorption lemma needs (the middle correction term must be swallowed by
-`iotaGenM (g z)` whenever `m ≤ g`).  Together they pin the point on the nose. -/
-
+-- [D-0711] §midM-is-the-ONLY-possible-next-marked-point
+-- [D-0712] midM_unique
 theorem midM_unique {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid ≠ (⊤ : L))
     (hbt : (⊥ : L) ≠ ⊤) (mu : GlueCar (P := EndP L) (constHom mid))
     (hup : ∀ y : L, y ≤ mid → iotaGenM mid y ≤ mu)
@@ -210,20 +189,13 @@ theorem midM_unique {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid ≠ (⊤ 
   letI := glueCarPartialOrder (constHom mid : EndP L) (hmM_of hmid0) (hmtM_of hmidt) (hbtEL_of hbt)
   exact le_antisymm (hdown mid le_rfl) (hup mid le_rfl)
 
-/-- `midM` is the copy-`A` glue point `skelG1`, and is a different element from
-`skelL m = tag_B m`.
-
-HISTORICAL NOTE (2026-08-27): when this was written the normalized tower's next
-middle basepoint was `tag_B`, and this theorem recorded a genuine conflict.  The
-tower has since been retargeted to `tag_A` (`NormalizedGlueMap.triLevelSucc`,
-guarded by `Dinfty/BasepointInvariant.lean`), so `midM` now *is* the tower's
-basepoint and this theorem just separates the two candidates. -/
+-- [D-0713] midM_ne_skelL
 theorem midM_ne_skelL (mid : L) :
     (midM mid).1 ≠ skelL (constHom mid : EndP L) := by
   simp [midM, iotaGenM, glueA, skelL]
 
-/-! ## `iotaEndPGenM` and `liftGenM` -/
-
+-- [D-0714] §iotaEndPGenM-and-liftGenM
+-- [D-0715] iotaEndPGenM
 noncomputable def iotaEndPGenM {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid ≠ (⊤ : L))
     (hbt : (⊥ : L) ≠ ⊤) (f : EndP L) :
     letI := glueCarPartialOrder (constHom mid : EndP L) (hmM_of hmid0) (hmtM_of hmidt)
@@ -234,6 +206,7 @@ noncomputable def iotaEndPGenM {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mi
     monotone' := fun w w' hle =>
       iotaGenM_monotone hmid0 (f.monotone (pGenM_monotone hmid0 hbt w w' hle)) }
 
+-- [D-0716] iotaEndPGenM_apply
 theorem iotaEndPGenM_apply {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid ≠ (⊤ : L))
     (hbt : (⊥ : L) ≠ ⊤) (f : EndP L) :
     letI := glueCarPartialOrder (constHom mid : EndP L) (hmM_of hmid0) (hmtM_of hmidt)
@@ -244,6 +217,7 @@ theorem iotaEndPGenM_apply {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid �
   intro w
   rfl
 
+-- [D-0717] iotaEndPGenM_monotone
 theorem iotaEndPGenM_monotone {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid ≠ (⊤ : L))
     (hbt : (⊥ : L) ≠ ⊤) {f g : EndP L} (hfg : f ≤ g) :
     letI := glueCarPartialOrder (constHom mid : EndP L) (hmM_of hmid0) (hmtM_of hmidt)
@@ -255,10 +229,7 @@ theorem iotaEndPGenM_monotone {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid
   show iotaGenM mid (f (pGenM mid w)) ≤ iotaGenM mid (g (pGenM mid w))
   exact iotaGenM_monotone hmid0 (OrderHom.le_def.mp hfg (pGenM mid w))
 
-/-- **The migrated `liftGen`.**  The middle correction term's *threshold* is
-`m = constHom mid` and its *value* is `constHom (midM mid)` — under `m = id`
-those two are both spelled `OrderHom.id`, which is what made the `id` version
-look like it mentions one marked point when it in fact mentions two. -/
+-- [D-0718] liftGenM
 noncomputable def liftGenM {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid ≠ (⊤ : L))
     (hbt : (⊥ : L) ≠ ⊤) (f : EndP L) :
     letI := glueCarPartialOrder (constHom mid : EndP L) (hmM_of hmid0) (hmtM_of hmidt)
@@ -277,6 +248,7 @@ noncomputable def liftGenM {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid �
         then (⊤ : EndP (GlueCar (P := EndP L) (constHom mid)))
         else ⊥)
 
+-- [D-0719] liftGenM_monotone
 theorem liftGenM_monotone {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid ≠ (⊤ : L))
     (hbt : (⊥ : L) ≠ ⊤) {f g : EndP L} (hfg : f ≤ g) :
     letI := glueCarPartialOrder (constHom mid : EndP L) (hmM_of hmid0) (hmtM_of hmidt)
@@ -291,8 +263,8 @@ theorem liftGenM_monotone {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid ≠
   exact sup_le_sup (sup_le_sup (iotaEndPGenM_monotone hmid0 hmidt hbt hfg)
     (ite_dominate_mono hfg _)) (ite_dominate_mono hfg _)
 
-/-! ## Boundary values -/
-
+-- [D-0720] §Boundary-values
+-- [D-0721] iotaGenM_bot
 theorem iotaGenM_bot {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid ≠ (⊤ : L))
     (hbt : (⊥ : L) ≠ ⊤) :
     letI := glueCarPartialOrder (constHom mid : EndP L) (hmM_of hmid0) (hmtM_of hmidt)
@@ -305,6 +277,7 @@ theorem iotaGenM_bot {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid ≠ (⊤
   rw [constHom_bot_eq]
   rfl
 
+-- [D-0722] iotaEndPGenM_bot
 theorem iotaEndPGenM_bot {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid ≠ (⊤ : L))
     (hbt : (⊥ : L) ≠ ⊤) :
     letI := glueCarPartialOrder (constHom mid : EndP L) (hmM_of hmid0) (hmtM_of hmidt)
@@ -321,6 +294,7 @@ theorem iotaEndPGenM_bot {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid ≠ 
   rw [endPBot_apply]
   exact iotaGenM_bot hmid0 hmidt hbt
 
+-- [D-0723] liftGenM_bot
 theorem liftGenM_bot {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid ≠ (⊤ : L))
     (hbt : (⊥ : L) ≠ ⊤) :
     letI := glueCarPartialOrder (constHom mid : EndP L) (hmM_of hmid0) (hmtM_of hmidt)
@@ -338,10 +312,7 @@ theorem liftGenM_bot {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid ≠ (⊤
   rw [if_neg h1, if_neg h2, iotaEndPGenM_bot hmid0 hmidt hbt]
   exact le_antisymm (sup_le (sup_le le_rfl le_rfl) le_rfl) bot_le
 
-/-- **`liftGenM` pins the marked point.**  The `id` version (`liftGen_id`)
-proved this from the ep-pair DEFLATION `iotaGen (pGen w) ≤ w`.  At a constant
-marked point deflation is not needed: `m (pGenM mid w) = mid` outright, so the
-first summand is literally `midM mid` and the inequality is `le_rfl`. -/
+-- [D-0724] liftGenM_mid
 theorem liftGenM_mid {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid ≠ (⊤ : L))
     (hbt : (⊥ : L) ≠ ⊤) :
     letI := glueCarPartialOrder (constHom mid : EndP L) (hmM_of hmid0) (hmtM_of hmidt)
@@ -367,6 +338,7 @@ theorem liftGenM_mid {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid ≠ (⊤
   rw [if_pos h1, if_neg h2]
   exact le_antisymm (sup_le (sup_le hdefl le_rfl) bot_le) (le_trans le_sup_right le_sup_left)
 
+-- [D-0725] liftGenM_top
 theorem liftGenM_top {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid ≠ (⊤ : L))
     (hbt : (⊥ : L) ≠ ⊤) :
     letI := glueCarPartialOrder (constHom mid : EndP L) (hmM_of hmid0) (hmtM_of hmidt)
@@ -388,6 +360,7 @@ section MigratedReflect
 
 variable {L : Type u} [DecidableEq L] [Lattice L] [BoundedOrder L] [Fintype L]
 
+-- [D-0726] iotaEndPGenM_le_iff
 theorem iotaEndPGenM_le_iff {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid ≠ (⊤ : L))
     (hbt : (⊥ : L) ≠ ⊤) {f g : EndP L} :
     letI := glueCarPartialOrder (constHom mid : EndP L) (hmM_of hmid0) (hmtM_of hmidt)
@@ -404,6 +377,7 @@ theorem iotaEndPGenM_le_iff {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid �
     exact (iotaGenM_le_iff hmid0 _ _).mp hw
   · exact iotaEndPGenM_monotone hmid0 hmidt hbt
 
+-- [D-0727] liftGenM_apply
 theorem liftGenM_apply {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid ≠ (⊤ : L))
     (hbt : (⊥ : L) ≠ ⊤) (f : EndP L) (w : GlueCar (P := EndP L) (constHom mid)) :
     letI := glueCarPartialOrder (constHom mid : EndP L) (hmM_of hmid0) (hmtM_of hmidt)
@@ -427,6 +401,7 @@ theorem liftGenM_apply {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid ≠ (�
     · exact endPTop_apply w
     · exact endPBot_apply w
 
+-- [D-0728] liftGenM_eq_bot_iff
 theorem liftGenM_eq_bot_iff {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid ≠ (⊤ : L))
     (hbt : (⊥ : L) ≠ ⊤) {f : EndP L} :
     letI := glueCarPartialOrder (constHom mid : EndP L) (hmM_of hmid0) (hmtM_of hmidt)
@@ -449,10 +424,7 @@ theorem liftGenM_eq_bot_iff {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid �
     exact le_bot_iff.mp h4
   · intro h; subst h; exact liftGenM_bot hmid0 hmidt hbt
 
-/-- The migrated `liftGen_eq_id_iff`.  This is one of the four sites where the
-`id` version used `(OrderHom.id) (iotaGen z) = iotaGen z` by `rfl`; here the
-corresponding fact is `(constHom (midM mid)) (iotaGenM mid z) = midM mid`, i.e.
-`constHom_apply`, and it is a genuinely different argument. -/
+-- [D-0729] liftGenM_eq_mid_iff
 theorem liftGenM_eq_mid_iff {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid ≠ (⊤ : L))
     (hbt : (⊥ : L) ≠ ⊤) {f : EndP L} :
     letI := glueCarPartialOrder (constHom mid : EndP L) (hmM_of hmid0) (hmtM_of hmidt)
@@ -505,6 +477,7 @@ theorem liftGenM_eq_mid_iff {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid �
       exact hmf (hfeq ▸ le_refl _)
   · intro h; subst h; exact liftGenM_mid hmid0 hmidt hbt
 
+-- [D-0730] liftGenM_eq_top_iff
 theorem liftGenM_eq_top_iff {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid ≠ (⊤ : L))
     (hbt : (⊥ : L) ≠ ⊤) {f : EndP L} :
     letI := glueCarPartialOrder (constHom mid : EndP L) (hmM_of hmid0) (hmtM_of hmidt)
@@ -535,8 +508,7 @@ theorem liftGenM_eq_top_iff {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid �
       exact iotaGenM_ne_top hmid0 hmidt hbt _ e1.symm
   · intro h; subst h; exact liftGenM_top hmid0 hmidt hbt
 
-/-- The absorption lemma.  This is the step that pins the next marked point
-DOWNWARD: `midM mid ≤ iotaGenM mid (g z)` has to hold whenever `m ≤ g`. -/
+-- [D-0731] liftGenM_apply_iotaGenM_of_not_top
 theorem liftGenM_apply_iotaGenM_of_not_top {mid : L} (hmid0 : mid ≠ (⊥ : L))
     (hmidt : mid ≠ (⊤ : L)) (hbt : (⊥ : L) ≠ ⊤) {g : EndP L}
     (hg : ¬ (⊤ : EndP L) ≤ g) (z : L) :
@@ -559,9 +531,7 @@ theorem liftGenM_apply_iotaGenM_of_not_top {mid : L} (hmid0 : mid ≠ (⊥ : L))
   · rw [if_neg hmg, sup_bot_eq, sup_bot_eq] at e1
     exact e1
 
-/-- The migrated replacement for `iotaGen_pGen_deflation`'s use in the
-monotone direction: at a constant marked point this is an equality, not a
-deflation. -/
+-- [D-0732] iotaEndPGenM_mid_le
 theorem iotaEndPGenM_mid_le {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid ≠ (⊤ : L))
     (hbt : (⊥ : L) ≠ ⊤) :
     letI := glueCarPartialOrder (constHom mid : EndP L) (hmM_of hmid0) (hmtM_of hmidt)
@@ -579,8 +549,8 @@ theorem iotaEndPGenM_mid_le {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid �
   rw [constHom_apply]
   exact le_rfl
 
-/-! ## `glueAAGenM` -/
-
+-- [D-0733] §glueAAGenM
+-- [D-0734] glueAAGenM
 noncomputable def glueAAGenM {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid ≠ (⊤ : L))
     (hbt : (⊥ : L) ≠ ⊤) (x : GlueCar (P := EndP L) (constHom mid)) :
     letI := glueCarPartialOrder (constHom mid : EndP L) (hmM_of hmid0) (hmtM_of hmidt)
@@ -603,6 +573,7 @@ noncomputable def glueAAGenM {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid 
       incl (constHom (midM mid)) (hmM_of (midM_ne_bot hmid0 hmidt hbt)) (hbtEL_of hbtG)
         (Sum.inr (Sum.inr (liftGenM hmid0 hmidt hbt f)))
 
+-- [D-0735] glueAAGenM_monotone
 set_option maxHeartbeats 4000000 in
 theorem glueAAGenM_monotone {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid ≠ (⊤ : L))
     (hbt : (⊥ : L) ≠ ⊤) {x y : GlueCar (P := EndP L) (constHom mid)} (hxy : x ≤ y) :
@@ -630,14 +601,14 @@ theorem glueAAGenM_monotone {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid �
     (glueAAGenM hmid0 hmidt hbt (⟨xv, hxv⟩ : GlueCar (P := EndP L) (constHom mid))).1
     (glueAAGenM hmid0 hmidt hbt (⟨yv, hyv⟩ : GlueCar (P := EndP L) (constHom mid))).1
   rcases xv with f | f | f <;> rcases yv with f' | f' | f'
-  · -- A, A
+  ·
     show leGlue _ (Sum.inl (iotaEndPGenM hmid0 hmidt hbt f))
       (Sum.inl (iotaEndPGenM hmid0 hmidt hbt f'))
     have hff' : f ≤ f' := (tagA_iso (constHom mid : EndP L) hm0 f f').mp hxy'
     exact rawRule_leGlue_canon _ hm' hmt' hbtE'
       (Sum.inl (iotaEndPGenM hmid0 hmidt hbt f)) (Sum.inl (iotaEndPGenM hmid0 hmidt hbt f'))
       (iotaEndPGenM_monotone hmid0 hmidt hbt hff')
-  · -- A, B
+  ·
     show leGlue _ (Sum.inl (iotaEndPGenM hmid0 hmidt hbt f))
       (canon _ (Sum.inr (Sum.inl (liftGenM hmid0 hmidt hbt f'))))
     by_cases hft : f' = (⊤ : EndP L)
@@ -658,14 +629,14 @@ theorem glueAAGenM_monotone {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid �
       exact rawRule_leGlue_canon _ hm' hmt' hbtE'
         (Sum.inl (iotaEndPGenM hmid0 hmidt hbt f))
         (Sum.inr (Sum.inl (liftGenM hmid0 hmidt hbt f'))) hle
-  · -- A, C
+  ·
     exact rawRule_leGlue_canon _ hm' hmt' hbtE'
       (Sum.inl (iotaEndPGenM hmid0 hmidt hbt f))
       (Sum.inr (Sum.inr (liftGenM hmid0 hmidt hbt f'))) trivial
-  · -- B, A
+  ·
     exact absurd hxy' (not_leGlue_tagB_tagA (constHom mid : EndP L) f f' hm0 hbt0
       (ne_bot_of_canon_tagB (constHom mid : EndP L) f hxv))
-  · -- B, B
+  ·
     show leGlue _ (canon _ (Sum.inr (Sum.inl (liftGenM hmid0 hmidt hbt f))))
       (canon _ (Sum.inr (Sum.inl (liftGenM hmid0 hmidt hbt f'))))
     by_cases hft : f' = (⊤ : EndP L)
@@ -681,7 +652,7 @@ theorem glueAAGenM_monotone {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid �
         (Sum.inr (Sum.inl (liftGenM hmid0 hmidt hbt f)))
         (Sum.inr (Sum.inl (liftGenM hmid0 hmidt hbt f')))
         (liftGenM_monotone hmid0 hmidt hbt hff')
-  · -- B, C
+  ·
     show leGlue _ (canon _ (Sum.inr (Sum.inl (liftGenM hmid0 hmidt hbt f))))
       (canon _ (Sum.inr (Sum.inr (liftGenM hmid0 hmidt hbt f'))))
     have hmf' : (constHom mid : EndP L) ≤ f' :=
@@ -694,10 +665,10 @@ theorem glueAAGenM_monotone {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid �
     exact rawRule_leGlue_canon _ hm' hmt' hbtE'
       (Sum.inr (Sum.inl (liftGenM hmid0 hmidt hbt f)))
       (Sum.inr (Sum.inr (liftGenM hmid0 hmidt hbt f'))) hle
-  · -- C, A
+  ·
     exact absurd hxy' (not_leGlue_tagC_tagA (constHom mid : EndP L) f f'
       (ne_bot_of_canon_tagC (constHom mid : EndP L) f hxv))
-  · -- C, B
+  ·
     show leGlue _ (canon _ (Sum.inr (Sum.inr (liftGenM hmid0 hmidt hbt f))))
       (canon _ (Sum.inr (Sum.inl (liftGenM hmid0 hmidt hbt f'))))
     by_cases hft : f' = (⊤ : EndP L)
@@ -733,7 +704,7 @@ theorem glueAAGenM_monotone {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid �
           EndP (GlueCar (P := EndP L) (constHom mid))))) hle
       rwa [hcanon] at hb
     · exact absurd hxy' (not_leGlue_tagC_tagB (constHom mid : EndP L) f f' hft)
-  · -- C, C
+  ·
     show leGlue _ (canon _ (Sum.inr (Sum.inr (liftGenM hmid0 hmidt hbt f))))
       (canon _ (Sum.inr (Sum.inr (liftGenM hmid0 hmidt hbt f'))))
     have hff' : f ≤ f' := (leGlue_tagC_tagC_iff (constHom mid : EndP L) f f').mp hxy'
@@ -742,6 +713,7 @@ theorem glueAAGenM_monotone {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid �
       (Sum.inr (Sum.inr (liftGenM hmid0 hmidt hbt f')))
       (liftGenM_monotone hmid0 hmidt hbt hff')
 
+-- [D-0736] glueAAGenM_reflect
 set_option maxHeartbeats 4000000 in
 theorem glueAAGenM_reflect {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid ≠ (⊤ : L))
     (hbt : (⊥ : L) ≠ ⊤) {x y : GlueCar (P := EndP L) (constHom mid)}
@@ -767,7 +739,7 @@ theorem glueAAGenM_reflect {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid �
   rw [GlueCar.le_def]
   show leGlue (constHom mid : EndP L) xv yv
   rcases xv with f | f | f <;> rcases yv with f' | f' | f'
-  · -- A, A
+  ·
     have hxy2 : leGlue (constHom (midM mid) : EndP (GlueCar (P := EndP L) (constHom mid)))
         (Sum.inl (iotaEndPGenM hmid0 hmidt hbt f))
         (Sum.inl (iotaEndPGenM hmid0 hmidt hbt f')) := hxy
@@ -775,7 +747,7 @@ theorem glueAAGenM_reflect {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid �
       (tagA_iso _ hm' _ _).mp hxy2
     exact (tagA_iso (constHom mid : EndP L) hm0 f f').mpr
       ((iotaEndPGenM_le_iff hmid0 hmidt hbt).mp hff')
-  · -- A, B
+  ·
     by_cases hf't : f' = (⊤ : EndP L)
     · subst hf't; exact leGlue_tagA_tagB_top _ _
     · have hLnb : liftGenM hmid0 hmidt hbt f'
@@ -807,9 +779,9 @@ theorem glueAAGenM_reflect {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid �
         have hz' : iotaGenM mid (f z) ≤ iotaGenM mid mid := hz
         exact (iotaGenM_le_iff hmid0 _ _).mp hz'
       exact (leGlue_tagA_tagB_iff (constHom mid : EndP L) f f' hf't).mpr hfm
-  · -- A, C
+  ·
     exact tagA_le_tagC (constHom mid : EndP L) f f'
-  · -- B, A
+  ·
     exfalso
     have hfb : f ≠ (⊥ : EndP L) := ne_bot_of_canon_tagB (constHom mid : EndP L) f hxv
     have hLnb : liftGenM hmid0 hmidt hbt f
@@ -826,7 +798,7 @@ theorem glueAAGenM_reflect {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid �
     exact not_leGlue_tagB_tagA
       (constHom (midM mid) : EndP (GlueCar (P := EndP L) (constHom mid)))
       (liftGenM hmid0 hmidt hbt f) (iotaEndPGenM hmid0 hmidt hbt f') hm' hbtE' hLnb hxy2
-  · -- B, B
+  ·
     by_cases hf't : f' = (⊤ : EndP L)
     · subst hf't
       exact ⟨Sum.inr (Sum.inl f), self_mem_occs _ _, Sum.inr (Sum.inl (⊤ : EndP L)),
@@ -872,7 +844,7 @@ theorem glueAAGenM_reflect {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid �
           exact le_trans le_sup_left le_sup_left
         exact (iotaGenM_le_iff hmid0 _ _).mp (le_trans hlb hz)
       exact (leGlue_tagB_tagB_iff (constHom mid : EndP L) f f' hf't hfb).mpr hfin
-  · -- B, C
+  ·
     have hf''b : f' ≠ (⊥ : EndP L) := (canon_inr_inr_ne (constHom mid : EndP L) f' hyv).1
     have hf''m : f' ≠ (constHom mid : EndP L) :=
       (canon_inr_inr_ne (constHom mid : EndP L) f' hyv).2
@@ -917,7 +889,7 @@ theorem glueAAGenM_reflect {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid �
         have hz' : iotaGenM mid mid ≤ iotaGenM mid (f' z) := hz
         exact (iotaGenM_le_iff hmid0 _ _).mp hz'
       exact (leGlue_tagB_tagC_iff (constHom mid : EndP L) f f').mpr hfin
-  · -- C, A
+  ·
     exfalso
     have hfb := (canon_inr_inr_ne (constHom mid : EndP L) f hxv).1
     have hfm := (canon_inr_inr_ne (constHom mid : EndP L) f hxv).2
@@ -938,7 +910,7 @@ theorem glueAAGenM_reflect {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid �
     exact not_leGlue_tagC_tagA
       (constHom (midM mid) : EndP (GlueCar (P := EndP L) (constHom mid)))
       (liftGenM hmid0 hmidt hbt f) (iotaEndPGenM hmid0 hmidt hbt f') hLfnb hxy2
-  · -- C, B
+  ·
     have hfb := (canon_inr_inr_ne (constHom mid : EndP L) f hxv).1
     have hfm := (canon_inr_inr_ne (constHom mid : EndP L) f hxv).2
     have hLfnb : liftGenM hmid0 hmidt hbt f
@@ -1007,7 +979,7 @@ theorem glueAAGenM_reflect {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid �
       exact not_leGlue_tagC_tagB
         (constHom (midM mid) : EndP (GlueCar (P := EndP L) (constHom mid)))
         (liftGenM hmid0 hmidt hbt f) (liftGenM hmid0 hmidt hbt f') hL'nt hxy2
-  · -- C, C
+  ·
     by_cases hf't : f' = (⊤ : EndP L)
     · subst hf't
       exact (leGlue_tagC_tagC_iff (constHom mid : EndP L) f (⊤ : EndP L)).mpr le_top
@@ -1057,12 +1029,13 @@ theorem glueAAGenM_reflect {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid �
         exact (iotaGenM_le_iff hmid0 _ _).mp (le_trans hlb hz)
       exact (leGlue_tagC_tagC_iff (constHom mid : EndP L) f f').mpr hfin
 
-/-- **The migrated section's endpoint.** -/
+-- [D-0737] glueAAGenM_le_iff
 theorem glueAAGenM_le_iff {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid ≠ (⊤ : L))
     (hbt : (⊥ : L) ≠ ⊤) {x y : GlueCar (P := EndP L) (constHom mid)} :
     glueAAGenM hmid0 hmidt hbt x ≤ glueAAGenM hmid0 hmidt hbt y ↔ x ≤ y :=
   ⟨glueAAGenM_reflect hmid0 hmidt hbt, glueAAGenM_monotone hmid0 hmidt hbt⟩
 
+-- [D-0738] glueAAGenM_injective
 theorem glueAAGenM_injective {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid ≠ (⊤ : L))
     (hbt : (⊥ : L) ≠ ⊤) : Function.Injective (glueAAGenM hmid0 hmidt hbt) := by
   have hm0 : (constHom mid : EndP L) ≠ ⊥ := hmM_of hmid0
@@ -1085,25 +1058,17 @@ end MigratedReflect
 
 section MigrationObstructions
 
-/-! ## Two negative checks
-
-These are the parts of the migration that are NOT a rename, stated as
-refutations so they cannot be waved through. -/
-
+-- [D-0739] §Two-negative-checks
 variable {L : Type u} [DecidableEq L] [Lattice L] [BoundedOrder L] [Fintype L]
 
-/-- `pGen` with its tag-`B` branch left at `⊥`, i.e. the `id` version's
-projection transplanted verbatim to a constant marked point. -/
+-- [D-0740] pGenBad
 noncomputable def pGenBad (mid : L) (w : GlueCar (P := EndP L) (constHom mid)) : L :=
   match w.1 with
   | Sum.inl f => f (⊥ : L)
   | Sum.inr (Sum.inl f) => if f = (⊤ : EndP L) then (⊤ : L) else (⊥ : L)
   | Sum.inr (Sum.inr _) => (⊤ : L)
 
-/-- **The verbatim transplant is not monotone.**  Concrete counterexample at
-`L = Fin 3`, `mid = 1`: the glue point `tag_A m ≤ tag_B m` maps to `1 ≤ 0`.
-So `pGen`'s `⊥` is `(OrderHom.id) ⊥` in disguise — a load-bearing use of the
-marked point, not a constant that can be carried across. -/
+-- [D-0741] pGenBad_not_monotone
 theorem pGenBad_not_monotone :
     ¬ (∀ w w' : GlueCar (P := EndP (Fin 3)) (constHom (1 : Fin 3)),
         w ≤ w' → pGenBad (1 : Fin 3) w ≤ pGenBad (1 : Fin 3) w') := by
@@ -1134,15 +1099,7 @@ theorem pGenBad_not_monotone :
   rw [e1] at hb
   exact absurd hb (by decide)
 
-/-- **`tag_B m` is not admissible here.**  `midM_unique` pins the reflection
-proof's next marked point to `midM mid = tag_A m`, and `skelL m = tag_B m` is a
-different element, so it fails at least one of the two clauses the reflection
-direction consumes.
-
-HISTORICAL NOTE (2026-08-27): `NormalizedGlueMap.lean` declared `tag_B m` as the
-tower's next middle basepoint when this was written; this theorem is why that
-convention was abandoned in favour of `tag_A`.  See
-`Dinfty/BasepointInvariant.lean` §3. -/
+-- [D-0742] skelL_not_admissible
 theorem skelL_not_admissible {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid ≠ (⊤ : L))
     (hbt : (⊥ : L) ≠ ⊤) (mu : GlueCar (P := EndP L) (constHom mid))
     (hmu : mu.1 = skelL (constHom mid : EndP L))
@@ -1157,16 +1114,10 @@ end MigrationObstructions
 
 section SkelLLocalisation
 
-/-! ## Which of the two obligations `skelL` fails
-
-`skelL_not_admissible` says `tag_B m` fails at least one clause.  It fails
-exactly one: the DOWNWARD one, i.e. the absorption step
-(`liftGenM_apply_iotaGenM_of_not_top`), because copy `B` is never below copy
-`A`.  The upward clause — the one the monotone direction uses — it satisfies. -/
-
+-- [D-0743] §Which-of-the-two-obligations-skelL-fails
 variable {L : Type u} [DecidableEq L] [Lattice L] [BoundedOrder L] [Fintype L]
 
-/-- `skelL m` DOES satisfy the upward clause. -/
+-- [D-0744] skelL_satisfies_hup
 theorem skelL_satisfies_hup {mid : L} (hmidt : mid ≠ (⊤ : L))
     (mu : GlueCar (P := EndP L) (constHom mid))
     (hmu : mu.1 = skelL (constHom mid : EndP L)) (y : L) (hy : y ≤ mid) :
@@ -1176,9 +1127,7 @@ theorem skelL_satisfies_hup {mid : L} (hmidt : mid ≠ (⊤ : L))
   exact (leGlue_tagA_tagB_iff (constHom mid : EndP L) (constHom y) (constHom mid)
     (hmtM_of hmidt)).mpr ((constHom_le_iff y mid).mpr hy)
 
-/-- `skelL m` FAILS the downward clause — at `y = mid` already.  This is the
-single point where the tower's tripointed basepoint and the ep-pair layer's
-marked point part company. -/
+-- [D-0745] skelL_fails_hdown
 theorem skelL_fails_hdown {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hbt : (⊥ : L) ≠ ⊤)
     (mu : GlueCar (P := EndP L) (constHom mid))
     (hmu : mu.1 = skelL (constHom mid : EndP L)) :
@@ -1194,28 +1143,10 @@ end SkelLLocalisation
 
 section NextBasepointUniqueGen
 
-/-! ## The three-way fork dissolves: `hdown` alone forces tag-`A`
-
-`skelL_fails_hdown` above is stated ad hoc for `tag_B m`.  It is an instance of
-a structural fact that needs no numeric content at all: **copy `B` and copy `C`
-are never `≤` copy `A`**, unconditionally (`not_leGlue_tagB_tagA`,
-`not_leGlue_tagC_tagA`, both general-`P` and already on file), and the `≠ ⊥`
-side conditions each of them needs are supplied for free by canon-fixedness
-(`ne_bot_of_canon_tagB`, `ne_bot_of_canon_tagC`).
-
-So the apparent three-way choice of next marked point among `tag_A m` /
-`skelL m = tag_B m` / `tag_C m` is not a fork: the downward obligation `hdown`
-(`mid ≤ y → mu ≤ iotaGenM y`, i.e. `mu ≤ tag_A y`) is unsatisfiable for anything
-that is not tag-`A`-shaped, and one case split proves both non-`A` branches at
-once.  Stated for a general ambient `P`, since none of the four ingredients
-knows about `EndP`. -/
-
+-- [D-0746] §The-three-way-fork-dissolves-hdown-alone-forces
 variable {P : Type u} [DecidableEq P] [Lattice P] [BoundedOrder P] [Fintype P]
 
-/-- **The fork dissolves.**  Any next-level marked-point candidate satisfying
-the downward obligation `hdown` even once — at `y = mid`, reflexively — must be
-tag-`A`-shaped.  Copies `B` and `C` are excluded structurally, before `hdown`'s
-specific content is used, so the same argument kills both. -/
+-- [D-0747] tagA_of_hdown_at_mid
 theorem tagA_of_hdown_at_mid (m a : P) (hm : m ≠ ⊥) (hbt : (⊥ : P) ≠ ⊤)
     (mu : GlueCar (P := P) m) (hdown_mid : leGlue m mu.1 (Sum.inl a)) :
     ∃ x, mu.1 = Sum.inl x := by
@@ -1227,7 +1158,7 @@ theorem tagA_of_hdown_at_mid (m a : P) (hm : m ≠ ⊥) (hbt : (⊥ : P) ≠ ⊤
   · exact absurd hdown_mid
       (not_leGlue_tagC_tagA m z a (ne_bot_of_canon_tagC m z hv))
 
-/-- Contrapositive, tag-`B` branch: a copy-`B` candidate fails `hdown` at `mid`. -/
+-- [D-0748] not_hdown_of_tagB
 theorem not_hdown_of_tagB (m a y : P) (hm : m ≠ ⊥) (hbt : (⊥ : P) ≠ ⊤)
     (mu : GlueCar (P := P) m) (hmu : mu.1 = Sum.inr (Sum.inl y)) :
     ¬ leGlue m mu.1 (Sum.inl a) := by
@@ -1236,8 +1167,7 @@ theorem not_hdown_of_tagB (m a y : P) (hm : m ≠ ⊥) (hbt : (⊥ : P) ≠ ⊤)
   rw [hmu] at hx
   exact absurd hx (by simp)
 
-/-- Contrapositive, tag-`C` branch: a copy-`C` candidate fails `hdown` at `mid`.
-Conjectured in the scoping note as a separate finding; it is the same fact. -/
+-- [D-0749] not_hdown_of_tagC
 theorem not_hdown_of_tagC (m a z : P) (hm : m ≠ ⊥) (hbt : (⊥ : P) ≠ ⊤)
     (mu : GlueCar (P := P) m) (hmu : mu.1 = Sum.inr (Sum.inr z)) :
     ¬ leGlue m mu.1 (Sum.inl a) := by
@@ -1246,9 +1176,7 @@ theorem not_hdown_of_tagC (m a z : P) (hm : m ≠ ⊥) (hbt : (⊥ : P) ≠ ⊤)
   rw [hmu] at hx
   exact absurd hx (by simp)
 
-/-- A footnote on the third candidate: `tag_C m` is not even a point of the
-glued carrier.  `canon` collapses it to `tag_B ⊤`, so the "`tag_C m`" branch of
-the supposed fork is literally the tag-`B` branch. -/
+-- [D-0750] canon_tagC_self
 theorem canon_tagC_self (m : P) (hm : m ≠ ⊥) :
     canon m (Sum.inr (Sum.inr m)) = Sum.inr (Sum.inl (⊤ : P)) := by
   simp only [canon]
@@ -1258,18 +1186,10 @@ end NextBasepointUniqueGen
 
 section NextBasepointUniqueM
 
-/-! ## Specialised to the migration's own `hdown`
-
-`hdown` as `midM_unique` states it is `∀ y, mid ≤ y → mu ≤ iotaGenM mid y`; the
-`≤` is `GlueCar`'s instance, definitionally `leGlue`, and `iotaGenM mid mid`'s
-underlying value is `Sum.inl (constHom mid)`.  So the general theorem applies
-with `a := constHom mid` after instantiating `hdown` at `y := mid`. -/
-
+-- [D-0751] §Specialised-to-the-migration-s-own-hdown
 variable {L : Type u} [DecidableEq L] [Lattice L] [BoundedOrder L] [Fintype L]
 
-/-- The migrated section's `hdown`, on its own, already forces tag-`A`.  Note
-`hup` is not used: the fork is closed one obligation earlier than
-`midM_unique` closes it. -/
+-- [D-0752] tagA_of_hdownM
 theorem tagA_of_hdownM {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hbt : (⊥ : L) ≠ ⊤)
     (mu : GlueCar (P := EndP L) (constHom mid))
     (hdown : ∀ y : L, mid ≤ y → mu ≤ iotaGenM mid y) :
@@ -1277,8 +1197,7 @@ theorem tagA_of_hdownM {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hbt : (⊥ : L) �
   tagA_of_hdown_at_mid (constHom mid : EndP L) (constHom mid) (hmM_of hmid0)
     (hbtEL_of hbt) mu (hdown mid le_rfl)
 
-/-- `skelL_fails_hdown` recovered as an instance of the structural fact, rather
-than as its own argument. -/
+-- [D-0753] skelL_fails_hdown_of_general
 theorem skelL_fails_hdown_of_general {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hbt : (⊥ : L) ≠ ⊤)
     (mu : GlueCar (P := EndP L) (constHom mid))
     (hmu : mu.1 = skelL (constHom mid : EndP L)) :
@@ -1287,8 +1206,7 @@ theorem skelL_fails_hdown_of_general {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hbt 
   exact not_hdown_of_tagB (constHom mid : EndP L) (constHom mid) (constHom mid)
     (hmM_of hmid0) (hbtEL_of hbt) mu hmu (h mid le_rfl)
 
-/-- **Follow-up, as scoped.**  Tag plus value: with the upward obligation added
-back, the candidate is pinned to `tag_A mid = skelG1`, on the nose. -/
+-- [D-0754] muM_eq_tagA_mid
 theorem muM_eq_tagA_mid {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid ≠ (⊤ : L))
     (hbt : (⊥ : L) ≠ ⊤) (mu : GlueCar (P := EndP L) (constHom mid))
     (hup : ∀ y : L, y ≤ mid → iotaGenM mid y ≤ mu)
@@ -1298,7 +1216,7 @@ theorem muM_eq_tagA_mid {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid ≠ (
   rw [midM_unique hmid0 hmidt hbt mu hup hdown]
   rfl
 
-/-- ... and that value is the copy-`A` glue point `skelG1`, not `skelL`. -/
+-- [D-0755] muM_eq_skelG1
 theorem muM_eq_skelG1 {mid : L} (hmid0 : mid ≠ (⊥ : L)) (hmidt : mid ≠ (⊤ : L))
     (hbt : (⊥ : L) ≠ ⊤) (mu : GlueCar (P := EndP L) (constHom mid))
     (hup : ∀ y : L, y ≤ mid → iotaGenM mid y ≤ mu)
@@ -1311,24 +1229,16 @@ end NextBasepointUniqueM
 
 section NextBasepointNonVacuity
 
-/-! ## Non-vacuity of the two excluded branches
-
-`not_hdown_of_tagB` / `not_hdown_of_tagC` exclude candidates of copy-`B` and
-copy-`C` shape.  An exclusion theorem over an empty family would be worthless,
-so: canon-fixed points of each shape genuinely exist.  For copy `B`, `skelL m`
-itself is one (used already by `pGenBad_not_monotone`).  For copy `C`, whose
-branch the scoping note left conjectural, `tag_C ⊤` is one. -/
-
+-- [D-0756] §Non-vacuity-of-the-two-excluded-branches
 variable {P : Type u} [DecidableEq P] [Lattice P] [BoundedOrder P] [Fintype P]
 
-/-- `tag_C ⊤` is canon-fixed whenever the marked point is interior — so genuine
-copy-`C` points exist and the tag-`C` branch is not vacuous. -/
+-- [D-0757] canon_tagC_top
 theorem canon_tagC_top (m : P) (hbt : (⊥ : P) ≠ ⊤) (hmt : m ≠ ⊤) :
     canon m (Sum.inr (Sum.inr (⊤ : P))) = Sum.inr (Sum.inr (⊤ : P)) := by
   simp only [canon]
   rw [if_neg (Ne.symm hbt), if_neg (Ne.symm hmt)]
 
-/-- ... and it fails `hdown`, against every copy-`A` target. -/
+-- [D-0758] tagC_top_fails_hdown
 theorem tagC_top_fails_hdown (m a : P) (hm : m ≠ ⊥) (hbt : (⊥ : P) ≠ ⊤) (hmt : m ≠ ⊤) :
     ¬ leGlue m (Sum.inr (Sum.inr (⊤ : P))) (Sum.inl a) :=
   fun h =>
@@ -1338,27 +1248,10 @@ end NextBasepointNonVacuity
 
 section NextBasepointUniqueGenMirror
 
-/-! ## The same theorem in the `Gen` world — the scoping draft's statement, verbatim
-
-The scoping note typed this theorem over `GlueCarGen` / `leGlueGen` / `canonGen`
-and then discharged its tag-`B` branch with `not_leGlue_tagB_tagA`, which is the
-**non-`Gen`** lemma.  Those do not compose, so the draft could not be
-transcribed as printed — and picking one of the two namespaces to make it go
-through is a choice, not a transcription.
-
-Rather than make that choice silently, both worlds are on file.  The `Gen`
-mirror below is the draft's statement with the `Gen` ingredients substituted;
-it holds for the same reason, and under **weaker** typeclass assumptions
-(`PartialOrder`, no `Lattice`/`Fintype`), since the `Gen` copies were built
-Fintype/Lattice-free.  The non-`Gen` version above is the one the migration
-consumes, because `GlueAAGenReflectM` works over `GlueCar`.
-
-Neither is a mutation of the draft's intent; together they show the draft's
-intent was well-posed in either world and only its lemma names were crossed. -/
-
+-- [D-0759] §The-same-theorem-in-the-Gen-world-the-scoping
 variable {P : Type u} [DecidableEq P] [PartialOrder P] [BoundedOrder P]
 
-/-- `Gen` mirror of `tagA_of_hdown_at_mid`. -/
+-- [D-0760] tagA_of_hdownGen_at_mid
 theorem tagA_of_hdownGen_at_mid (m a : P) (hm : m ≠ ⊥) (hbt : (⊥ : P) ≠ ⊤)
     (mu : GlueCarGen (P := P) m) (hdown_mid : leGlueGen m mu.1 (Sum.inl a)) :
     ∃ x, mu.1 = Sum.inl x := by
@@ -1370,7 +1263,7 @@ theorem tagA_of_hdownGen_at_mid (m a : P) (hm : m ≠ ⊥) (hbt : (⊥ : P) ≠ 
   · exact absurd hdown_mid
       (not_leGlue_tagC_tagAGen m z a (ne_bot_of_canon_tagCGen m z hv))
 
-/-- `Gen` mirror of `not_hdown_of_tagB`. -/
+-- [D-0761] not_hdownGen_of_tagB
 theorem not_hdownGen_of_tagB (m a y : P) (hm : m ≠ ⊥) (hbt : (⊥ : P) ≠ ⊤)
     (mu : GlueCarGen (P := P) m) (hmu : mu.1 = Sum.inr (Sum.inl y)) :
     ¬ leGlueGen m mu.1 (Sum.inl a) := by
@@ -1379,7 +1272,7 @@ theorem not_hdownGen_of_tagB (m a y : P) (hm : m ≠ ⊥) (hbt : (⊥ : P) ≠ �
   rw [hmu] at hx
   exact absurd hx (by simp)
 
-/-- `Gen` mirror of `not_hdown_of_tagC`. -/
+-- [D-0762] not_hdownGen_of_tagC
 theorem not_hdownGen_of_tagC (m a z : P) (hm : m ≠ ⊥) (hbt : (⊥ : P) ≠ ⊤)
     (mu : GlueCarGen (P := P) m) (hmu : mu.1 = Sum.inr (Sum.inr z)) :
     ¬ leGlueGen m mu.1 (Sum.inl a) := by

@@ -2,62 +2,7 @@ import Dinfty.StageRigidity
 
 open GluingTowerLibrary SierpinskiApplication
 
-/-!
-# Cleaning the residue: `PhiStageDefinable` down to one level-local `Prop`
-
-§108 left `PhiStageDefinable` — *every automorphism of `B` carries each stage
-into itself* — as the single open statement on pillar A's rigidity side.  This
-module does to it what `ColimitCompatPipe` did to pillar B's chain: it discharges
-everything except the one place where the mathematics is.
-
-## The tool: `ins k` is a left adjoint
-
-```lean
-StageRigidity.ins_le_iff' (k) (a) (u) :  T.ins k a ≤ u  ↔  a ≤ u.1 k
-```
-
-One line in each direction (`ins_self`; `ins_monotone` then `ins_le_self`), and
-it is the whole engine below: it turns every question about a stage point and an
-arbitrary bilimit point into a question inside the *finite* level `k`.
-
-## What it discharges
-
-* **`stageSupClosed`** — a supremum of stage-`k` points is a stage-`k` point.
-  The candidate is `ins k` of a `Finset.sup` inside `D (k+1)`; leastness is the
-  adjunction.
-* **`stageJoinRecoverable`** — every stage point is the supremum of the stage
-  join-irreducibles below it: `finite_lattice_eq_sup_joinIrreds` transported by
-  the adjunction.
-
-Both are the `B`-side analogues of `ColimitCompatPipe.stageSupClosed` and
-`stageJoinRecoverable`, and both were *harder* there — `toD` needed
-`toD_bot_le` proved by hand because `DInfty` carries no `OrderBot`.  Here the
-adjunction gives the empty case for free.
-
-## What is unconditional, and what is left
-
-The stages of `B` are exactly its compact elements:
-
-```lean
-omegaCompact_iff_stage (z) : OmegaCompact z ↔ ∃ k y, insD k y = z
-```
-
-(`←` is `BilimitGap.topB_omegaCompact`'s argument run at an arbitrary stage point
-rather than only at `topB`; `→` is `chainSet_isLUB` plus antisymmetry.)
-Compactness is order-theoretic, so **every automorphism of `B` already maps
-stages into stages** (`stages_union_preserved`), with no hypothesis at all.
-
-So the residue is not *whether* `θ` respects the filtration but **whether it
-moves the index**, and that is all that is left:
-
-```lean
-PhiJoinIrredStagePreserved → PhiStageDefinable → Subsingleton (B ≃o B)
-```
-
-`PhiJoinIrredStagePreserved` is the exact mirror of pillar B's
-`AssemblyChain.JoinIrredStagePreserved`, and it is level-local.
--/
-
+-- [D-3297] §Cleaning-the-residue-PhiStageDefinable-down
 open Set
 
 open scoped Classical
@@ -66,27 +11,24 @@ namespace PhiStagePipe
 
 open PhiIterateTower PhiBilimit EpPairTower StageRigidity BilimitGap
 
-/-! ## 0.  The stage inclusion, with its domain spelled as a level
-
-`phiTowerEP.carrier k` and `D (k + 1)` are definitionally equal, but instance
-search does not unfold the projection, so `Finset.sup` and friends fail on the
-first spelling.  `insD` fixes the spelling once. -/
-
-/-- The stage-`k` inclusion `D (k+1) ↪ B`. -/
+-- [D-3298] §0-The-stage-inclusion-with-its-domain-spelled
+-- [D-3299] insD
 noncomputable def insD (k : ℕ) (y : D (k + 1)) : B := phiTowerEP.ins k y
 
+-- [D-3300] insD_le_iff
 theorem insD_le_iff (k : ℕ) (a : D (k + 1)) (u : B) : insD k a ≤ u ↔ a ≤ u.1 k :=
   StageRigidity.ins_le_iff' (T := phiTowerEP) k a u
 
+-- [D-3301] insD_monotone
 theorem insD_monotone (k : ℕ) : Monotone (insD k) :=
   EpPairTower.ins_monotone (T := phiTowerEP) k
 
+-- [D-3302] insD_le_self
 theorem insD_le_self (y : B) (k : ℕ) : insD k (y.1 k) ≤ y :=
   EpPairTower.ins_le_self (T := phiTowerEP) y k
 
-/-! ## 1.  The two routine `Prop`s, discharged -/
-
-/-- **Stage suprema stay in the stage.**  The `B`-side `StageSupClosed`. -/
+-- [D-3303] §1-The-two-routine-Props-discharged
+-- [D-3304] stageSupClosed
 theorem stageSupClosed (k : ℕ) (S : Set B) (z : B)
     (hS : ∀ w ∈ S, ∃ y : D (k + 1), insD k y = w) (hz : IsLUB S z) :
     ∃ y : D (k + 1), insD k y = z := by
@@ -107,13 +49,11 @@ theorem stageSupClosed (k : ℕ) (S : Set B) (z : B)
       exact (insD_le_iff k y u).mp (hu hyS)
   exact hlub.unique hz
 
-/-- The set the recoverability statement is about: the stage join-irreducibles
-below a stage point. -/
+-- [D-3305] stageJI
 def stageJI (k : ℕ) (x : D (k + 1)) : Set B :=
   {z : B | ∃ y : D (k + 1), JoinIrred (D (k + 1)) y ∧ insD k y = z ∧ z ≤ insD k x}
 
-/-- **Every stage point is the supremum of the stage join-irreducibles below
-it.**  The `B`-side `StageJoinRecoverable`. -/
+-- [D-3306] stageJoinRecoverable
 theorem stageJoinRecoverable (k : ℕ) (x : D (k + 1)) :
     IsLUB (stageJI k x) (insD k x) := by
   classical
@@ -130,14 +70,9 @@ theorem stageJoinRecoverable (k : ℕ) (x : D (k + 1)) :
     obtain ⟨hji, hyx⟩ := (Finset.mem_filter.mp hy).2
     exact (insD_le_iff k y u).mp (hu ⟨y, hji, rfl, insD_monotone k hyx⟩)
 
-/-! ## 2.  The stages are exactly the compact elements -/
-
--- `isLUB_bilim_apply` unfolds the tower's dcpo structure; the default budget is
--- not enough at a general level index.
+-- [D-3307] §2-The-stages-are-exactly-the-compact-elements
+-- [D-3308] insD_omegaCompact
 set_option maxHeartbeats 1000000 in
-/-- Every stage point is `ω`-compact — `BilimitGap.topB_omegaCompact`'s argument
-at an arbitrary stage point.  The level is finite, so a monotone chain there
-stabilises, and the adjunction moves the question to that level. -/
 theorem insD_omegaCompact (k : ℕ) (x : D (k + 1)) : OmegaCompact (insD k x) := by
   intro c hc s hs hle
   have hdir : DirectedOn (· ≤ ·) (Set.range c) := by
@@ -158,8 +93,7 @@ theorem insD_omegaCompact (k : ℕ) (x : D (k + 1)) : OmegaCompact (insD k x) :=
   have hsk : s.1 k ≤ (c N).1 k := hlvl.2 hub
   exact ⟨N, (insD_le_iff k x (c N)).mpr (((insD_le_iff k x s).mp hle).trans hsk)⟩
 
-/-- Conversely, a compact element is a stage point: it dominates a member of its
-own approximating chain, and that member is below it. -/
+-- [D-3309] exists_stage_of_omegaCompact
 theorem exists_stage_of_omegaCompact {z : B} (hz : OmegaCompact z) :
     ∃ (k : ℕ) (y : D (k + 1)), insD k y = z := by
   have hmono : Monotone (fun n => insD n (z.1 n)) :=
@@ -169,42 +103,25 @@ theorem exists_stage_of_omegaCompact {z : B} (hz : OmegaCompact z) :
   obtain ⟨n, hn⟩ := hz _ hmono z hlub le_rfl
   exact ⟨n, z.1 n, le_antisymm (insD_le_self z n) hn⟩
 
-/-- **The stages of `B` are exactly its compact elements.** -/
+-- [D-3310] omegaCompact_iff_stage
 theorem omegaCompact_iff_stage (z : B) :
     OmegaCompact z ↔ ∃ (k : ℕ) (y : D (k + 1)), insD k y = z :=
   ⟨exists_stage_of_omegaCompact, fun ⟨k, y, hy⟩ => hy ▸ insD_omegaCompact k y⟩
 
-/-- **Unconditional: every automorphism of `B` maps stages into stages.**  What
-it does *not* say — and what the residue is — is that the index cannot move. -/
+-- [D-3311] stages_union_preserved
 theorem stages_union_preserved (θ : B ≃o B) (k : ℕ) (x : D (k + 1)) :
     ∃ (n : ℕ) (y : D (n + 1)), θ (insD k x) = insD n y := by
   obtain ⟨n, y, hy⟩ := exists_stage_of_omegaCompact ((insD_omegaCompact k x).map θ)
   exact ⟨n, y, hy.symm⟩
 
-/-! ## 3.  RETIRED: the join-irreducible route
-
-This module originally reduced `PhiStageDefinable` to a
-`PhiJoinIrredStagePreserved`, mirroring `AssemblyChain.JoinIrredStagePreserved`.
-`StageEmbedding.stage_map_exists` then reduced `PhiStageDefinable` to a
-**finite** statement directly, routing around it, and nothing ever consumed the
-join-irreducible Prop.  It has been deleted rather than left standing: an open
-`Prop` with no consumer is debt, not progress.
-
-`stageSupClosed` and `stageJoinRecoverable` above are kept — they are proved,
-cheap, and are the `B`-side analogues of `ColimitCompatPipe`'s two lemmas — but
-the live chain does not use them either.  What the live chain does use from this
-module is `omegaCompact_iff_stage` and `stages_union_preserved`. -/
-
-/-! ## 4.  What the residue is already pinned at
-
-`stages_union_preserved` says `θ` cannot leave the filtration; these two say it
-cannot move the two ends of any stage.  So the residue lives strictly in the
-*interior* of the stages. -/
-
+-- [D-3312] §3-RETIRED-the-join-irreducible-route
+-- [D-3313] §4-What-the-residue-is-already-pinned
+-- [D-3314] apply_insD_bot
 theorem apply_insD_bot (θ : B ≃o B) (k : ℕ) : θ (insD k ⊥) = insD k ⊥ := by
   rw [show insD k (⊥ : D (k + 1)) = (⊥ : B) from PhiBilimit.ins_bot k]
   exact θ.map_bot
 
+-- [D-3315] apply_insD_top
 theorem apply_insD_top (θ : B ≃o B) (k : ℕ) : θ (insD k ⊤) = insD k ⊤ := by
   rw [show insD k (⊤ : D (k + 1)) = (⊤ : B) from PhiBilimit.ins_top k]
   exact θ.map_top

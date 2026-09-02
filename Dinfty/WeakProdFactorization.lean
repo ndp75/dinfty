@@ -1,51 +1,6 @@
 import Dinfty.AtomFactorGeneration
 
-/-!
-# Unique factorization for restricted products
-
-`Indecomposable` stopped at exactly this worry:
-
-> The factors `(D j)ᵒᵖ` are pairwise non-isomorphic … but "no shift" is not a
-> proof, and **unique factorization can fail for infinite products**.
-
-For restricted products of posets each having a **least non-`⊥` element**, it
-does not fail.  This module proves it, and the proof is short because the
-atom-factor already does the work: the axes are order-theoretically visible from
-the atoms, so an isomorphism has no choice but to permute them.
-
-## The statement
-
-```lean
-transferIndex   : ℕ → ℕ                     -- induced by e : WeakProd D ≃o WeakProd E
-transferIndex_spec       : D j ≃o E (transferIndex e j)
-transferIndex_injective  /  transferIndex_surjective
-```
-
-So an isomorphism of restricted products **is** a permutation of the factors,
-factorwise.  `WeakProductAbsorption.tower_no_absorb_two` is the special case
-`E = C₂ :: D` seen through cardinality; this is the general fact, and it needs
-no cardinality at all.
-
-## Why this is the copy-`A` step
-
-`AtomFactorGeneration` disposes of copy-`B` and copy-`C` competitors — their
-seeds are ordinal sums and fail `GenByFactors`.  Copy-`A` competitors *are*
-generated, so generation says nothing about them; what excludes them is that
-their seed `(↑p) × S_q` would have to reproduce the marked point's factor list
-`{D 0, …, D (N-1)}`, and `↑p` is a proper up-set unless `p = ⊥`.
-
-`transferIndex` is that comparison made precise: the factors correspond one for
-one, so a competitor cannot quietly absorb or split one.
-
-**Still needed for the copy-`A` step** (and not proved here): the finite
-competitor's factors must be matched against the *tail* `{D j : j ≥ N}` as well,
-which is where the tower's cardinality growth enters — `↑p ⊆ D (N-1)` and
-`S_q ⊆ J(D (N-1))` are both smaller than `D N`, so neither can be mistaken for a
-tail factor.  Those are two `Fintype.card` inequalities about the tower, not
-statements about restricted products, and they are stated but not proved in
-`Dinfty/SeedShape.lean`'s docstring.
--/
-
+-- [D-1763] §Unique-factorization-for-restricted-products
 open scoped Classical
 
 universe u v
@@ -54,10 +9,8 @@ namespace WeakProdFactorization
 
 open WeakProductAbsorption AtomFactorGeneration
 
-/-! ## Atom-factors correspond along an isomorphism -/
-
-/-- **Corresponding atom-factors are order-isomorphic.**  This is the formal
-replacement for "the multiset of atom-factors is an invariant". -/
+-- [D-1764] §Atom-factors-correspond-along-an-isomorphism
+-- [D-1765] atomFactorIso
 def atomFactorIso {L : Type u} {L' : Type v} [PartialOrder L] [OrderBot L]
     [PartialOrder L'] [OrderBot L'] (e : L ≃o L') (α : L) :
     ↥(atomFactor L α) ≃o ↥(atomFactor L' (e α)) where
@@ -69,8 +22,7 @@ def atomFactorIso {L : Type u} {L' : Type v} [PartialOrder L] [OrderBot L]
   right_inv v := Subtype.ext (e.apply_symm_apply v.1)
   map_rel_iff' := e.map_rel_iff
 
-/-! ## The axes of a restricted product -/
-
+-- [D-1766] §The-axes-of-a-restricted-product
 section Axis
 
 variable {D : ℕ → Type u} [∀ j, PartialOrder (D j)] [∀ j, OrderBot (D j)]
@@ -79,7 +31,7 @@ variable (hlam_ne : ∀ j, lam j ≠ ⊥) (hlam_le : ∀ j (z : D j), z ≠ ⊥ 
 
 include hlam_ne hlam_le
 
-/-- Distinct indices give distinct atoms. -/
+-- [D-1767] single_lam_inj
 theorem single_lam_inj {i j : ℕ} (h : (single i (lam i) : WeakProd D) = single j (lam j)) :
     i = j := by
   by_contra hij
@@ -87,7 +39,7 @@ theorem single_lam_inj {i j : ℕ} (h : (single i (lam i) : WeakProd D) = single
   rw [single_apply_self, single_apply_ne hij] at hval
   exact hlam_ne i hval
 
-/-- An element of the `j`-th atom-factor is `single j` of its `j`-th coordinate. -/
+-- [D-1768] eq_single_of_mem_atomFactor
 theorem eq_single_of_mem_atomFactor {j : ℕ} {w : WeakProd D}
     (hw : w ∈ atomFactor (WeakProd D) (single j (lam j))) :
     w = single j (w.1 j) := by
@@ -99,7 +51,7 @@ theorem eq_single_of_mem_atomFactor {j : ℕ} {w : WeakProd D}
   · rw [single_apply_ne hij]
     exact atomFactor_single lam hlam_ne hlam_le hw i hij
 
-/-- **The `j`-th atom-factor is the `j`-th factor.** -/
+-- [D-1769] axisIso
 noncomputable def axisIso (j : ℕ) :
     ↥(atomFactor (WeakProd D) (single j (lam j))) ≃o D j where
   toFun w := w.1.1 j
@@ -122,8 +74,7 @@ noncomputable def axisIso (j : ℕ) :
 
 end Axis
 
-/-! ## The induced permutation of factors -/
-
+-- [D-1770] §The-induced-permutation-of-factors
 section Transfer
 
 variable {D : ℕ → Type u} {E : ℕ → Type u}
@@ -135,23 +86,23 @@ variable (hE_ne : ∀ j, lamE j ≠ ⊥) (hE_le : ∀ j (z : E j), z ≠ ⊥ →
 
 include hD_ne hD_le hE_ne hE_le
 
-/-- The image of the `j`-th atom is an atom, hence some `single i (lamE i)`. -/
+-- [D-1771] exists_transfer
 theorem exists_transfer (e : WeakProd D ≃o WeakProd E) (j : ℕ) :
     ∃ i : ℕ, e (single j (lamD j)) = single i (lamE i) :=
   atom_eq_single lamE hE_ne hE_le
     (orderIso_isAtom e (isAtom_single lamD hD_ne hD_le j))
 
-/-- **The index map an isomorphism induces on factors.** -/
+-- [D-1772] transferIndex
 noncomputable def transferIndex (e : WeakProd D ≃o WeakProd E) (j : ℕ) : ℕ :=
   (exists_transfer lamD lamE hD_ne hD_le hE_ne hE_le e j).choose
 
+-- [D-1773] transferIndex_eq
 theorem transferIndex_eq (e : WeakProd D ≃o WeakProd E) (j : ℕ) :
     e (single j (lamD j)) = single (transferIndex lamD lamE hD_ne hD_le hE_ne hE_le e j)
       (lamE (transferIndex lamD lamE hD_ne hD_le hE_ne hE_le e j)) :=
   (exists_transfer lamD lamE hD_ne hD_le hE_ne hE_le e j).choose_spec
 
-/-- **Corresponding factors are isomorphic** — the factors are permuted, not
-reshaped. -/
+-- [D-1774] transferIndex_spec
 theorem transferIndex_spec (e : WeakProd D ≃o WeakProd E) (j : ℕ) :
     Nonempty (D j ≃o E (transferIndex lamD lamE hD_ne hD_le hE_ne hE_le e j)) := by
   refine ⟨((axisIso lamD hD_ne hD_le j).symm.trans
@@ -159,6 +110,7 @@ theorem transferIndex_spec (e : WeakProd D ≃o WeakProd E) (j : ℕ) :
   rw [transferIndex_eq lamD lamE hD_ne hD_le hE_ne hE_le e j]
   exact axisIso lamE hE_ne hE_le _
 
+-- [D-1775] transferIndex_injective
 theorem transferIndex_injective (e : WeakProd D ≃o WeakProd E) :
     Function.Injective (transferIndex lamD lamE hD_ne hD_le hE_ne hE_le e) := by
   intro j j' h
@@ -167,6 +119,7 @@ theorem transferIndex_injective (e : WeakProd D ≃o WeakProd E) :
   rw [h] at h1
   exact single_lam_inj lamD hD_ne hD_le (e.injective (h1.trans h2.symm))
 
+-- [D-1776] transferIndex_surjective
 theorem transferIndex_surjective (e : WeakProd D ≃o WeakProd E) :
     Function.Surjective (transferIndex lamD lamE hD_ne hD_le hE_ne hE_le e) := by
   intro i
@@ -178,9 +131,7 @@ theorem transferIndex_surjective (e : WeakProd D ≃o WeakProd E) :
   have heq := transferIndex_eq lamD lamE hD_ne hD_le hE_ne hE_le e j
   exact single_lam_inj lamE hE_ne hE_le (heq.symm.trans himg)
 
-/-- **Unique factorization.**  An isomorphism of restricted products is a
-permutation of the factors, factorwise — so unique factorization does *not* fail
-here, which is what `Indecomposable` left in doubt. -/
+-- [D-1777] weakProd_uniqueFactorization
 theorem weakProd_uniqueFactorization (e : WeakProd D ≃o WeakProd E) :
     ∃ σ : ℕ → ℕ, Function.Bijective σ ∧ ∀ j, Nonempty (D j ≃o E (σ j)) :=
   ⟨transferIndex lamD lamE hD_ne hD_le hE_ne hE_le e,
@@ -190,13 +141,13 @@ theorem weakProd_uniqueFactorization (e : WeakProd D ≃o WeakProd E) :
 
 end Transfer
 
-/-! ## Factors of a product with a finite piece -/
-
+-- [D-1778] §Factors-of-a-product-with-a-finite-piece
 section ProdFactor
 
 variable {A : Type u} {B : Type u} [PartialOrder A] [OrderBot A] [PartialOrder B]
   [OrderBot B] [IsAtomic A]
 
+-- [D-1779] mem_atomFactor_prod_right
 theorem mem_atomFactor_prod_right {β : B} {p : A × B} :
     p ∈ atomFactor (A × B) (((⊥ : A), β)) ↔ p.1 = ⊥ ∧ p.2 ∈ atomFactor B β := by
   constructor
@@ -221,7 +172,7 @@ theorem mem_atomFactor_prod_right {β : B} {p : A × B} :
       exact hc.1 (le_bot_iff.mp h2)
     · exact Prod.ext hc (hp2 d hd hle.2)
 
-/-- **A right-hand atom's factor is computed in the right-hand poset.** -/
+-- [D-1780] atomFactorProdRightIso
 def atomFactorProdRightIso (β : B) :
     ↥(atomFactor (A × B) (((⊥ : A), β))) ≃o ↥(atomFactor B β) where
   toFun p := ⟨p.1.2, (mem_atomFactor_prod_right.mp p.2).2⟩
@@ -241,8 +192,7 @@ def atomFactorProdRightIso (β : B) :
 
 end ProdFactor
 
-/-! ## The copy-`A` input: a finite piece's factors are factors of the product -/
-
+-- [D-1781] §The-copy-A-input-a-finite-piece-s-factors-are
 section FinitePiece
 
 variable {D : ℕ → Type u} {E : ℕ → Type u} {S : Type u}
@@ -255,12 +205,7 @@ variable (hE_ne : ∀ j, lamE j ≠ ⊥) (hE_le : ∀ j (z : E j), z ≠ ⊥ →
 
 include hD_ne hD_le hE_ne hE_le
 
-/-- **Every atom-factor of the finite piece is one of the `D j`.**
-
-If a restricted product is isomorphic to another restricted product times a
-piece `S`, then each of `S`'s own atom-factors is a factor of the first product.
-This is the copy-`A` input: a competitor's finite seed cannot contain a factor
-that is not already on the marked point's list. -/
+-- [D-1782] factor_of_prod
 theorem factor_of_prod (e : WeakProd D ≃o (WeakProd E × S)) (β : S) (hβ : IsAtom β) :
     ∃ j : ℕ, Nonempty (↥(atomFactor S β) ≃o D j) := by
   haveI : IsAtomic (WeakProd E) := isAtomic_weakProd lamE hE_ne hE_le
@@ -276,9 +221,7 @@ theorem factor_of_prod (e : WeakProd D ≃o (WeakProd E × S)) (β : S) (hβ : I
   rw [hej] at i2
   exact ⟨j, ⟨(i1.trans i2).trans (axisIso lamD hD_ne hD_le j)⟩⟩
 
-/-- **The index is bounded by cardinality.**  If the factor is smaller than
-`D N` and the family grows, the matching index is below `N`.  This is the step
-that confines a competitor's finite seed to the *initial* factors. -/
+-- [D-1783] factor_index_lt
 theorem factor_index_lt [∀ j, Fintype (D j)] [Fintype S] {N : ℕ}
     (hmono : StrictMono (fun j => Fintype.card (D j)))
     (e : WeakProd D ≃o (WeakProd E × S)) (β : S) (hβ : IsAtom β)
@@ -295,13 +238,13 @@ theorem factor_index_lt [∀ j, Fintype (D j)] [Fintype S] {N : ℕ}
 
 end FinitePiece
 
-/-! ## The left-hand factor, and the converse direction -/
-
+-- [D-1784] §The-left-hand-factor-and-the-converse-direction
 section ProdFactorLeft
 
 variable {A : Type u} {B : Type u} [PartialOrder A] [OrderBot A] [PartialOrder B]
   [OrderBot B] [IsAtomic B]
 
+-- [D-1785] mem_atomFactor_prod_left
 theorem mem_atomFactor_prod_left {α : A} {p : A × B} :
     p ∈ atomFactor (A × B) ((α, (⊥ : B))) ↔ p.2 = ⊥ ∧ p.1 ∈ atomFactor A α := by
   constructor
@@ -326,7 +269,7 @@ theorem mem_atomFactor_prod_left {α : A} {p : A × B} :
         exact hle.2
       exact hd.1 (le_bot_iff.mp h2)
 
-/-- **A left-hand atom's factor is computed in the left-hand poset.** -/
+-- [D-1786] atomFactorProdLeftIso
 def atomFactorProdLeftIso (α : A) :
     ↥(atomFactor (A × B) ((α, (⊥ : B)))) ≃o ↥(atomFactor A α) where
   toFun p := ⟨p.1.1, (mem_atomFactor_prod_left.mp p.2).2⟩
@@ -358,8 +301,7 @@ variable (hE_ne : ∀ j, lamE j ≠ ⊥) (hE_le : ∀ j (z : E j), z ≠ ⊥ →
 
 include hD_ne hD_le hE_ne hE_le
 
-/-- **Every factor of the first product reappears**, either as a factor of the
-second product or as an atom-factor of the finite piece. -/
+-- [D-1787] factor_index_of_prod
 theorem factor_index_of_prod (e : WeakProd D ≃o (WeakProd E × S)) (j : ℕ) :
     (∃ i, Nonempty (D j ≃o E i))
       ∨ (∃ β : S, IsAtom β ∧ Nonempty (D j ≃o ↥(atomFactor S β))) := by
@@ -384,14 +326,7 @@ theorem factor_index_of_prod (e : WeakProd D ≃o (WeakProd E × S)) (j : ℕ) :
       ⟨((axisIso lamD hD_ne hD_le j).symm.trans hbase).trans
         (atomFactorProdRightIso (A := WeakProd E) _)⟩⟩
 
-/-- **Cardinality forces the finite piece to carry it.**  If `D j` is strictly
-smaller than every `E i`, it cannot be one of them, so it must appear among the
-atom-factors of `S`.
-
-This is the step that pins `p = ⊥` in the copy-`A` case: with `E` the tail of
-the tower and `D j = D (N-1)`, the marked point's `(N-1)`-st factor has to be
-reproduced inside the competitor's finite seed, and a proper up-set is too
-small (`TowerCardGrowth.card_upSet_lt`). -/
+-- [D-1788] factor_in_finite_piece
 theorem factor_in_finite_piece [∀ j, Fintype (D j)] [∀ i, Fintype (E i)]
     (e : WeakProd D ≃o (WeakProd E × S)) (j : ℕ)
     (hsmall : ∀ i, Fintype.card (D j) < Fintype.card (E i)) :
@@ -402,19 +337,18 @@ theorem factor_in_finite_piece [∀ j, Fintype (D j)] [∀ i, Fintype (E i)]
 
 end Converse
 
-/-! ## The copy-`A` exclusion, assembled -/
-
+-- [D-1789] §The-copy-A-exclusion-assembled
 section CopyA
 
 variable {A : Type u} {B : Type u} [PartialOrder A] [OrderBot A] [PartialOrder B]
   [OrderBot B] [IsAtomic A] [IsAtomic B] [Fintype A] [Fintype B]
 
+-- [D-1790] card_atomFactor_le
 theorem card_atomFactor_le {X : Type u} [PartialOrder X] [OrderBot X] [Fintype X]
     (x : X) : Fintype.card ↥(atomFactor X x) ≤ Fintype.card X :=
   Fintype.card_le_of_injective (fun w => w.1) (fun _ _ h => Subtype.ext h)
 
-/-- **An atom-factor of a product lives in one of the two sides**, so it is no
-bigger than that side. -/
+-- [D-1791] card_atomFactor_prod_le
 theorem card_atomFactor_prod_le {γ : A × B} (hγ : IsAtom γ) :
     Fintype.card ↥(atomFactor (A × B) γ) ≤ Fintype.card A
       ∨ Fintype.card ↥(atomFactor (A × B) γ) ≤ Fintype.card B := by
@@ -442,18 +376,7 @@ variable (hE_ne : ∀ j, lamE j ≠ ⊥) (hE_le : ∀ j (z : E j), z ≠ ⊥ →
 
 include hD_ne hD_le hE_ne hE_le
 
-/-- **The copy-`A` exclusion.**
-
-If a competitor's finite seed is a product `A × B` of two pieces *both* strictly
-smaller than `D j`, and `D j` is strictly smaller than every tail factor, then no
-isomorphism exists: `D j` has to reappear as an atom-factor of the finite seed
-(`factor_in_finite_piece`), but every atom-factor of `A × B` fits inside `A` or
-inside `B`.
-
-For the tower this is `A = ↑p`, `B = S_q`, `j = N-1`: a **proper** up-set of
-`D (N-1)` is strictly smaller (`TowerCardGrowth.card_upSet_lt`) and so is the
-seed of a join-irreducible (`TowerCardGrowth.card_joinIrred_lt`) — so `p ≠ ⊥` is
-impossible, which is exactly the step the induction needs. -/
+-- [D-1792] no_iso_of_small_pieces
 theorem no_iso_of_small_pieces [∀ j, Fintype (D j)] [∀ i, Fintype (E i)] (j : ℕ)
     (hsmall : ∀ i, Fintype.card (D j) < Fintype.card (E i))
     (hA : Fintype.card A < Fintype.card (D j))
@@ -468,14 +391,7 @@ theorem no_iso_of_small_pieces [∀ j, Fintype (D j)] [∀ i, Fintype (E i)] (j 
 
 end CopyA
 
-/-! ## A finite piece on the left as well
-
-`topJ`'s seed is `WeakProd (Fam 0) × C₂`, not a bare `WeakProd`, so the
-comparison it needs has a finite piece on **both** sides.  The proofs are the
-ones above with `single j (lamD j)` replaced by `(single j (lamD j), ⊥)`, whose
-atom-factor is still `D j` because a left-hand atom's factor is computed on the
-left (`atomFactorProdLeftIso`). -/
-
+-- [D-1793] §A-finite-piece-on-the-left-as-well
 section LeftPiece
 
 variable {D : ℕ → Type u} {E : ℕ → Type u} {T : Type u} {S : Type u}
@@ -487,20 +403,20 @@ variable (lamD : ∀ j, D j) (lamE : ∀ j, E j)
 variable (hD_ne : ∀ j, lamD j ≠ ⊥) (hD_le : ∀ j (z : D j), z ≠ ⊥ → lamD j ≤ z)
 variable (hE_ne : ∀ j, lamE j ≠ ⊥) (hE_le : ∀ j (z : E j), z ≠ ⊥ → lamE j ≤ z)
 
+-- [D-1794] isAtom_singleL
 include hD_ne hD_le in
 theorem isAtom_singleL (j : ℕ) :
     IsAtom (((single j (lamD j) : WeakProd D), (⊥ : T))) :=
   prodIsAtom_iff.mpr (Or.inl ⟨isAtom_single lamD hD_ne hD_le j, rfl⟩)
 
+-- [D-1795] axisIsoL
 include hD_ne hD_le in
-/-- The `j`-th axis is still the `j`-th factor, with a piece on the left. -/
 noncomputable def axisIsoL (j : ℕ) :
     ↥(atomFactor (WeakProd D × T) (((single j (lamD j) : WeakProd D), (⊥ : T)))) ≃o D j :=
   (atomFactorProdLeftIso (B := T) (single j (lamD j))).trans (axisIso lamD hD_ne hD_le j)
 
+-- [D-1796] factor_index_of_prodL
 include hD_ne hD_le hE_ne hE_le in
-/-- **Every factor of the left product reappears** — as a factor of the right
-product, or as an atom-factor of the right-hand finite piece. -/
 theorem factor_index_of_prodL (e : (WeakProd D × T) ≃o (WeakProd E × S)) (j : ℕ) :
     (∃ i, Nonempty (D j ≃o E i))
       ∨ (∃ β : S, IsAtom β ∧ Nonempty (D j ≃o ↥(atomFactor S β))) := by
@@ -527,6 +443,7 @@ theorem factor_index_of_prodL (e : (WeakProd D × T) ≃o (WeakProd E × S)) (j 
       ⟨((axisIsoL (T := T) lamD hD_ne hD_le j).symm.trans hbase).trans
         (atomFactorProdRightIso (A := WeakProd E) _)⟩⟩
 
+-- [D-1797] factor_in_finite_pieceL
 include hD_ne hD_le hE_ne hE_le in
 theorem factor_in_finite_pieceL [∀ j, Fintype (D j)] [∀ i, Fintype (E i)]
     (e : (WeakProd D × T) ≃o (WeakProd E × S)) (j : ℕ)
@@ -537,8 +454,8 @@ theorem factor_in_finite_pieceL [∀ j, Fintype (D j)] [∀ i, Fintype (E i)]
   · exact absurd (Fintype.card_congr iso.toEquiv) (Nat.ne_of_lt (hsmall i))
   · exact h
 
+-- [D-1798] no_iso_of_small_piecesL
 include hD_ne hD_le hE_ne hE_le in
-/-- **The copy-`A` exclusion, with a finite piece on the left.** -/
 theorem no_iso_of_small_piecesL {A : Type u} {B : Type u} [PartialOrder A] [OrderBot A]
     [PartialOrder B] [OrderBot B] [IsAtomic A] [IsAtomic B] [Fintype A] [Fintype B]
     [∀ j, Fintype (D j)] [∀ i, Fintype (E i)] (j : ℕ)

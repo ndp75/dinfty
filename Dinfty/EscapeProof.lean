@@ -2,39 +2,20 @@ import Dinfty.QAAExplicit
 
 open GluingTowerLibrary SierpinskiApplication
 
-/-!
-# Theorem ESCAPE holds for the rebuilt `σ_A`
-
-`Fix SigmaRebuild.ifsS.sigmaA = {⊥}`.  No computation: the two cases die for
-different structural reasons.
-
-* **Not copy `A`.**  Every copy-`B` and copy-`C` point is `≥ dMid`, and `glueAA`
-  is tripointed, so `dMid 2 ≤ glueAA 0 y ≤ tag_A a`, which forces
-  `markedPt 1 ≤ a`; evaluating at `⊥` gives `dMid 1 ≤ ⊥`, false.
-* **Copy `A`.**  `glueAA` acts as `iotaEndP` there, so `iotaEndP 0 f ≤ a`.
-  Evaluating at `iotaD 0 u` for `u ≠ ⊥` gives `constHom (f u) ≤ f`, hence
-  `f u ≤ f ⊥`, and monotonicity gives equality; evaluating at `⊥` gives
-  `f ⊥ = ⊥`.  So `f` is constantly `⊥`, i.e. `y = ⊥`.
-
-Both use only the strictness of the payload (`a ⊥ = ⊥`), which is exactly what
-`SigmaRebuild`'s strict constant supplies and what `constS` did not — so this is
-the theorem §96 showed to be false for the old `σ`.
--/
-
+-- [D-2609] §Theorem-ESCAPE-holds-for-the-rebuilt
 namespace EscapeProof
 
 open PhiIterateTower PhiBilimit GlueTag GenContinuity QAAExplicit FTowerTripointed
 
 attribute [-instance] OrderHom.instDecidableEqOfForall
 
-/-! ## Small facts about the tower's copy-`A` inclusion -/
-
-/-- The value of the glued `⊥`.  Stated once, because `Fintype (EndP (D k))` is
-not globally synthesizable and a type ascription at `EndP (D 0)` trips it. -/
+-- [D-2610] §Small-facts-about-the-tower-s-copy-A-inclusion
+-- [D-2611] botD_val
 theorem botD_val (k : ℕ) : ((⊥ : D (k + 1)) : D (k + 1)).1 = Sum.inl (⊥ : EndP (D k)) := by
   rw [PhiTriTower.bot_succ_eq k]
   rfl
 
+-- [D-2612] iotaD_eq_bot_iff
 theorem iotaD_eq_bot_iff (k : ℕ) (c : D k) : iotaD k c = (⊥ : D (k + 1)) ↔ c = ⊥ := by
   have hbotval := botD_val k
   have hcst : (⊥ : EndP (D k)) = constHom (⊥ : D k) := by ext x; rfl
@@ -49,9 +30,7 @@ theorem iotaD_eq_bot_iff (k : ℕ) (c : D k) : iotaD k c = (⊥ : D (k + 1)) ↔
     rw [hbotval, h]
     exact congrArg Sum.inl hcst.symm
 
--- `pD_bot` is `SierpinskiApplication.pD_bot`; the re-proof that used to sit here was removed 2026-09-01 (identical statement).
-
-/-- Every point outside copy `A` is above the marked point. -/
+-- [D-2613] dMid_le_of_not_tagA
 theorem dMid_le_of_not_tagA {k : ℕ} (y : D (k + 1)) (h : ∀ f, y.1 ≠ Sum.inl f) :
     dMid (k + 1) ≤ y := by
   have hd : (dMid (k + 1) : D (k + 1)).1 = Sum.inl (markedPt k) := by
@@ -65,10 +44,9 @@ theorem dMid_le_of_not_tagA {k : ℕ} (y : D (k + 1)) (h : ∀ f, y.1 ≠ Sum.in
   · exact le_refl _
   · trivial
 
-/-! ## The key inequality -/
-
+-- [D-2614] §The-key-inequality
+-- [D-2615] eq_bot_of_glueAA_le
 set_option maxHeartbeats 1000000 in
-/-- **The base step of ESCAPE.** -/
 theorem eq_bot_of_glueAA_le {y : D 1} {a : EndP (D 1)}
     (hle : glueAA 0 y ≤ glueA (markedPt 1) a)
     (hstrict : a (⊥ : D 1) = (⊥ : D 1))
@@ -90,7 +68,7 @@ theorem eq_bot_of_glueAA_le {y : D 1} {a : EndP (D 1)}
     rw [hstrict] at h6
     exact dMid_ne_bot 1 (le_antisymm h6 bot_le)
   rcases hy : y.1 with f | f | f
-  · -- copy `A`
+  ·
     have hyA : y = glueA (markedPt 0) f := Subtype.ext hy
     have hstep : glueAA 0 y = glueA (markedPt 1) (iotaEndP 0 f) := by
       rw [hyA]; exact GlueAAJoin.glueAA_glueA 0 f
@@ -121,8 +99,8 @@ theorem eq_bot_of_glueAA_le {y : D 1} {a : EndP (D 1)}
   · exact (hBC (fun g hg => by rw [hy] at hg; simp at hg)).elim
   · exact (hBC (fun g hg => by rw [hy] at hg; simp at hg)).elim
 
-/-! ## …and the theorem -/
-
+-- [D-2616] §and-the-theorem
+-- [D-2617] fix_level_succ
 theorem fix_level_succ {x : B} (hx : SigmaRebuild.ifsS.sigmaA x = x) (n : ℕ) :
     (x.1 (n + 1)).1 = Sum.inl ((PhiCocone.projEndDown n).toFun (SigmaRebuild.strictConst x)) := by
   have h1 : ((SigmaRebuild.ifsS.sigmaA x).1 (n + 1)).1 = (x.1 (n + 1)).1 :=
@@ -130,6 +108,7 @@ theorem fix_level_succ {x : B} (hx : SigmaRebuild.ifsS.sigmaA x = x) (n : ℕ) :
   rw [← h1]
   exact InternalIFSInstance.pLeg_val n (SigmaRebuild.strictConst x)
 
+-- [D-2618] level_zero_eq_bot
 theorem level_zero_eq_bot {x : B} (hx : SigmaRebuild.ifsS.sigmaA x = x) :
     x.1 0 = (⊥ : D 1) := by
   refine eq_bot_of_glueAA_le (a := (PhiCocone.projEndDown 0).toFun (SigmaRebuild.strictConst x))
@@ -143,6 +122,7 @@ theorem level_zero_eq_bot {x : B} (hx : SigmaRebuild.ifsS.sigmaA x = x) :
     Subtype.ext (fix_level_succ hx 0)
   rwa [he] at hd
 
+-- [D-2619] eq_bot_of_fix
 theorem eq_bot_of_fix {x : B} (hx : SigmaRebuild.ifsS.sigmaA x = x) : x = (⊥ : B) := by
   refine Subtype.ext (funext (fun n => ?_))
   induction n with
@@ -158,7 +138,7 @@ theorem eq_bot_of_fix {x : B} (hx : SigmaRebuild.ifsS.sigmaA x = x) : x = (⊥ :
       rw [fix_level_succ hx n, hpay]
       exact (botD_val (n + 1)).symm
 
-/-- **Theorem ESCAPE, for the rebuilt `σ_A`.** -/
+-- [D-2620] fix_sigmaA
 theorem fix_sigmaA : Fix SigmaRebuild.ifsS.sigmaA = {(⊥ : B)} := by
   ext x
   constructor

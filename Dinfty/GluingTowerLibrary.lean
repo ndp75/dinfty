@@ -1,17 +1,3 @@
-/-
-  GluingTowerLibrary — general, abstract-`P`/`L` gluing-tower / order-theory
-  library extracted from `02 Formalization.lean` (the full ~26,842-line
-  research record for "The Domain-Theoretic Tower `D∞` and the Sierpiński
-  Gasket", kept unmodified alongside this file). This file contains only
-  material that is generic over an abstract finite lattice `P` (or `L`) —
-  no Sierpiński-tower-specific content. See `SierpinskiApplication.lean`
-  for the real tower built on top of this library, and `02 Formalization.lean`
-  for the full research history, proof attempts, and session-by-session
-  status notes behind every declaration below (comments here are condensed
-  to one line per declaration; the original file is the authoritative
-  record of how each result was actually developed).
--/
-
 import Mathlib.Order.Basic
 import Mathlib.Order.Lattice
 import Mathlib.Order.BoundedOrder.Basic
@@ -47,126 +33,100 @@ universe u
 
 namespace GluingTowerLibrary
 
-
 section GeneralLattice
 
 variable {P : Type u} [Lattice P] [BoundedOrder P]
 
--- `End P` — the poset of monotone self-maps of `P`, ordered pointwise.
+-- [D-0055] EndP
 abbrev EndP (P : Type u) [Preorder P] := P →o P
 
+-- [D-0056] inst-Preorder
 instance : Preorder (EndP P) :=
   Preorder.lift (fun f => (f : P → P))
 
-/-- The constant monotone map at `x`. -/
+-- [D-0057] constHom
 def constHom (x : P) : EndP P := ⟨fun _ => x, fun _ _ _ => le_refl x⟩
 
+-- [D-0058] constHom_apply
 omit [BoundedOrder P] in
 @[simp] theorem constHom_apply (c x : P) : constHom c x = c := rfl
 
-/-- The "meet with `c`" monotone map (companion of `constHom` / `joinid` in
-    the vault's symbolic tower notes — this is the real-tower `meetHom` that
-    lets `sigmaD` below be formalized instead of just tested symbolically). -/
+-- [D-0059] meetHom
 def meetHom (c : P) : EndP P := ⟨fun x => x ⊓ c, fun _ _ hab => inf_le_inf_right c hab⟩
 
+-- [D-0060] meetHom_apply
 omit [BoundedOrder P] in
 @[simp] theorem meetHom_apply (c x : P) : meetHom c x = x ⊓ c := rfl
 
-/-- `Comp P a` : `a` is comparable to every element of `P`
-    (companion note: `Comp(P)`). -/
+-- [D-0061] Comp
 def Comp (P : Type u) [Preorder P] (a : P) : Prop :=
   ∀ b : P, a ≤ b ∨ b ≤ a
 
-/-- `⊥` and `⊤` are always in `Comp P`. Fully proved: this is the
-    "trivial half" of Theorem GENREDUCE / Lemma EXTREME-SPIKE's base
-    case. -/
+-- [D-0062] bot_comp
 theorem bot_comp : Comp P (⊥ : P) := fun _b => Or.inl bot_le
 
+-- [D-0063] top_comp
 theorem top_comp : Comp P (⊤ : P) := fun _b => Or.inr le_top
 
-/-- **Computable decidability of `≤` on any lattice with decidable
-    equality**, via `a ≤ b ↔ a ⊔ b = b` (`sup_eq_right`).
-
-    Why this exists (2026-08-27): this file opens `scoped Classical`, and
-    several definitions below guard on `≤` (`stepMap`, `glueJoinRaw`) in
-    sections that supply `[DecidableEq P]` but *not* `[DecidableRel
-    ((·≤·) : P → P → Prop)]`. Instance resolution therefore silently picked
-    `Classical.propDecidable` for those guards **at definition time**,
-    baking `Classical.choice` — a genuine axiom the kernel cannot reduce
-    past — permanently into the compiled terms. That made every `decide`
-    touching them fail with a stuck WHNF term, unfixable from the call site
-    by any instance override (three independent attempts confirmed this;
-    see `Meta/Finding - PsiIso tower mismatch (2026-08-26).md` Updates
-    12–17). Note the asymmetry that shows it was a defect and not inherent:
-    `DecidableEq P` *is* supplied, so `if x = ⊥`-style guards in
-    `canon`/`occs` always reduced fine — only the `≤`-guards were classical.
-
-    Deliberately a plain `def`, not an `instance`: as a global instance it
-    would form a diamond with the `DecidableRel (·≤·)` instances concrete
-    types already carry (`Fin`, `Nat`, …), which — `Decidable` being a
-    subsingleton propositionally but not definitionally — is exactly the
-    kind of thing that reintroduces reduction friction. It is instead
-    `letI`-introduced at precisely the definition sites that need it, so no
-    signature anywhere changes and no call site is affected. -/
+-- [D-0064] latticeDecLE
 def latticeDecLE {P : Type u} [Lattice P] [DecidableEq P] :
     DecidableRel ((· ≤ ·) : P → P → Prop) :=
   fun a b => decidable_of_iff (a ⊔ b = b) sup_eq_right
 
-/-- `JoinIrred P a` : `a` is join-irreducible (companion note: `J(P)`
-    membership), stated from first principles rather than assuming a
-    specific Mathlib predicate name. -/
+-- [D-0065] JoinIrred
 def JoinIrred (P : Type u) [Lattice P] [OrderBot P] (a : P) : Prop :=
   a ≠ ⊥ ∧ ∀ b c : P, a = b ⊔ c → a = b ∨ a = c
 
--- A finite lattice `P` has a *unique atom and unique coatom* (companion note: Lemma UAC's HYPOTHESIS class — the lemma itself, that `D_k` satisfies this at every `k`, is tower-specific and axiomatized in §3 via `GluingTower`).
+-- [D-0066] UniqueAtomCoatom
 class UniqueAtomCoatom (P : Type u) [Lattice P] [BoundedOrder P] : Prop where
   unique_atom   : ∃! a : P, a ≠ ⊥ ∧ ∀ b : P, b ≠ ⊥ → a ≤ b
   unique_coatom : ∃! a : P, a ≠ ⊤ ∧ ∀ b : P, b ≠ ⊤ → b ≤ a
 
--- Extract the atom guaranteed by `UniqueAtomCoatom`, plus its defining properties `atomOf_ne_bot`/`atomOf_le`, and dually `coatomOf`.
+-- [D-0067] atomOf
 noncomputable def atomOf (P : Type u) [Lattice P] [BoundedOrder P]
     [UniqueAtomCoatom P] : P :=
   (UniqueAtomCoatom.unique_atom (P := P)).choose
 
+-- [D-0068] atomOf_ne_bot
 theorem atomOf_ne_bot (P : Type u) [Lattice P] [BoundedOrder P]
     [UniqueAtomCoatom P] : atomOf P ≠ (⊥ : P) :=
   (UniqueAtomCoatom.unique_atom (P := P)).choose_spec.1.1
 
+-- [D-0069] atomOf_le
 theorem atomOf_le {P : Type u} [Lattice P] [BoundedOrder P] [UniqueAtomCoatom P]
     {b : P} (hb : b ≠ ⊥) : atomOf P ≤ b :=
   (UniqueAtomCoatom.unique_atom (P := P)).choose_spec.1.2 b hb
 
+-- [D-0070] coatomOf
 noncomputable def coatomOf (P : Type u) [Lattice P] [BoundedOrder P]
     [UniqueAtomCoatom P] : P :=
   (UniqueAtomCoatom.unique_coatom (P := P)).choose
 
+-- [D-0071] coatomOf_ne_top
 theorem coatomOf_ne_top (P : Type u) [Lattice P] [BoundedOrder P]
     [UniqueAtomCoatom P] : coatomOf P ≠ (⊤ : P) :=
   (UniqueAtomCoatom.unique_coatom (P := P)).choose_spec.1.1
 
+-- [D-0072] coatomOf_le
 theorem coatomOf_le {P : Type u} [Lattice P] [BoundedOrder P] [UniqueAtomCoatom P]
     {b : P} (hb : b ≠ ⊤) : b ≤ coatomOf P :=
   (UniqueAtomCoatom.unique_coatom (P := P)).choose_spec.1.2 b hb
 
--- **`Θ(P) ⊆ P ∖ {⊥,⊤,atomOf P,coatomOf P}` always.** Any finite lattice's
--- unique atom is comparable to (below) EVERY element: `⊥` trivially, every
--- other `b` via `atomOf_le`. So `atomOf P`'s own incomparable set is empty
--- — `Θ` is genuinely undefined there, not a formula failure. Dual for the
--- coatom. Was checked only empirically (`H_0`, a 4-chain instance) in the
--- companion write-up; here it's the actual general theorem those checks
--- were evidence for.
+-- [D-0073] atomOf_comparable
 theorem atomOf_comparable (P : Type u) [Lattice P] [BoundedOrder P] [UniqueAtomCoatom P]
     (z : P) : z ≤ atomOf P ∨ atomOf P ≤ z := by
   rcases eq_or_ne z ⊥ with hz | hz
   · exact Or.inl (hz ▸ bot_le)
   · exact Or.inr (atomOf_le hz)
 
+-- [D-0074] coatomOf_comparable
 theorem coatomOf_comparable (P : Type u) [Lattice P] [BoundedOrder P] [UniqueAtomCoatom P]
     (z : P) : z ≤ coatomOf P ∨ coatomOf P ≤ z := by
   rcases eq_or_ne z ⊤ with hz | hz
   · exact Or.inr (hz ▸ le_top)
   · exact Or.inl (coatomOf_le hz)
 
+-- [D-0075] inc_atomOf_eq_empty
 theorem inc_atomOf_eq_empty (P : Type u) [Lattice P] [BoundedOrder P] [UniqueAtomCoatom P] :
     {z : P | ¬ z ≤ atomOf P ∧ ¬ atomOf P ≤ z} = ∅ := by
   ext z
@@ -176,6 +136,7 @@ theorem inc_atomOf_eq_empty (P : Type u) [Lattice P] [BoundedOrder P] [UniqueAto
   · exact absurd h hz1
   · exact h
 
+-- [D-0076] inc_coatomOf_eq_empty
 theorem inc_coatomOf_eq_empty (P : Type u) [Lattice P] [BoundedOrder P] [UniqueAtomCoatom P] :
     {z : P | ¬ z ≤ coatomOf P ∧ ¬ coatomOf P ≤ z} = ∅ := by
   ext z
@@ -185,8 +146,7 @@ theorem inc_coatomOf_eq_empty (P : Type u) [Lattice P] [BoundedOrder P] [UniqueA
   · exact absurd h hz1
   · exact h
 
-/-- `spikeHom v` : the monotone map that is `⊥` everywhere except at `⊤`,
-    where it takes value `v` (companion note's "spike" map). -/
+-- [D-0077] spikeHom
 noncomputable def spikeHom (v : P) : EndP P :=
   ⟨fun x => if x = ⊤ then v else ⊥, by
     intro x y hxy
@@ -195,8 +155,7 @@ noncomputable def spikeHom (v : P) : EndP P :=
       simp [hx, hy]
     · by_cases hy : y = ⊤ <;> simp [hx, hy]⟩
 
-/-- `cospikeHom v` : dual of `spikeHom` — `⊤` everywhere except at `⊥`,
-    where it takes value `v`. -/
+-- [D-0078] cospikeHom
 noncomputable def cospikeHom (v : P) : EndP P :=
   ⟨fun x => if x = ⊥ then v else ⊤, by
     intro x y hxy
@@ -205,19 +164,21 @@ noncomputable def cospikeHom (v : P) : EndP P :=
       simp [hx, hy]
     · by_cases hx : x = ⊥ <;> simp [hx, hy]⟩
 
+-- [D-0079] spikeHom_apply_top
 @[simp] theorem spikeHom_apply_top (v : P) : spikeHom v ⊤ = v := if_pos rfl
 
+-- [D-0080] spikeHom_apply_of_ne
 @[simp] theorem spikeHom_apply_of_ne (v : P) {x : P} (hx : x ≠ ⊤) :
     spikeHom v x = ⊥ := if_neg hx
 
+-- [D-0081] cospikeHom_apply_bot
 @[simp] theorem cospikeHom_apply_bot (v : P) : cospikeHom v ⊥ = v := if_pos rfl
 
+-- [D-0082] cospikeHom_apply_of_ne
 @[simp] theorem cospikeHom_apply_of_ne (v : P) {x : P} (hx : x ≠ ⊥) :
     cospikeHom v x = ⊤ := if_neg hx
 
-/-- **Lemma EXTREME-SPIKE** (companion note §3.3), atom half: `spikeHom
-    (atomOf P)` — i.e. `atom(End P)` — is comparable to every element of
-    `End P`. Fully proved, general. -/
+-- [D-0083] spikeHom_atomOf_comp
 theorem spikeHom_atomOf_comp [UniqueAtomCoatom P] :
     Comp (EndP P) (spikeHom (atomOf P)) := by
   intro g
@@ -235,7 +196,7 @@ theorem spikeHom_atomOf_comp [UniqueAtomCoatom P] :
     · subst hx; simp [atomOf_le hg]
     · simp [hx]
 
-/-- **Lemma EXTREME-SPIKE**, coatom half, dual to `spikeHom_atomOf_comp`. -/
+-- [D-0084] cospikeHom_coatomOf_comp
 theorem cospikeHom_coatomOf_comp [UniqueAtomCoatom P] :
     Comp (EndP P) (cospikeHom (coatomOf P)) := by
   intro g
@@ -253,7 +214,7 @@ theorem cospikeHom_coatomOf_comp [UniqueAtomCoatom P] :
     · subst hx; simp [coatomOf_le hg]
     · simp [hx]
 
--- **Theorem GENREDUCE** (companion note §3.3).
+-- [D-0085] genreduce
 theorem genreduce (P : Type u) [Lattice P] [BoundedOrder P] [Fintype P]
     [UniqueAtomCoatom P]
     (hCompP : ∀ b : P, Comp P b → b = ⊥ ∨ b = ⊤ ∨ b = atomOf P ∨ b = coatomOf P)
@@ -269,7 +230,7 @@ theorem genreduce (P : Type u) [Lattice P] [BoundedOrder P] [Fintype P]
     exact le_bot_iff.mp h1
   intro f hf
   by_cases hconst : ∃ c : P, f = constHom c
-  · -- Constant case: reduce to `c ∈ Comp P`, then use `hCompP`.
+  ·
     obtain ⟨c, hc⟩ := hconst
     have hcCompP : Comp P c := by
       intro c'
@@ -279,7 +240,7 @@ theorem genreduce (P : Type u) [Lattice P] [BoundedOrder P] [Fintype P]
     rcases hCompP c hcCompP with h | h | h | h
     · exact Or.inl (by rw [hc, h])
     · exact Or.inr (Or.inl (by rw [hc, h]))
-    · -- c = atomOf P: derive a contradiction via the `spikeHom ⊤` witness.
+    ·
       exfalso
       rcases hf (spikeHom (⊤ : P)) with hle | hle
       · have h1 := hle ⊥
@@ -290,7 +251,7 @@ theorem genreduce (P : Type u) [Lattice P] [BoundedOrder P] [Fintype P]
         rw [hc] at h1
         simp only [spikeHom_apply_top, constHom_apply] at h1
         exact hAtomNe (h ▸ top_le_iff.mp h1)
-    · -- c = coatomOf P: dual, via the `cospikeHom ⊥` witness.
+    ·
       exfalso
       rcases hf (cospikeHom (⊥ : P)) with hle | hle
       · have h1 := hle ⊥
@@ -301,7 +262,7 @@ theorem genreduce (P : Type u) [Lattice P] [BoundedOrder P] [Fintype P]
         rw [hc] at h1
         simp only [cospikeHom_apply_of_ne _ hbot_ne_top.symm, constHom_apply] at h1
         exact coatomOf_ne_top P (h ▸ top_le_iff.mp h1)
-  · -- Non-constant case.
+  ·
     push Not at hconst
     set m : P := Finset.univ.inf (⇑f) with hmdef
     set M : P := Finset.univ.sup (⇑f) with hMdef
@@ -312,7 +273,6 @@ theorem genreduce (P : Type u) [Lattice P] [BoundedOrder P] [Fintype P]
       rcases hf (constHom c) with h | h
       · exact Or.inl (Finset.sup_le fun x _ => h x)
       · exact Or.inr (Finset.le_inf fun x _ => h x)
-    -- No `c` strictly between `m` and `M`: comparability with `constHom c` forces it.
     have hcover : ∀ c : P, m < c → c < M → False := by
       intro c hmc hcM
       rcases hcomp_c c with h | h
@@ -333,7 +293,6 @@ theorem genreduce (P : Type u) [Lattice P] [BoundedOrder P] [Fintype P]
       rcases hmem x with h | h
       · simpa using h
       · simpa [heq] using h
-    -- `M` (resp. `m`) is attained, since `f` is non-constant and 2-valued.
     have hMattain : ∃ x, f x = M := by
       by_contra hcon
       push Not at hcon
@@ -363,16 +322,16 @@ theorem genreduce (P : Type u) [Lattice P] [BoundedOrder P] [Fintype P]
       rw [hx0] at h1
       exact le_antisymm h1 (hm_le ⊥)
     rcases eq_or_ne m ⊥ with hm | hm
-    · -- m = ⊥: `M` is forced to be `atomOf P`.
+    ·
       have hMne : M ≠ ⊥ := fun hMb => hne (hm.trans hMb.symm)
       have hMa : M = atomOf P := by
         rcases hcomp_c (atomOf P) with h | h
         · exact le_antisymm h (atomOf_le hMne)
         · exact absurd (le_bot_iff.mp (hm ▸ h)) (atomOf_ne_bot P)
       rcases eq_or_ne M ⊤ with hM | hM
-      · -- m = ⊥, M = ⊤: contradicts non-degeneracy.
+      ·
         exact absurd (hMa.symm.trans hM) hAtomNe
-      · -- Case (i): `f = spikeHom (atomOf P)`.
+      ·
         have hspiketop : f ≤ spikeHom (⊤ : P) := by
           rcases hf (spikeHom (⊤ : P)) with hle | hle
           · exact hle
@@ -392,13 +351,12 @@ theorem genreduce (P : Type u) [Lattice P] [BoundedOrder P] [Fintype P]
           have hfx0 : f x = ⊥ := le_bot_iff.mp h2
           simp [hfx0, spikeHom_apply_of_ne _ hxT]
     · rcases eq_or_ne M ⊤ with hM | hM
-      · -- m ≠ ⊥, M = ⊤: `m` is forced to be `coatomOf P`.
+      ·
         have hmne : m ≠ ⊤ := fun hmt => hne (hmt.trans hM.symm)
         have hmg : m = coatomOf P := by
           rcases hcomp_c (coatomOf P) with h | h
           · exact absurd (top_le_iff.mp (hM ▸ h)) (coatomOf_ne_top P)
           · exact le_antisymm (coatomOf_le hmne) h
-        -- Case (ii): `f = cospikeHom (coatomOf P)`.
         have hcospikebot : cospikeHom (⊥ : P) ≤ f := by
           rcases hf (cospikeHom (⊥ : P)) with hle | hle
           · exfalso
@@ -417,7 +375,7 @@ theorem genreduce (P : Type u) [Lattice P] [BoundedOrder P] [Fintype P]
           simp only [cospikeHom_apply_of_ne _ hx0] at h2
           have hfx0 : f x = ⊤ := top_le_iff.mp h2
           simp [hfx0, cospikeHom_apply_of_ne _ hx0]
-      · -- Case (iii): `m ≠ ⊥`, `M ≠ ⊤` — fully interior, impossible.
+      ·
         exfalso
         have hUup : ∀ x y : P, f x = M → x ≤ y → f y = M := by
           intro x y hx hxy
@@ -445,7 +403,7 @@ theorem genreduce (P : Type u) [Lattice P] [BoundedOrder P] [Fintype P]
           simp only [hgx1, hx1] at h1
           exact hM (top_le_iff.mp h1)
 
--- **Generic finite-lattice closure fact** (pass 6, 2026-07-31 continued): any `Fintype` `SemilatticeSup` with `OrderBot` extends to a full `Lattice`, meet given by folding `⊔` (via `Finset.sup`) over each pair's exact common-lower-bound set.
+-- [D-0086] latticeOfFiniteSup
 @[reducible]
 noncomputable def latticeOfFiniteSup {α : Type u} [Fintype α] [DecidableEq α]
     (S : SemilatticeSup α) [OrderBot α] : Lattice α :=
@@ -458,15 +416,16 @@ noncomputable def latticeOfFiniteSup {α : Type u} [Fintype α] [DecidableEq α]
     le_inf := fun x y z hxy hxz =>
       Finset.le_sup (f := id) (Finset.mem_filter.mpr ⟨Finset.mem_univ x, hxy, hxz⟩) }
 
--- **`EndP P` as a `Lattice`+`BoundedOrder`** (pass 7, corrected pass 8).
+-- [D-0087] endPBot_apply
 @[simp] theorem endPBot_apply (x : P) : (⊥ : EndP P) x = (⊥ : P) := rfl
+-- [D-0088] endPTop_apply
 @[simp] theorem endPTop_apply (x : P) : (⊤ : EndP P) x = (⊤ : P) := rfl
 
--- `EndP P`'s own top is the constant map at `P`'s top — needed to connect `D1_rigid`'s `deg(g2)` computation (stated via `constHom`, §Gap1Closed's Lemma 2) to `EndP P`'s actual `⊤` (what `glueA m ⊤` tags).
+-- [D-0089] endP_top_eq_constHom_top
 theorem endP_top_eq_constHom_top : (⊤ : EndP P) = constHom (⊤ : P) := by
   ext x; simp [constHom_apply]
 
--- `EndP P` is `Fintype`/`DecidableEq` given `P` is — needed for `[Fintype P]`/`[DecidableEq P]` hypotheses one level up the tower (`GlueCar (P := EndP (D k)) OrderHom.id`, §2.6/§2.7).
+-- [D-0090] orderHomEquivSubtype
 def orderHomEquivSubtype {α β : Type*} [Preorder α] [Preorder β] :
     (α →o β) ≃ {f : α → β // Monotone f} where
   toFun f := ⟨f, f.monotone⟩
@@ -474,37 +433,33 @@ def orderHomEquivSubtype {α β : Type*} [Preorder α] [Preorder β] :
   left_inv _ := rfl
   right_inv _ := rfl
 
+-- [D-0091] orderHomDecidableLE
 instance orderHomDecidableLE {α β : Type*} [Preorder α] [Preorder β] [Fintype α]
     [DecidableRel ((· ≤ ·) : β → β → Prop)] :
     DecidableRel ((· ≤ ·) : (α →o β) → (α →o β) → Prop) := fun f g =>
   decidable_of_iff (∀ x, f x ≤ g x) OrderHom.le_def.symm
 
+-- [D-0092] decMonotone
 instance decMonotone {α β : Type*} [Preorder α] [Preorder β] [Fintype α]
     [DecidableRel ((· ≤ ·) : α → α → Prop)] [DecidableRel ((· ≤ ·) : β → β → Prop)] :
     DecidablePred (Monotone : (α → β) → Prop) := fun f =>
   inferInstanceAs (Decidable (∀ x y, x ≤ y → f x ≤ f y))
 
+-- [D-0093] endPFintype
 instance endPFintype [Fintype P] [DecidableEq P]
     [DecidableRel ((· ≤ ·) : P → P → Prop)] : Fintype (EndP P) :=
   haveI _hpi : Fintype (P → P) := Pi.instFintype
   haveI _hsub : Fintype {f : P → P // Monotone f} := Subtype.fintype _
   Fintype.ofEquiv {f : P → P // Monotone f} orderHomEquivSubtype.symm
 
+-- [D-0094] endPDecidableEq
 instance endPDecidableEq [Fintype P] [DecidableEq P] : DecidableEq (EndP P) :=
   fun f g => decidable_of_iff ((f : P → P) = g) ⟨fun h => OrderHom.ext f g h, fun h => h ▸ rfl⟩
 
--- `EndP P` gets `Lattice`/`OrderBot`/`OrderTop` for free from Mathlib's `OrderHom.lattice`/`OrderHom.orderBot`/`OrderHom.orderTop`, but NOT a combined `BoundedOrder`
+-- [D-0095] endPBoundedOrder
 instance endPBoundedOrder : BoundedOrder (EndP P) := { OrderHom.orderTop, OrderHom.orderBot with }
 
--- **`EndP` of a chain is distributive** (`Meta/Finding - PsiIso tower
--- mismatch (2026-08-26).md`, Update 8, check 1 — generalized from the
--- `Q = EndP (D 0)`, `Fin 3` toy Python checked there to every `LinearOrder`).
--- `OrderHom.lattice`'s sup/inf on `EndP Q` are pointwise, and distributivity
--- is a pointwise/coordinatewise law, so it transfers for free from `Q`
--- itself being distributive — automatic for a chain
--- (`LinearOrder.toDistribLattice` in Mathlib). This is the hypothesis the
--- free-join-extension construction (check 3, not yet formalized) needs at
--- the base level, proved here in full generality rather than by `decide`.
+-- [D-0096] endPDistribLatticeOfLinearOrder
 instance endPDistribLatticeOfLinearOrder {Q : Type u} [LinearOrder Q] :
     DistribLattice (EndP Q) :=
   DistribLattice.ofInfSupLe (fun a b c => by
@@ -513,28 +468,31 @@ instance endPDistribLatticeOfLinearOrder {Q : Type u} [LinearOrder Q] :
     show a x ⊓ (b x ⊔ c x) ≤ a x ⊓ b x ⊔ a x ⊓ c x
     exact inf_sup_le (α := Q))
 
+-- [D-0097] endPId_apply
 @[simp] theorem endPId_apply (x : P) : (OrderHom.id : EndP P) x = x := rfl
 
--- **Nondegeneracy of `OrderHom.id` in `EndP P`, from `P`'s own `⊥ ≠ ⊤`** (pass 8, new — closes `towerLevelSucc`'s three `sorry`s and `D_marked_point_nondegenerate` in §2.6).
+-- [D-0098] endPId_ne_bot
 theorem endPId_ne_bot (hbt : (⊥ : P) ≠ ⊤) : (OrderHom.id : EndP P) ≠ ⊥ := by
   intro h
   have h1 := congrArg (fun f : EndP P => f ⊤) h
   simp only [endPId_apply, endPBot_apply] at h1
   exact hbt h1.symm
 
+-- [D-0099] endPId_ne_top
 theorem endPId_ne_top (hbt : (⊥ : P) ≠ ⊤) : (OrderHom.id : EndP P) ≠ ⊤ := by
   intro h
   have h1 := congrArg (fun f : EndP P => f ⊥) h
   simp only [endPId_apply, endPTop_apply] at h1
   exact hbt h1
 
+-- [D-0100] endP_bot_ne_top
 theorem endP_bot_ne_top (hbt : (⊥ : P) ≠ ⊤) : (⊥ : EndP P) ≠ (⊤ : EndP P) := by
   intro h
   have h1 := congrArg (fun f : EndP P => f ⊤) h
   simp only [endPBot_apply, endPTop_apply] at h1
   exact hbt h1
 
--- **`Nontrivial P → ⊥ ≠ ⊤`** (pass 8, new) — the converse direction of `endPId_ne_bot` et al.'s hypothesis
+-- [D-0101] bot_ne_top_of_nontrivial
 theorem bot_ne_top_of_nontrivial [Nontrivial P] : (⊥ : P) ≠ (⊤ : P) := by
   intro heq
   obtain ⟨a, b, hab⟩ := exists_pair_ne P
@@ -548,20 +506,19 @@ theorem bot_ne_top_of_nontrivial [Nontrivial P] : (⊥ : P) ≠ (⊤ : P) := by
     exact le_antisymm h1 bot_le
   exact hab (ha.trans hb.symm)
 
--- Generic fact (any `α` with `PartialOrder`/`OrderBot`): a "least nonzero element" gives `∃!` for free, via antisymmetry alone — no structural argument specific to `EndP`/`Φ` needed.
--- (pass 9 FIX, see `glueUniqueAtomCoatom`'s STATUS note: stated over `[Lattice α][BoundedOrder α]` — the SAME two classes `UniqueAtomCoatom` itself is parametrized by — rather than the logically-weaker `[PartialOrder α][OrderBot α]` the proof actually needs.
+-- [D-0102] existsUnique_atom_of_least_nonzero
 theorem existsUnique_atom_of_least_nonzero {α : Type u} [Lattice α] [BoundedOrder α]
     {a : α} (ha : a ≠ ⊥) (hle : ∀ b : α, b ≠ ⊥ → a ≤ b) :
     ∃! a' : α, a' ≠ ⊥ ∧ ∀ b : α, b ≠ ⊥ → a' ≤ b :=
   ⟨a, ⟨ha, hle⟩, fun a' ⟨ha', hle'⟩ => le_antisymm (hle' a ha) (hle a' ha')⟩
 
-/-- Dual of `existsUnique_atom_of_least_nonzero`. -/
+-- [D-0103] existsUnique_coatom_of_greatest_ne_top
 theorem existsUnique_coatom_of_greatest_ne_top {α : Type u} [Lattice α] [BoundedOrder α]
     {a : α} (ha : a ≠ ⊤) (hle : ∀ b : α, b ≠ ⊤ → b ≤ a) :
     ∃! a' : α, a' ≠ ⊤ ∧ ∀ b : α, b ≠ ⊤ → b ≤ a' :=
   ⟨a, ⟨ha, hle⟩, fun a' ⟨ha', hle'⟩ => le_antisymm (hle a' ha') (hle' a ha)⟩
 
--- **Lemma UAC, step 1** (companion vault: "atoms(Mon(P,P)) spike-map characterization dualized for coatoms" — previously only informal, formalized here in full generality for the first time): `EndP P` inherits a unique atom/coatom from `P`
+-- [D-0104] endPUniqueAtomCoatom
 noncomputable instance endPUniqueAtomCoatom [UniqueAtomCoatom P] :
     UniqueAtomCoatom (EndP P) where
   unique_atom := by
@@ -601,7 +558,7 @@ noncomputable instance endPUniqueAtomCoatom [UniqueAtomCoatom P] :
       · subst hx; simpa using coatomOf_le hfBot
       · simp [cospikeHom_apply_of_ne _ hx]
 
--- **Pass 25**: `endPUniqueAtomCoatom`'s `unique_coatom` field is witnessed by the EXPLICIT term `cospikeHom (coatomOf P)`, and since `coatomOf (EndP P)` is *defined* as `∃!`'s `.choose` (not literally that term
+-- [D-0105] coatomOf_endP_eq_cospikeHom
 theorem coatomOf_endP_eq_cospikeHom (P : Type u) [Lattice P] [BoundedOrder P]
     [UniqueAtomCoatom P] :
     coatomOf (EndP P) = cospikeHom (coatomOf P) := by
@@ -631,13 +588,13 @@ end GeneralLattice
 
 section GraphProduct
 
-/-- A finite simple graph, minimal bundling sufficient for this file. -/
+-- [D-0106] Graph
 structure Graph (V : Type u) where
   adj : V → V → Prop
   symm : ∀ {a b}, adj a b → adj b a
   irrefl : ∀ a, ¬ adj a a
 
-/-- Cartesian product of two graphs (companion note: `□`). -/
+-- [D-0107] prodGraph
 def prodGraph {V W : Type u} (G : Graph V) (H : Graph W) : Graph (V × W) where
   adj p q :=
     (p.1 = q.1 ∧ H.adj p.2 q.2) ∨ (p.2 = q.2 ∧ G.adj p.1 q.1)
@@ -650,11 +607,11 @@ def prodGraph {V W : Type u} (G : Graph V) (H : Graph W) : Graph (V × W) where
     · exact H.irrefl w h
     · exact G.irrefl v h
 
-/-- `Graph.Connected G`: every pair of vertices is joined by a path. -/
+-- [D-0108] Graph.Connected
 def Graph.Connected {V : Type u} (G : Graph V) : Prop :=
   ∀ a b : V, Relation.ReflTransGen G.adj a b
 
--- A connected graph on ≥2 vertices has no isolated vertex: every vertex has at least one neighbour.
+-- [D-0109] connected_no_isolated
 theorem connected_no_isolated {V : Type u} (G : Graph V) (hconn : G.Connected)
     (a1 a2 : V) (hne : a1 ≠ a2) (v : V) : ∃ w, G.adj v w := by
   have hu : ∃ u, u ≠ v := by
@@ -666,7 +623,7 @@ theorem connected_no_isolated {V : Type u} (G : Graph V) (hconn : G.Connected)
   · exact absurd h.symm huv
   · exact ⟨c, hvc⟩
 
--- `GraphPrime G`: `G` is not (isomorphic to) a nontrivial Cartesian product of two connected graphs.
+-- [D-0110] GraphPrime
 def GraphPrime {V : Type u} (G : Graph V) : Prop :=
   ∀ {A B : Type u} (GA : Graph A) (GB : Graph B) (e : V ≃ A × B),
     (∀ v w, G.adj v w ↔ (prodGraph GA GB).adj (e v) (e w)) →
@@ -674,7 +631,7 @@ def GraphPrime {V : Type u} (G : Graph V) : Prop :=
     (∃ a1 a2 : A, a1 ≠ a2) → (∃ b1 b2 : B, b1 ≠ b2) →
     False
 
--- **Theorem HASSE-PRIME** (companion note §3.3).
+-- [D-0111] hasse_prime_of_degree_one
 theorem hasse_prime_of_degree_one {V : Type u} (G : Graph V)
     (v0 : V) (hdeg1 : ∀ w, G.adj v0 w → ∀ w', G.adj v0 w' → w = w')
     (_hnonempty : ∃ w, G.adj v0 w) :
@@ -712,14 +669,17 @@ section PhiConstruction
 
 variable {P : Type u} [DecidableEq P] [Lattice P] [BoundedOrder P] [Fintype P]
 
-/-- Three tagged copies of `P` (companion note: copies `a`, `b`, `c`). -/
+-- [D-0112] GlueBase
 abbrev GlueBase (P : Type u) := P ⊕ P ⊕ P
 
+-- [D-0113] tagA
 def tagA (x : P) : GlueBase P := Sum.inl x
+-- [D-0114] tagB
 def tagB (x : P) : GlueBase P := Sum.inr (Sum.inl x)
+-- [D-0115] tagC
 def tagC (x : P) : GlueBase P := Sum.inr (Sum.inr x)
 
--- `m` : the marked interior basepoint (companion note's `L`; `T=⊥`, `R=⊤` are just `P`'s own bounds).
+-- [D-0116] canon
 def canon (m : P) : GlueBase P → GlueBase P
   | Sum.inl x => Sum.inl x
   | Sum.inr (Sum.inl x) => if x = ⊥ then Sum.inl m else Sum.inr (Sum.inl x)
@@ -728,6 +688,7 @@ def canon (m : P) : GlueBase P → GlueBase P
       else if x = m then Sum.inr (Sum.inl ⊤)
       else Sum.inr (Sum.inr x)
 
+-- [D-0117] canon_idem
 theorem canon_idem (m : P) (hm : m ≠ ⊥) (hbt : (⊥ : P) ≠ ⊤) (x : GlueBase P) :
     canon m (canon m x) = canon m x := by
   cases x with
@@ -743,20 +704,19 @@ theorem canon_idem (m : P) (hm : m ≠ ⊥) (hbt : (⊥ : P) ≠ ⊤) (x : GlueB
       · simp [hx]
       · by_cases hx' : x = m <;> simp [hx, hx', hm, hbt.symm]
 
-/-- The glued carrier: canonical (fixed-point) representatives of `canon m`.
-    A subtype of a `Fintype` cut out by a decidable predicate, so `Fintype`
-    and `DecidableEq` come for free — no genuine `Quotient` needed. -/
+-- [D-0118] GlueCar
 def GlueCar (m : P) := {x : GlueBase P // canon m x = x}
 
+-- [D-0119] inst-P
 instance (m : P) : DecidableEq (GlueCar (P := P) m) := Subtype.instDecidableEq
+-- [D-0120] inst-P
 instance (m : P) : Fintype (GlueCar (P := P) m) := Subtype.fintype _
 
-/-- Inclusion of a (possibly non-canonical) tagged point into the glued
-    carrier, via `canon`. -/
+-- [D-0121] incl
 def incl (m : P) (hm : m ≠ ⊥) (hbt : (⊥ : P) ≠ ⊤) (x : GlueBase P) : GlueCar (P := P) m :=
   ⟨canon m x, canon_idem m hm hbt x⟩
 
--- **`Φ(P)` is always nontrivial** (pass 8, new — closes the induction that threads nondegeneracy up the recursive tower, §2.6): `tag_a(⊥)` and `tag_c(⊤)` are always distinct GENUINE `GlueCar m` points
+-- [D-0122] glueCar_bot_ne_top
 theorem glueCar_bot_ne_top (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤) :
     incl m hm hbt (Sum.inl ⊥) ≠ incl m hm hbt (Sum.inr (Sum.inr ⊤)) := by
   intro h
@@ -767,11 +727,12 @@ theorem glueCar_bot_ne_top (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (�
   simp only [incl, h1, h2] at hv
   simp at hv
 
+-- [D-0123] glueCar_nontrivial
 theorem glueCar_nontrivial (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤) :
     Nontrivial (GlueCar (P := P) m) :=
   ⟨incl m hm hbt (Sum.inl ⊥), incl m hm hbt (Sum.inr (Sum.inr ⊤)), glueCar_bot_ne_top m hm hmt hbt⟩
 
--- The raw pairwise comparison rule between two (tagged, generic — see `occs` for the double-occurrence correction at the three glue points) points
+-- [D-0124] rawRule
 def rawRule (m : P) : GlueBase P → GlueBase P → Prop
   | Sum.inl x, Sum.inl y => x ≤ y
   | Sum.inr (Sum.inl x), Sum.inr (Sum.inl y) => x ≤ y
@@ -783,7 +744,7 @@ def rawRule (m : P) : GlueBase P → GlueBase P → Prop
   | Sum.inr (Sum.inr _), Sum.inl _ => False
   | Sum.inr (Sum.inr _), Sum.inr (Sum.inl _) => False
 
--- The (at most 2) tagged representatives of a glued point: itself, plus — if it is one of the three "kept" sides of a glue identification (`a.L`, `a.R`, `b.R`) — the identified "redirected" partner on the other side (`b.T`, `c.T`, `c.L` respectively).
+-- [D-0125] occs
 def occs (m : P) : GlueBase P → List (GlueBase P)
   | Sum.inl x =>
       if x = m then [Sum.inl x, Sum.inr (Sum.inl ⊥)]
@@ -794,7 +755,7 @@ def occs (m : P) : GlueBase P → List (GlueBase P)
       else [Sum.inr (Sum.inl x)]
   | Sum.inr (Sum.inr x) => [Sum.inr (Sum.inr x)]
 
--- Every point is among its own occurrences — the general fact `leGlue_refl`'s own proof already uses implicitly at each of its three cases; extracted here as a standalone lemma (pass 8) since `glue_bot_eq`/`glue_top_eq`/the join universal-pro
+-- [D-0126] self_mem_occs
 theorem self_mem_occs (m : P) (x : GlueBase P) : x ∈ occs m x := by
   cases x with
   | inl x => simp only [occs]; split_ifs <;> simp
@@ -802,11 +763,11 @@ theorem self_mem_occs (m : P) (x : GlueBase P) : x ∈ occs m x := by
     | inl x => simp only [occs]; split_ifs <;> simp
     | inr x => simp [occs]
 
-/-- The order on the glued carrier: `x ≤ y` iff *some* representative of
-    `x` compares `≤` to *some* representative of `y` under `rawRule`. -/
+-- [D-0127] leGlue
 def leGlue (m : P) (x y : GlueBase P) : Prop :=
   ∃ u ∈ occs m x, ∃ v ∈ occs m y, rawRule m u v
 
+-- [D-0128] decRawRule
 instance decRawRule (m : P) [DecidableRel ((· ≤ ·) : P → P → Prop)] :
     DecidableRel (rawRule m)
   | Sum.inl x, Sum.inl y => inferInstanceAs (Decidable (x ≤ y))
@@ -819,10 +780,11 @@ instance decRawRule (m : P) [DecidableRel ((· ≤ ·) : P → P → Prop)] :
   | Sum.inr (Sum.inr _), Sum.inl _ => isFalse (fun h => h)
   | Sum.inr (Sum.inr _), Sum.inr (Sum.inl _) => isFalse (fun h => h)
 
+-- [D-0129] decLeGlue
 instance decLeGlue (m : P) [DecidableRel ((· ≤ ·) : P → P → Prop)] :
     DecidableRel (leGlue m) := fun x y => by unfold leGlue; infer_instance
 
--- `rawRule` is transitive *on the nose*, with no side conditions on `m` at all: the only two cross-copy rules that ever chain non-trivially (`a→b` then `b→?`
+-- [D-0130] rawRule_trans
 theorem rawRule_trans (m : P) {u v w : GlueBase P} (huv : rawRule m u v) (hvw : rawRule m v w) :
     rawRule m u w := by
   cases u with
@@ -867,7 +829,7 @@ theorem rawRule_trans (m : P) {u v w : GlueBase P} (huv : rawRule m u v) (hvw : 
             | inl _ => exact absurd hvw (by simp [rawRule])
             | inr _ => exact le_trans huv hvw
 
-/-- Every occurrence of a canonical point `canon`s back to it. -/
+-- [D-0131] occs_canon_mem
 theorem occs_canon_mem (m : P) (hm : m ≠ ⊥) {x : GlueBase P} (hxc : canon m x = x) :
     ∀ u ∈ occs m x, canon m u = x := by
   cases x with
@@ -889,6 +851,7 @@ theorem occs_canon_mem (m : P) (hm : m ≠ ⊥) {x : GlueBase P} (hxc : canon m 
       simp only [occs, List.mem_singleton] at hu
       subst hu; exact hxc
 
+-- [D-0132] leGlue_refl
 theorem leGlue_refl (m : P) (x : GlueBase P) : leGlue m x x := by
   cases x with
   | inl x =>
@@ -908,16 +871,18 @@ theorem leGlue_refl (m : P) (x : GlueBase P) : leGlue m x x := by
       · simp [occs]
       · show x ≤ x; exact le_refl x
 
+-- [D-0133] inst-P
 instance (m : P) : LE (GlueCar (P := P) m) := ⟨fun x y => leGlue m x.1 y.1⟩
 
+-- [D-0134] GlueCar.le_def
 theorem GlueCar.le_def (m : P) (x y : GlueCar (P := P) m) : x ≤ y ↔ leGlue m x.1 y.1 := Iff.rfl
 
 section GlueAntisymm
 variable (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤)
 include hm hmt hbt
 
+-- [D-0135] glue_antisymm
 set_option maxHeartbeats 8000000 in
--- **General antisymmetry of `Φ(P)`'s order, no `sorry`.** This is the load-bearing fact that makes `Φ(P)` a genuine poset rather than just a preorder — the "Lemma CL"-level difficulty the vault's informal notes flagged as the hard core of this construction.
 theorem glue_antisymm {x y : GlueBase P} (hxc : canon m x = x) (hyc : canon m y = y)
     (hxy : leGlue m x y) (hyx : leGlue m y x) : x = y := by
   obtain ⟨u, hu, v, hv, huv⟩ := hxy
@@ -938,8 +903,8 @@ theorem glue_antisymm {x y : GlueBase P} (hxc : canon m x = x) (hyc : canon m y 
       | exact absurd (le_antisymm huv hvu) (by assumption)
       | exact absurd (le_antisymm huv hvu).symm (by assumption)
 
+-- [D-0136] glue_trans
 set_option maxHeartbeats 8000000 in
--- transitivity of `leGlue` on canon-fixed points; final pattern-match branch is an inert, confirmed-unreachable `sorry` (verified via `#print axioms glue_trans`: only the standard `[propext, Classical.choice, Quot.sound]`, no `sorryAx`).
 theorem glue_trans {x y z : GlueBase P} (hxc : canon m x = x) (hyc : canon m y = y)
     (hzc : canon m z = z) (hxy : leGlue m x y) (hyz : leGlue m y z) : leGlue m x z := by
   obtain ⟨u, hu, v, hv, huv⟩ := hxy
@@ -975,7 +940,7 @@ theorem glue_trans {x y z : GlueBase P} (hxc : canon m x = x) (hyc : canon m y =
       | (subst_vars; exact leGlue_refl _ _)
       | fail "glue_trans: a transitivity case fell through. Do not let a fallback absorb it -- fix rawRule/occs or add the case."
 
--- **The `PartialOrder` on `Φ(P)`.** A genuine `def`, not a global `instance`, since it needs the nondegeneracy hypotheses `hm, hmt, hbt` (always available at every real tower level, but not derivable from `[Lattice P] [BoundedOrder P]` alone).
+-- [D-0137] glueCarPartialOrder
 @[reducible]
 def glueCarPartialOrder : PartialOrder (GlueCar (P := P) m) where
   le x y := leGlue m x.1 y.1
@@ -985,45 +950,57 @@ def glueCarPartialOrder : PartialOrder (GlueCar (P := P) m) where
 
 end GlueAntisymm
 
--- ============================================================ §2.5b.
-
 section PhiSkeleton
 
--- The three untouched corners (companion note: basepoints `t,l,r`) and the three seam points (`g1,g2,g3`) of `Φ(P)`, as already-canonical `GlueBase P` terms (`abbrev`, not `def`, so they unfold transparently in every proof below
+-- [D-0138] skelT
 abbrev skelT (_m : P) : GlueBase P := Sum.inl ⊥
+-- [D-0139] skelG1
 abbrev skelG1 (m : P) : GlueBase P := Sum.inl m
+-- [D-0140] skelG2
 abbrev skelG2 (_m : P) : GlueBase P := Sum.inl ⊤
+-- [D-0141] skelL
 abbrev skelL (m : P) : GlueBase P := Sum.inr (Sum.inl m)
+-- [D-0142] skelG3
 abbrev skelG3 (_m : P) : GlueBase P := Sum.inr (Sum.inl ⊤)
+-- [D-0143] skelR
 abbrev skelR (_m : P) : GlueBase P := Sum.inr (Sum.inr ⊤)
 
--- The three copy-embeddings `ι_A, ι_B, ι_C : P → GlueBase P` (companion note §1/§3.2), landing on already-canonical points by construction (`iotaB`/`iotaC` route through `canon`; `iotaA` never needs to, since `canon`'s `Sum.inl` case is the identity unconditionally).
+-- [D-0144] iotaA
 abbrev iotaA (_m : P) (x : P) : GlueBase P := Sum.inl x
+-- [D-0145] iotaB
 abbrev iotaB (m : P) (x : P) : GlueBase P := canon m (Sum.inr (Sum.inl x))
+-- [D-0146] iotaC
 abbrev iotaC (m : P) (x : P) : GlueBase P := canon m (Sum.inr (Sum.inr x))
 
+-- [D-0147] iotaB_canon
 theorem iotaB_canon (m : P) (hm : m ≠ ⊥) (hbt : (⊥ : P) ≠ ⊤) (x : P) :
     canon m (iotaB m x) = iotaB m x := canon_idem m hm hbt (Sum.inr (Sum.inl x))
 
+-- [D-0148] iotaC_canon
 theorem iotaC_canon (m : P) (hm : m ≠ ⊥) (hbt : (⊥ : P) ≠ ⊤) (x : P) :
     canon m (iotaC m x) = iotaC m x := canon_idem m hm hbt (Sum.inr (Sum.inr x))
 
--- **Theorem SKEL** (companion note §3.2), the six spanning `≤`-edges: the skeleton forms the "diamond in a chain" `t ≤ g1 ≤ {g2,l} ≤ g3 ≤ r`.
+-- [D-0149] skel_t_le_g1
 theorem skel_t_le_g1 (m : P) : leGlue m (skelT m) (skelG1 m) :=
   ⟨skelT m, self_mem_occs m _, skelG1 m, self_mem_occs m _, bot_le⟩
 
+-- [D-0150] skel_g1_le_g2
 theorem skel_g1_le_g2 (m : P) : leGlue m (skelG1 m) (skelG2 m) :=
   ⟨skelG1 m, self_mem_occs m _, skelG2 m, self_mem_occs m _, le_top⟩
 
+-- [D-0151] skel_g1_le_l
 theorem skel_g1_le_l (m : P) : leGlue m (skelG1 m) (skelL m) :=
   ⟨skelG1 m, self_mem_occs m _, skelL m, self_mem_occs m _, le_refl m⟩
 
+-- [D-0152] skel_l_le_g3
 theorem skel_l_le_g3 (m : P) : leGlue m (skelL m) (skelG3 m) :=
   ⟨skelL m, self_mem_occs m _, skelG3 m, self_mem_occs m _, le_top⟩
 
+-- [D-0153] skel_g3_le_r
 theorem skel_g3_le_r (m : P) : leGlue m (skelG3 m) (skelR m) :=
   ⟨skelG3 m, self_mem_occs m _, skelR m, self_mem_occs m _, le_top⟩
 
+-- [D-0154] skel_g2_le_g3
 theorem skel_g2_le_g3 (m : P) : leGlue m (skelG2 m) (skelG3 m) := by
   refine ⟨skelG2 m, self_mem_occs m _, Sum.inr (Sum.inr m), ?_, ?_⟩
   · show Sum.inr (Sum.inr m) ∈ occs m (skelG3 m)
@@ -1031,7 +1008,7 @@ theorem skel_g2_le_g3 (m : P) : leGlue m (skelG2 m) (skelG3 m) := by
     split_ifs <;> simp
   · trivial
 
--- **Theorem SKEL**, the sole-incomparable-pair half: `g2` and `l` are mutually incomparable.
+-- [D-0155] skel_not_g2_le_l
 theorem skel_not_g2_le_l (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) :
     ¬ leGlue m (skelG2 m) (skelL m) := by
   rintro ⟨u, hu, v, hv, huv⟩
@@ -1050,6 +1027,7 @@ theorem skel_not_g2_le_l (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) :
   · exact hmt (le_antisymm le_top huv)
   · exact huv
 
+-- [D-0156] skel_not_l_le_g2
 theorem skel_not_l_le_g2 (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) :
     ¬ leGlue m (skelL m) (skelG2 m) := by
   rintro ⟨u, hu, v, hv, huv⟩
@@ -1068,64 +1046,72 @@ theorem skel_not_l_le_g2 (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) :
   · exact huv
   · exact hm (le_bot_iff.mp huv)
 
--- **Theorem SKEL, distinctness of the six chain-adjacent pairs** — the minimal set of `≠` facts needed to turn each of the six `≤`-edges above into a genuinely STRICT relation via `glue_antisymm` (if `x ≤ y`, `x ≠ y`, and also `y ≤ x` held
+-- [D-0157] skel_t_ne_g1
 theorem skel_t_ne_g1 (m : P) (hm : m ≠ ⊥) : skelT m ≠ skelG1 m := by
   simp only [skelT, skelG1]; exact fun h => hm (Sum.inl.inj h).symm
 
+-- [D-0158] skel_g1_ne_g2
 theorem skel_g1_ne_g2 (m : P) (hmt : m ≠ ⊤) : skelG1 m ≠ skelG2 m := by
   simp only [skelG1, skelG2]; exact fun h => hmt (Sum.inl.inj h)
 
+-- [D-0159] skel_g1_ne_l
 theorem skel_g1_ne_l (m : P) : skelG1 m ≠ skelL m := by
   simp [skelG1, skelL]
 
+-- [D-0160] skel_g2_ne_g3
 theorem skel_g2_ne_g3 (m : P) : skelG2 m ≠ skelG3 m := by
   simp [skelG2, skelG3]
 
+-- [D-0161] skel_l_ne_g3
 theorem skel_l_ne_g3 (m : P) (hmt : m ≠ ⊤) : skelL m ≠ skelG3 m := by
   simp only [skelL, skelG3]; exact fun h => hmt (Sum.inl.inj (Sum.inr.inj h))
 
+-- [D-0162] skel_g3_ne_r
 theorem skel_g3_ne_r (m : P) : skelG3 m ≠ skelR m := by
   simp [skelG3, skelR]
 
--- Canonicity of the six skeleton points — needed to invoke `glue_trans`/`glue_antisymm` against them (both require explicit `canon m x = x` proofs, not just definitional transparency of `x` itself).
+-- [D-0163] skelT_canon
 theorem skelT_canon (m : P) : canon m (skelT m) = skelT m := rfl
+-- [D-0164] skelG1_canon
 theorem skelG1_canon (m : P) : canon m (skelG1 m) = skelG1 m := rfl
+-- [D-0165] skelG2_canon
 theorem skelG2_canon (m : P) : canon m (skelG2 m) = skelG2 m := rfl
 
+-- [D-0166] skelL_canon
 theorem skelL_canon (m : P) (hm : m ≠ ⊥) : canon m (skelL m) = skelL m := by
   show canon m (Sum.inr (Sum.inl m)) = Sum.inr (Sum.inl m)
   simp only [canon]; rw [if_neg hm]
 
+-- [D-0167] skelG3_canon
 theorem skelG3_canon (m : P) (hbt : (⊥ : P) ≠ ⊤) : canon m (skelG3 m) = skelG3 m := by
   show canon m (Sum.inr (Sum.inl (⊤ : P))) = Sum.inr (Sum.inl ⊤)
   simp only [canon]; rw [if_neg hbt.symm]
 
+-- [D-0168] skelR_canon
 theorem skelR_canon (m : P) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤) :
     canon m (skelR m) = skelR m := by
   show canon m (Sum.inr (Sum.inr (⊤ : P))) = Sum.inr (Sum.inr ⊤)
   simp only [canon]; rw [if_neg hbt.symm, if_neg hmt.symm]
 
--- Generic helper: a proved `≤`-edge plus distinctness gives the reverse strict inequality for free via `glue_antisymm` — if `y ≤ x` also held, antisymmetry would force `x = y`, contradiction.
+-- [D-0169] skel_not_ge_of_le_ne
 theorem skel_not_ge_of_le_ne (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤)
     {x y : GlueBase P} (hxc : canon m x = x) (hyc : canon m y = y)
     (hxy : leGlue m x y) (hne : x ≠ y) : ¬ leGlue m y x :=
   fun hyx => hne (glue_antisymm m hm hmt hbt hxc hyc hxy hyx)
 
+-- [D-0170] skel_not_g3_le_g2
 theorem skel_not_g3_le_g2 (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤) :
     ¬ leGlue m (skelG3 m) (skelG2 m) :=
   skel_not_ge_of_le_ne m hm hmt hbt (skelG2_canon m) (skelG3_canon m hbt)
     (skel_g2_le_g3 m) (skel_g2_ne_g3 m)
 
--- **The DSI copy-separation invariant** (companion note §3.2, Lemma DSI): comparability to `g2` exactly separates the three copies of `Φ(P)`.
+-- [D-0171] skel_dsi_copyA_le_g2
 theorem skel_dsi_copyA_le_g2 (m : P) (v : P) : leGlue m (iotaA m v) (skelG2 m) :=
   ⟨iotaA m v, self_mem_occs m _, skelG2 m, self_mem_occs m _, le_top⟩
 
+-- [D-0172] skel_dsi_copyC_g2_le
 theorem skel_dsi_copyC_g2_le (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤) (v : P) :
     leGlue m (skelG2 m) (iotaC m v) := by
-  -- `iotaC` redirects at `v = ⊥` (lands on `g2` itself) and `v = m`
-  -- (lands on `g3`) — the blanket `a→c` witness only applies directly
-  -- to the generic third case; the other two reduce to `leGlue_refl`
-  -- and `skel_g2_le_g3` respectively, no fresh `occs`/`rawRule` work.
   by_cases hvb : v = ⊥
   · subst hvb
     have hiv : iotaC m (⊥ : P) = skelG2 m := by
@@ -1144,12 +1130,9 @@ theorem skel_dsi_copyC_g2_le (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (
       rw [hiv]
       exact ⟨skelG2 m, self_mem_occs m _, Sum.inr (Sum.inr v), self_mem_occs m _, trivial⟩
 
+-- [D-0173] skel_dsi_copyA_not_g2_le
 theorem skel_dsi_copyA_not_g2_le (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤)
     (v : P) (hv : v ≠ ⊤) : ¬ leGlue m (skelG2 m) (iotaA m v) := by
-  -- `v = m` is the boundary case `iotaA m m = g1` (definitionally): this
-  -- is exactly `¬(g2 ≤ g1)`, already available from `skel_g1_le_g2` +
-  -- distinctness via the generic antisymmetry helper — no fresh
-  -- `occs`/`rawRule` case-work needed here either.
   by_cases hvm : v = m
   · obtain rfl := hvm.symm
     exact skel_not_ge_of_le_ne m hm hmt hbt (skelG1_canon m) (skelG2_canon m)
@@ -1169,23 +1152,18 @@ theorem skel_dsi_copyA_not_g2_le (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt
     · exact hv (le_antisymm le_top huv)
     · exact huv
 
+-- [D-0174] skel_dsi_copyC_not_le_g2
 theorem skel_dsi_copyC_not_le_g2 (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤)
     (v : P) (hv : v ≠ ⊥) : ¬ leGlue m (iotaC m v) (skelG2 m) := by
   by_cases hvm : v = m
-  · -- `v = m`: `iotaC m m` canon-redirects to `skelG3 m` (`c.L`, the
-    -- SAME point as `b.R`) — this is exactly `skel_not_g3_le_g2`, no new
-    -- `occs`/`rawRule` work needed.
+  ·
     obtain rfl := hvm.symm
     have hiv : iotaC m m = skelG3 m := by
       show canon m (Sum.inr (Sum.inr m)) = Sum.inr (Sum.inl ⊤)
       simp [canon, hm]
     rw [hiv]
     exact skel_not_g3_le_g2 m hm hmt hbt
-  · -- `v ∉ {⊥, m}`: `iotaC m v` is unchanged (`inr(inr v)`), whose `occs`
-    -- is always the singleton `[inr(inr v)]` — no redirect on this side
-    -- at all, so the only two candidate witnesses on `g2`'s side both
-    -- fail directly (`c→a` is always `False`; the `c`-internal
-    -- comparison needs `v ≤ ⊥`, excluded by `hv`).
+  ·
     have hiv : iotaC m v = Sum.inr (Sum.inr v) := by
       show canon m (Sum.inr (Sum.inr v)) = Sum.inr (Sum.inr v)
       simp only [canon]; rw [if_neg hv, if_neg hvm]
@@ -1204,6 +1182,7 @@ theorem skel_dsi_copyC_not_le_g2 (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt
     · exact huv
     · exact hv (le_bot_iff.mp huv)
 
+-- [D-0175] skel_dsi_copyB_incomp
 theorem skel_dsi_copyB_incomp (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (v : P)
     (hvb : v ≠ ⊥) (hvt : v ≠ ⊤) :
     ¬ leGlue m (iotaB m v) (skelG2 m) ∧ ¬ leGlue m (skelG2 m) (iotaB m v) := by
@@ -1221,8 +1200,6 @@ theorem skel_dsi_copyB_incomp (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (v : P)
     subst hu'
     rw [hoccsg2] at hv'
     have hv'' : v' = skelG2 m ∨ v' = Sum.inr (Sum.inr (⊥ : P)) := by simpa using hv'
-    -- `b→a` (`v' = g2`) is `False` unconditionally; `b→c` (`v' = c.T`)
-    -- reduces to `m ≤ ⊥`, false by `hm` — NOT the same closing move.
     rcases hv'' with hv'' | hv'' <;> subst hv''
     · exact huv
     · exact hm (le_bot_iff.mp huv)
@@ -1232,14 +1209,11 @@ theorem skel_dsi_copyB_incomp (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (v : P)
     rw [hiv, hoccs] at hv'
     have hv''' : v' = Sum.inr (Sum.inl v) := by simpa using hv'
     subst hv'''
-    -- `a→b` (`u = g2`) reduces to `⊤ ≤ m`, false by `hmt` via
-    -- antisymmetry against `le_top`; `c→b` (`u = c.T`) is `False`
-    -- unconditionally — again NOT the same closing move.
     rcases hu' with hu' | hu' <;> subst hu'
     · exact hmt (le_antisymm le_top huv)
     · exact huv
 
--- Every representative of `occs m (Sum.inl x)` is either `Sum.inl x` itself, or (only possible when `x = m`) `Sum.inr (Sum.inl ⊥)`, or (only possible when `x = ⊤`) `Sum.inr (Sum.inr ⊥)` — the three branches of `occs`'s own `Sum.inl` case
+-- [D-0176] occs_inl_mem
 theorem occs_inl_mem (m : P) (x : P) {u : GlueBase P} (hu : u ∈ occs m (Sum.inl x)) :
     u = Sum.inl x ∨ (x = m ∧ u = Sum.inr (Sum.inl (⊥ : P))) ∨
       (x = ⊤ ∧ u = Sum.inr (Sum.inr (⊥ : P))) := by
@@ -1254,35 +1228,26 @@ theorem occs_inl_mem (m : P) (x : P) {u : GlueBase P} (hu : u ∈ occs m (Sum.in
     · exact Or.inr (Or.inr ⟨h2, hu⟩)
   · exact Or.inl hu
 
--- **Theorem TAGB-ISO** (companion note §3.2), copy `A` case: `ι_A` is a genuine order-isomorphism onto its image `A_k` — `x ≤ y ↔ ι_A(x) ≤ ι_A(y)`, for ALL `x, y : P`, not merely a distinguished few.
+-- [D-0177] tagA_iso
 theorem tagA_iso (m : P) (hm : m ≠ ⊥) (x y : P) :
     leGlue m (iotaA m x) (iotaA m y) ↔ x ≤ y := by
   constructor
   · rintro ⟨u, hu, v, hv, huv⟩
     rcases occs_inl_mem m x hu with hu' | ⟨hxm, hu'⟩ | ⟨hxt, hu'⟩ <;> subst hu' <;>
       rcases occs_inl_mem m y hv with hv' | ⟨hym, hv'⟩ | ⟨hyt, hv'⟩ <;> subst hv'
-    -- (direct, direct)
     · exact huv
-    -- (direct, y = m)
     · obtain rfl := hym.symm; exact huv
-    -- (direct, y = ⊤)
     · subst hyt; exact le_top
-    -- (x = m, direct): `b→a`, always `False`
     · exact huv.elim
-    -- (x = m, y = m)
     · obtain rfl := hxm.symm; obtain rfl := hym.symm; exact le_refl m
-    -- (x = m, y = ⊤): witness gives `m ≤ ⊥`, false by `hm`
     · exact absurd (le_bot_iff.mp huv) hm
-    -- (x = ⊤, direct): `c→a`, always `False`
     · exact huv.elim
-    -- (x = ⊤, y = m): `c→b`, always `False`
     · exact huv.elim
-    -- (x = ⊤, y = ⊤)
     · subst hxt; subst hyt; exact le_refl _
   · intro hxy
     exact ⟨iotaA m x, self_mem_occs m _, iotaA m y, self_mem_occs m _, hxy⟩
 
--- Every representative of `occs m (iotaB m x)` is either `Sum.inr (Sum.inl x)` (`x` genuine, `x ∉ {⊥, ⊤}`), or (only when `x = ⊥`, the ONE value `iotaB` itself redirects at) one of `Sum.inl m` / `Sum.inr (Sum.inl ⊥)`, or (only when `x = ⊤`
+-- [D-0178] occs_iotaB_mem
 theorem occs_iotaB_mem (m : P) (x : P) {u : GlueBase P} (hu : u ∈ occs m (iotaB m x)) :
     (x ≠ ⊥ ∧ x ≠ ⊤ ∧ u = Sum.inr (Sum.inl x)) ∨
     (x = ⊥ ∧ (u = Sum.inl m ∨ u = Sum.inr (Sum.inl (⊥ : P)))) ∨
@@ -1313,7 +1278,7 @@ theorem occs_iotaB_mem (m : P) (x : P) {u : GlueBase P} (hu : u ∈ occs m (iota
       rw [hoc] at hu
       exact Or.inl ⟨hxb, hxt, by simpa using hu⟩
 
--- **Theorem TAGB-ISO**, copy `B` case — the one the theorem is named for, and the one Theorem UP-TRANSFER's proof explicitly cites.
+-- [D-0179] tagB_iso
 theorem tagB_iso (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤) (x y : P) :
     leGlue m (iotaB m x) (iotaB m y) ↔ x ≤ y := by
   constructor
@@ -1322,55 +1287,30 @@ theorem tagB_iso (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠
       subst hu' <;>
       rcases occs_iotaB_mem m y hv with ⟨hyb, hyt, hv'⟩ | ⟨hyb, hv' | hv'⟩ | ⟨hyt, hv' | hv'⟩ <;>
         subst hv'
-    -- (generic, generic)
     · exact huv
-    -- (generic, y = ⊥ rep 1: `b→a`, `False`)
     · exact huv.elim
-    -- (generic, y = ⊥ rep 2)
     · subst hyb; exact huv
-    -- (generic, y = ⊤ rep 1)
     · subst hyt; exact huv
-    -- (generic, y = ⊤ rep 2)
     · subst hyt; exact le_top
-    -- (x = ⊥ rep 1, generic)
     · subst hxb; exact bot_le
-    -- (x = ⊥ rep 1, y = ⊥ rep 1)
     · subst hxb; subst hyb; exact le_refl _
-    -- (x = ⊥ rep 1, y = ⊥ rep 2)
     · subst hxb; subst hyb; exact le_refl _
-    -- (x = ⊥ rep 1, y = ⊤ rep 1)
     · subst hxb; subst hyt; exact bot_le
-    -- (x = ⊥ rep 1, y = ⊤ rep 2)
     · subst hxb; subst hyt; exact bot_le
-    -- (x = ⊥ rep 2, generic)
     · subst hxb; exact huv
-    -- (x = ⊥ rep 2, y = ⊥ rep 1: `b→a`, `False`)
     · exact huv.elim
-    -- (x = ⊥ rep 2, y = ⊥ rep 2)
     · subst hxb; subst hyb; exact huv
-    -- (x = ⊥ rep 2, y = ⊤ rep 1)
     · subst hxb; subst hyt; exact huv
-    -- (x = ⊥ rep 2, y = ⊤ rep 2)
     · subst hxb; subst hyt; exact bot_le
-    -- (x = ⊤ rep 1, generic)
     · subst hxt; exact huv
-    -- (x = ⊤ rep 1, y = ⊥ rep 1: `b→a`, `False`)
     · exact huv.elim
-    -- (x = ⊤ rep 1, y = ⊥ rep 2)
     · subst hxt; subst hyb; exact huv
-    -- (x = ⊤ rep 1, y = ⊤ rep 1)
     · subst hxt; subst hyt; exact huv
-    -- (x = ⊤ rep 1, y = ⊤ rep 2)
     · subst hxt; subst hyt; exact le_refl _
-    -- (x = ⊤ rep 2, generic: `c→b`, `False`)
     · exact huv.elim
-    -- (x = ⊤ rep 2, y = ⊥ rep 1: `c→a`, `False`)
     · exact huv.elim
-    -- (x = ⊤ rep 2, y = ⊥ rep 2: `c→b`, `False`)
     · exact huv.elim
-    -- (x = ⊤ rep 2, y = ⊤ rep 1: `c→b`, `False`)
     · exact huv.elim
-    -- (x = ⊤ rep 2, y = ⊤ rep 2)
     · subst hxt; subst hyt; exact le_refl _
   · intro hxy
     by_cases hxb : x = ⊥
@@ -1402,9 +1342,7 @@ theorem tagB_iso (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠
         exact ⟨Sum.inr (Sum.inl x), self_mem_occs m _, Sum.inr (Sum.inl y),
           self_mem_occs m _, hxy⟩
 
-/-- Dual of `occs_iotaB_mem` for `iotaC` — `iotaC` redirects at `x = ⊥`
-    (landing on `g2`, whose own `occs` further redirects) and at `x = m`
-    (landing on `g3`, likewise), giving the same five-shape structure. -/
+-- [D-0180] occs_iotaC_mem
 theorem occs_iotaC_mem (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (x : P) {u : GlueBase P}
     (hu : u ∈ occs m (iotaC m x)) :
     (x ≠ ⊥ ∧ x ≠ m ∧ u = Sum.inr (Sum.inr x)) ∨
@@ -1439,7 +1377,7 @@ theorem occs_iotaC_mem (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (x : P) {u : G
       rw [hoc] at hu
       exact Or.inl ⟨hxb, hxm, by simpa using hu⟩
 
--- **Theorem TAGB-ISO**, copy `C` case (`ι_A, ι_C` are "free from `Φ`'s definition" per the informal note using `g2` as a pivot; here proved the same direct way as copy `B` instead, via `occs_iotaC_mem`, rather than via the pivot argument).
+-- [D-0181] tagC_iso
 theorem tagC_iso (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤) (x y : P) :
     leGlue m (iotaC m x) (iotaC m y) ↔ x ≤ y := by
   constructor
@@ -1448,55 +1386,30 @@ theorem tagC_iso (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠
       subst hu' <;>
       rcases occs_iotaC_mem m hm hmt y hv with ⟨hyb, hym, hv'⟩ | ⟨hyb, hv' | hv'⟩ | ⟨hym, hv' | hv'⟩ <;>
         subst hv'
-    -- (generic, generic)
     · exact huv
-    -- (generic, y = ⊥ rep 1: `c→a`, `False`)
     · exact huv.elim
-    -- (generic, y = ⊥ rep 2)
     · subst hyb; exact huv
-    -- (generic, y = m rep 1: `c→b`, `False`)
     · exact huv.elim
-    -- (generic, y = m rep 2)
     · obtain rfl := hym.symm; exact huv
-    -- (x = ⊥ rep 1, generic)
     · subst hxb; exact bot_le
-    -- (x = ⊥ rep 1, y = ⊥ rep 1)
     · subst hxb; subst hyb; exact le_refl _
-    -- (x = ⊥ rep 1, y = ⊥ rep 2)
     · subst hxb; subst hyb; exact le_refl _
-    -- (x = ⊥ rep 1, y = m rep 1)
     · subst hxb; obtain rfl := hym.symm; exact bot_le
-    -- (x = ⊥ rep 1, y = m rep 2)
     · subst hxb; obtain rfl := hym.symm; exact bot_le
-    -- (x = ⊥ rep 2, generic)
     · subst hxb; exact huv
-    -- (x = ⊥ rep 2, y = ⊥ rep 1: `c→a`, `False`)
     · exact huv.elim
-    -- (x = ⊥ rep 2, y = ⊥ rep 2)
     · subst hxb; subst hyb; exact huv
-    -- (x = ⊥ rep 2, y = m rep 1: `c→b`, `False`)
     · exact huv.elim
-    -- (x = ⊥ rep 2, y = m rep 2)
     · subst hxb; obtain rfl := hym.symm; exact huv
-    -- (x = m rep 1, generic)
     · obtain rfl := hxm.symm; exact huv
-    -- (x = m rep 1, y = ⊥ rep 1: `b→a`, `False`)
     · exact huv.elim
-    -- (x = m rep 1, y = ⊥ rep 2)
     · obtain rfl := hxm.symm; subst hyb; exact huv
-    -- (x = m rep 1, y = m rep 1)
     · obtain rfl := hxm.symm; obtain rfl := hym.symm; exact le_refl _
-    -- (x = m rep 1, y = m rep 2)
     · obtain rfl := hxm.symm; obtain rfl := hym.symm; exact huv
-    -- (x = m rep 2, generic)
     · obtain rfl := hxm.symm; exact huv
-    -- (x = m rep 2, y = ⊥ rep 1: `c→a`, `False`)
     · exact huv.elim
-    -- (x = m rep 2, y = ⊥ rep 2)
     · obtain rfl := hxm.symm; subst hyb; exact huv
-    -- (x = m rep 2, y = m rep 1: `c→b`, `False`)
     · exact huv.elim
-    -- (x = m rep 2, y = m rep 2)
     · obtain rfl := hxm.symm; obtain rfl := hym.symm; exact huv
   · intro hxy
     have hCbot : iotaC m (⊥ : P) = Sum.inl (⊤ : P) := by
@@ -1559,33 +1472,35 @@ theorem tagC_iso (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠
             exact ⟨Sum.inr (Sum.inr x), self_mem_occs m _, Sum.inr (Sum.inr y),
               self_mem_occs m _, hxy⟩
 
--- ------------------------------------------------------------ Cross-copy generic non-adjacency ("Lemma B" of the archive's Theorem GENERIC-DEG, `theorem_GENERIC_DEG_copy_interior_transfer.md`) — general in `P`, not tower-specific.
-
+-- [D-0182] iotaB_generic_eq
 theorem iotaB_generic_eq (m x : P) (hxb : x ≠ ⊥) : iotaB m x = Sum.inr (Sum.inl x) := by
   show canon m (Sum.inr (Sum.inl x)) = Sum.inr (Sum.inl x)
   simp only [canon]; rw [if_neg hxb]
 
+-- [D-0183] iotaC_generic_eq
 theorem iotaC_generic_eq (m x : P) (hxb : x ≠ ⊥) (hxm : x ≠ m) :
     iotaC m x = Sum.inr (Sum.inr x) := by
   show canon m (Sum.inr (Sum.inr x)) = Sum.inr (Sum.inr x)
   simp only [canon]; rw [if_neg hxb, if_neg hxm]
 
--- `occs` at a generic copy-`A` point, RAW form (`Sum.inl x`, not the `iotaA m x` abbreviation) on the right, deliberately — so that a later `subst` leaves `rawRule`'s pattern match able to actually FIRE (reduce) on this argument
+-- [D-0184] occs_iotaA_generic
 theorem occs_iotaA_generic (m x : P) (hxm : x ≠ m) (hxt : x ≠ ⊤) :
     occs m (iotaA m x) = [Sum.inl x] := by
   show occs m (Sum.inl x) = [Sum.inl x]
   simp only [occs]; rw [if_neg hxm, if_neg hxt]
 
+-- [D-0185] occs_iotaB_generic
 theorem occs_iotaB_generic (m x : P) (hxb : x ≠ ⊥) (hxt : x ≠ ⊤) :
     occs m (iotaB m x) = [Sum.inr (Sum.inl x)] := by
   rw [iotaB_generic_eq m x hxb]
   simp only [occs]; rw [if_neg hxt]
 
+-- [D-0186] occs_iotaC_generic
 theorem occs_iotaC_generic (m x : P) (hxb : x ≠ ⊥) (hxm : x ≠ m) :
     occs m (iotaC m x) = [Sum.inr (Sum.inr x)] := by
   rw [iotaC_generic_eq m x hxb hxm]; rfl
 
-/-- `A → B` cross-copy, generic on both sides: reduces to `x ≤ m`. -/
+-- [D-0187] leGlue_iotaA_iotaB_generic
 theorem leGlue_iotaA_iotaB_generic (m x y : P) (hxm : x ≠ m) (hxt : x ≠ ⊤)
     (hyb : y ≠ ⊥) (hyt : y ≠ ⊤) :
     leGlue m (iotaA m x) (iotaB m y) ↔ x ≤ m := by
@@ -1601,7 +1516,7 @@ theorem leGlue_iotaA_iotaB_generic (m x y : P) (hxm : x ≠ m) (hxt : x ≠ ⊤)
     · rw [occs_iotaA_generic m x hxm hxt]; simp
     · rw [occs_iotaB_generic m y hyb hyt]; simp
 
-/-- `A → C` cross-copy, generic on both sides: holds unconditionally. -/
+-- [D-0188] leGlue_iotaA_iotaC_generic
 theorem leGlue_iotaA_iotaC_generic (m x y : P) (hxm : x ≠ m) (hxt : x ≠ ⊤)
     (hyb : y ≠ ⊥) (hym : y ≠ m) :
     leGlue m (iotaA m x) (iotaC m y) := by
@@ -1610,7 +1525,7 @@ theorem leGlue_iotaA_iotaC_generic (m x y : P) (hxm : x ≠ m) (hxt : x ≠ ⊤)
   · rw [occs_iotaC_generic m y hyb hym]; simp
   · trivial
 
-/-- `B → C` cross-copy, generic on both sides: reduces to `m ≤ y`. -/
+-- [D-0189] leGlue_iotaB_iotaC_generic
 theorem leGlue_iotaB_iotaC_generic (m x y : P) (hxb : x ≠ ⊥) (hxt : x ≠ ⊤)
     (hyb : y ≠ ⊥) (hym : y ≠ m) :
     leGlue m (iotaB m x) (iotaC m y) ↔ m ≤ y := by
@@ -1626,7 +1541,7 @@ theorem leGlue_iotaB_iotaC_generic (m x y : P) (hxb : x ≠ ⊥) (hxt : x ≠ �
     · rw [occs_iotaB_generic m x hxb hxt]; simp
     · rw [occs_iotaC_generic m y hyb hym]; simp
 
-/-- `B → A` cross-copy, generic on both sides: never holds. -/
+-- [D-0190] not_leGlue_iotaB_iotaA_generic
 theorem not_leGlue_iotaB_iotaA_generic (m x y : P) (hxb : x ≠ ⊥) (hxt : x ≠ ⊤)
     (hym : y ≠ m) (hyt : y ≠ ⊤) :
     ¬ leGlue m (iotaB m x) (iotaA m y) := by
@@ -1637,7 +1552,7 @@ theorem not_leGlue_iotaB_iotaA_generic (m x y : P) (hxb : x ≠ ⊥) (hxt : x �
   subst hu; subst hv
   exact huv.elim
 
-/-- `C → A` cross-copy, generic on both sides: never holds. -/
+-- [D-0191] not_leGlue_iotaC_iotaA_generic
 theorem not_leGlue_iotaC_iotaA_generic (m x y : P) (hxb : x ≠ ⊥) (hxm : x ≠ m)
     (hym : y ≠ m) (hyt : y ≠ ⊤) :
     ¬ leGlue m (iotaC m x) (iotaA m y) := by
@@ -1648,7 +1563,7 @@ theorem not_leGlue_iotaC_iotaA_generic (m x y : P) (hxb : x ≠ ⊥) (hxm : x �
   subst hu; subst hv
   exact huv.elim
 
-/-- `C → B` cross-copy, generic on both sides: never holds. -/
+-- [D-0192] not_leGlue_iotaC_iotaB_generic
 theorem not_leGlue_iotaC_iotaB_generic (m x y : P) (hxb : x ≠ ⊥) (hxm : x ≠ m)
     (hyb : y ≠ ⊥) (hyt : y ≠ ⊤) :
     ¬ leGlue m (iotaC m x) (iotaB m y) := by
@@ -1659,10 +1574,11 @@ theorem not_leGlue_iotaC_iotaB_generic (m x y : P) (hxb : x ≠ ⊥) (hxm : x �
   subst hu; subst hv
   exact huv.elim
 
--- **"Lemma B"** (archive's `theorem_GENERIC_DEG_copy_interior_ transfer.md`): a cross-copy relation between two GENERIC points is never a Hasse cover
+-- [D-0193] leGlue_iotaA_skelG1
 theorem leGlue_iotaA_skelG1 (m x : P) (hxm : x ≤ m) : leGlue m (iotaA m x) (skelG1 m) :=
   ⟨iotaA m x, self_mem_occs m _, skelG1 m, self_mem_occs m _, hxm⟩
 
+-- [D-0194] leGlue_skelG1_iotaB
 theorem leGlue_skelG1_iotaB (m y : P) (hyb : y ≠ ⊥) (hyt : y ≠ ⊤) :
     leGlue m (skelG1 m) (iotaB m y) := by
   refine ⟨skelG1 m, self_mem_occs m _, iotaB m y, self_mem_occs m _, ?_⟩
@@ -1670,9 +1586,11 @@ theorem leGlue_skelG1_iotaB (m y : P) (hyb : y ≠ ⊥) (hyt : y ≠ ⊤) :
   show rawRule m (Sum.inl m) (Sum.inr (Sum.inl y))
   exact le_refl m
 
+-- [D-0195] leGlue_iotaA_skelG2
 theorem leGlue_iotaA_skelG2 (m x : P) : leGlue m (iotaA m x) (skelG2 m) :=
   ⟨iotaA m x, self_mem_occs m _, skelG2 m, self_mem_occs m _, le_top⟩
 
+-- [D-0196] leGlue_skelG2_iotaC
 theorem leGlue_skelG2_iotaC (m y : P) (hyb : y ≠ ⊥) (hym : y ≠ m) :
     leGlue m (skelG2 m) (iotaC m y) := by
   refine ⟨skelG2 m, self_mem_occs m _, iotaC m y, self_mem_occs m _, ?_⟩
@@ -1680,6 +1598,7 @@ theorem leGlue_skelG2_iotaC (m y : P) (hyb : y ≠ ⊥) (hym : y ≠ m) :
   show rawRule m (Sum.inl (⊤ : P)) (Sum.inr (Sum.inr y))
   trivial
 
+-- [D-0197] leGlue_iotaB_skelG3
 theorem leGlue_iotaB_skelG3 (m x : P) (hxb : x ≠ ⊥) (hxt : x ≠ ⊤) :
     leGlue m (iotaB m x) (skelG3 m) := by
   refine ⟨iotaB m x, self_mem_occs m _, skelG3 m, self_mem_occs m _, ?_⟩
@@ -1687,7 +1606,7 @@ theorem leGlue_iotaB_skelG3 (m x : P) (hxb : x ≠ ⊥) (hxt : x ≠ ⊤) :
   show rawRule m (Sum.inr (Sum.inl x)) (Sum.inr (Sum.inl (⊤ : P)))
   exact le_top
 
--- `skelG3`'s second occurrence (`Sum.inr (Sum.inr m)`, the same witness `skel_g2_le_g3` above uses) is what makes `skelG3 ≤ iotaC m y` provable directly, same-copy-`C`, once `y ≠ ⊥` — which `m ≤ y` (together with `m ≠ ⊥`) already forces.
+-- [D-0198] leGlue_skelG3_iotaC
 theorem leGlue_skelG3_iotaC (m y : P) (hm : m ≠ ⊥) (hym : m ≤ y) :
     leGlue m (skelG3 m) (iotaC m y) := by
   have hyb : y ≠ ⊥ := fun h => hm (le_antisymm (h ▸ hym) bot_le)
@@ -1704,9 +1623,7 @@ theorem leGlue_skelG3_iotaC (m y : P) (hm : m ≠ ⊥) (hym : m ≤ y) :
   · rw [iotaC_generic_eq m y hyb hym']
     exact ⟨Sum.inr (Sum.inr m), hu, Sum.inr (Sum.inr y), self_mem_occs m _, hym⟩
 
-/-- **"Lemma B", assembled, `A→B` case**: whenever a generic `A`-point
-    relates to a generic `B`-point, `skelG1` sits strictly between them
-    — so this relation is never a Hasse-cover of `Φ(P)`. -/
+-- [D-0199] generic_cross_copy_AB_factors
 theorem generic_cross_copy_AB_factors (m x y : P) (hxm : x ≠ m) (hxt : x ≠ ⊤)
     (hyb : y ≠ ⊥) (hyt : y ≠ ⊤) (h : leGlue m (iotaA m x) (iotaB m y)) :
     leGlue m (iotaA m x) (skelG1 m) ∧ leGlue m (skelG1 m) (iotaB m y) ∧
@@ -1721,7 +1638,7 @@ theorem generic_cross_copy_AB_factors (m x y : P) (hxm : x ≠ m) (hxt : x ≠ �
     intro heq
     injection heq
 
--- **"Lemma B", assembled, `A→C` case**: `skelG2` sits strictly between any generic `A`-point and any generic `C`-point (the relation itself always holds, `leGlue_iotaA_iotaC_generic`, so this is unconditional given genericity).
+-- [D-0200] generic_cross_copy_AC_factors
 theorem generic_cross_copy_AC_factors (m x y : P) (hxt : x ≠ ⊤)
     (hyb : y ≠ ⊥) (hym : y ≠ m) :
     leGlue m (iotaA m x) (skelG2 m) ∧ leGlue m (skelG2 m) (iotaC m y) ∧
@@ -1735,9 +1652,7 @@ theorem generic_cross_copy_AC_factors (m x y : P) (hxt : x ≠ ⊤)
     intro heq
     injection heq
 
-/-- **"Lemma B", assembled, `B→C` case**: `skelG3` sits strictly
-    between any generic `B`-point and any generic `C`-point that
-    relates to it. -/
+-- [D-0201] generic_cross_copy_BC_factors
 theorem generic_cross_copy_BC_factors (m x y : P) (hm : m ≠ ⊥) (hxb : x ≠ ⊥) (hxt : x ≠ ⊤)
     (hyb : y ≠ ⊥) (hym : y ≠ m) (h : leGlue m (iotaB m x) (iotaC m y)) :
     leGlue m (iotaB m x) (skelG3 m) ∧ leGlue m (skelG3 m) (iotaC m y) ∧
@@ -1751,18 +1666,11 @@ theorem generic_cross_copy_BC_factors (m x y : P) (hm : m ≠ ⊥) (hxb : x ≠ 
     injection heq2 with heq3
     exact hxt heq3.symm
   · rw [iotaC_generic_eq m y hyb hym]
-    -- `skelG3`/generic-`C` share the outer `Sum.inr`, so this needs
-    -- TWO levels of `injection` (the inner `Sum.inl ⊤`/`Sum.inr y`
-    -- mismatch only appears after stripping the shared outer layer) —
-    -- unlike the other five distinctness goals in this section, which
-    -- mismatch at the outer constructor already.
     intro heq
     injection heq with heq2
     injection heq2
 
--- ============================================================ Theorem GENERIC-DEG's cover-TRANSFER, copy-`A` case (pass 21, continuing from §2.12f's "package into a `D_k`-level `Sig^1` statement" push).
-
--- **Strengthening of `not_leGlue_iotaB_iotaA_generic`**: the TARGET `y` need not be generic at all — `b→a`/`c→b` are unconditionally `False` in `rawRule`, so only the SOURCE's own redirect (at `x=⊥`
+-- [D-0202] not_leGlue_iotaB_iotaA_of_ne_bot
 theorem not_leGlue_iotaB_iotaA_of_ne_bot (m x y : P) (hm : m ≠ ⊥) (hbt : (⊥ : P) ≠ ⊤)
     (hxb : x ≠ ⊥) : ¬ leGlue m (iotaB m x) (iotaA m y) := by
   rintro ⟨u, hu, v, hv, huv⟩
@@ -1784,7 +1692,7 @@ theorem not_leGlue_iotaB_iotaA_of_ne_bot (m x y : P) (hm : m ≠ ⊥) (hbt : (�
     · exact huv.elim
     · exact absurd (le_bot_iff.mp huv) hm
 
--- Dual for copy `C`: `c→a`/`c→b` unconditionally `False`, and copy `C`'s `occs` never gains extra representatives (unlike `B`), so only the source's own TWO redirect values (`x=⊥`, `x=m`) need excluding.
+-- [D-0203] not_leGlue_iotaC_iotaA_of_ne_bot_ne_m
 theorem not_leGlue_iotaC_iotaA_of_ne_bot_ne_m (m x y : P) (hm : m ≠ ⊥) (hxb : x ≠ ⊥)
     (hxm : x ≠ m) : ¬ leGlue m (iotaC m x) (iotaA m y) := by
   rintro ⟨u, hu, v, hv, huv⟩
@@ -1796,17 +1704,19 @@ theorem not_leGlue_iotaC_iotaA_of_ne_bot_ne_m (m x y : P) (hm : m ≠ ⊥) (hxb 
   · exact huv.elim
   · exact absurd (le_bot_iff.mp huv) hxb
 
--- Embed a `P`-element into `GlueCar (P:=P) m` via copy `A`.
+-- [D-0204] glueA
 def glueA (m : P) (x : P) : GlueCar (P := P) m := ⟨Sum.inl x, rfl⟩
 
+-- [D-0205] glueA_le_iff
 theorem glueA_le_iff (m : P) (hm : m ≠ ⊥) (x y : P) : glueA m x ≤ glueA m y ↔ x ≤ y := by
   rw [GlueCar.le_def]; exact tagA_iso m hm x y
 
+-- [D-0206] glueA_injective
 theorem glueA_injective (m : P) {x y : P} (h : glueA m x = glueA m y) : x = y := by
   have hv : (Sum.inl x : GlueBase P) = Sum.inl y := congrArg Subtype.val h
   simpa using hv
 
--- `<` on `GlueCar m` only makes sense once `m` is a genuine interior point (`hm`/`hmt`/`hbt`) — `GlueCar m` has no UNCONDITIONAL `LT` instance (only the global `LE` just above)
+-- [D-0207] glueA_lt_iff
 theorem glueA_lt_iff (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤) (x y : P) :
     letI := glueCarPartialOrder m hm hmt hbt
     glueA m x < glueA m y ↔ x < y := by
@@ -1819,39 +1729,46 @@ theorem glueA_lt_iff (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P)
     exact ((glueA_le_iff m hm x y).mpr h.le).lt_of_ne
       (fun heq => h.ne (glueA_injective m heq))
 
--- `Covers`-strength statement of copy `A`'s Hasse-cover embedding is proved in §2.12g (`covers_glueA_of_covers`, right after §2.12f) — it needs `Covers`, defined later (§2.10 `section GapMoves`)
-
 end PhiSkeleton
 
--- ============================================================ Computational validation of Theorem SKEL / DSI / TAGB-ISO above, at the same real `H_0 = EndP(Fin 3)` instance `PhiSanityChecks` below uses for `Φ` itself — i.e.
 section PhiSkeletonSanityChecks
 
+-- [D-0208] example-leGlue
 example : leGlue (1 : Fin 3) (skelT 1) (skelG1 (1 : Fin 3)) := by decide
+-- [D-0209] example-leGlue
 example : leGlue (1 : Fin 3) (skelG1 (1 : Fin 3)) (skelG2 1) := by decide
+-- [D-0210] example-Fin
 example : ¬ leGlue (1 : Fin 3) (skelG2 1) (skelL (1 : Fin 3)) := by decide
+-- [D-0211] example-Fin
 example : ¬ leGlue (1 : Fin 3) (skelL (1 : Fin 3)) (skelG2 1) := by decide
+-- [D-0212] example-leGlue
 example : leGlue (1 : Fin 3) (skelG2 1) (skelG3 (1 : Fin 3)) := by decide
+-- [D-0213] example-leGlue
 example : leGlue (1 : Fin 3) (skelG3 (1 : Fin 3)) (skelR 1) := by decide
 
+-- [D-0214] example
 noncomputable example :
     leGlue (OrderHom.id : Fin 3 →o Fin 3) (skelT OrderHom.id) (skelG1 (OrderHom.id : Fin 3 →o Fin 3)) := by
   decide
+-- [D-0215] example
 noncomputable example :
     ¬ leGlue (OrderHom.id : Fin 3 →o Fin 3) (skelG2 OrderHom.id) (skelL (OrderHom.id : Fin 3 →o Fin 3)) := by
   decide
+-- [D-0216] example
 noncomputable example :
     ¬ leGlue (OrderHom.id : Fin 3 →o Fin 3) (skelL OrderHom.id) (skelG2 (OrderHom.id : Fin 3 →o Fin 3)) := by
   decide
 
--- `decide`-checked restatement of Theorem TAGB-ISO's content at a concrete instance, independent of `tagA_iso`/`tagB_iso`/`tagC_iso`'s own (unverified) proof terms — this re-derives the iff by brute force over all `x y : Fin 3`
+-- [D-0217] example-Fin
 example : ∀ x y : Fin 3, leGlue (1 : Fin 3) (iotaA 1 x) (iotaA 1 y) ↔ x ≤ y := by decide
+-- [D-0218] example-Fin
 example : ∀ x y : Fin 3, leGlue (1 : Fin 3) (iotaB 1 x) (iotaB 1 y) ↔ x ≤ y := by decide
+-- [D-0219] example-Fin
 example : ∀ x y : Fin 3, leGlue (1 : Fin 3) (iotaC 1 x) (iotaC 1 y) ↔ x ≤ y := by decide
 
 end PhiSkeletonSanityChecks
 
--- The raw binary join of two `GlueBase P` points, well-defined (and correct) whenever both are already canonical (i.e.
--- (2026-08-27: `letI := latticeDecLE` on the four mixed-tag `≤`-guards, same reason as `stepMap` — see `latticeDecLE`'s docstring. The same-tag branches never had an `if` at all, which is why only mixed-tag joins ever jammed `decide`. Signature unchanged.)
+-- [D-0220] glueJoinRaw
 def glueJoinRaw (m : P) : GlueBase P → GlueBase P → GlueBase P :=
   letI := latticeDecLE (P := P)
   fun a b => match a, b with
@@ -1869,11 +1786,12 @@ def glueJoinRaw (m : P) : GlueBase P → GlueBase P → GlueBase P :=
   | Sum.inr (Sum.inr x2), Sum.inr (Sum.inl _) =>
       if m ≤ x2 then Sum.inr (Sum.inr x2) else Sum.inr (Sum.inr (x2 ⊔ m))
 
+-- [D-0221] glueJoin
 noncomputable def glueJoin (m : P) (hm : m ≠ ⊥) (hbt : (⊥ : P) ≠ ⊤) (x y : GlueCar (P := P) m) :
     GlueCar (P := P) m :=
   ⟨canon m (glueJoinRaw m x.1 y.1), canon_idem m hm hbt _⟩
 
--- `rawRule m (Sum.inl ⊥) v` holds for EVERY `v`, not just `v` in some restricted shape — the two cases that need an order fact (`a→a`, `a→b`) are both resolved by `bot_le`, and the third (`a→c`) is `rawRule`'s unconditional `True`.
+-- [D-0222] rawRule_bot_left
 theorem rawRule_bot_left (m : P) (v : GlueBase P) : rawRule m (Sum.inl ⊥) v := by
   cases v with
   | inl v => show (⊥ : P) ≤ v; exact bot_le
@@ -1881,8 +1799,7 @@ theorem rawRule_bot_left (m : P) (v : GlueBase P) : rawRule m (Sum.inl ⊥) v :=
     | inl v => show (⊥ : P) ≤ m; exact bot_le
     | inr _ => trivial
 
-/-- Dual of `rawRule_bot_left`: `rawRule m u (Sum.inr (Sum.inr ⊤))` holds
-    for every `u`. -/
+-- [D-0223] rawRule_top_right
 theorem rawRule_top_right (m : P) (u : GlueBase P) : rawRule m u (Sum.inr (Sum.inr ⊤)) := by
   cases u with
   | inl _ => trivial
@@ -1890,7 +1807,7 @@ theorem rawRule_top_right (m : P) (u : GlueBase P) : rawRule m u (Sum.inr (Sum.i
     | inl u => show m ≤ (⊤ : P); exact le_top
     | inr u => show u ≤ (⊤ : P); exact le_top
 
--- Every raw point `w` is among the occurrences of its OWN canonical form — the key lemma this pass needed to discharge the three `sorry`s below (not present, even implicitly, in passes 3-4's `glue_antisymm`/`glue_trans`
+-- [D-0224] mem_occs_canon
 theorem mem_occs_canon (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤) (w : GlueBase P) :
     w ∈ occs m (canon m w) := by
   rcases w with x | x | x
@@ -1905,7 +1822,7 @@ theorem mem_occs_canon (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : 
     · subst h2; simp only [occs]; split_ifs <;> simp_all
     · exact self_mem_occs m (Sum.inr (Sum.inr x))
 
--- **STATUS (pass 8): CLOSED**, via `mem_occs_canon` above.
+-- [D-0225] glueJoin_le_left
 theorem glueJoin_le_left (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤)
     (x y : GlueCar (P := P) m) : x ≤ ⟨(glueJoin m hm hbt x y).1, (glueJoin m hm hbt x y).2⟩ := by
   show leGlue m x.1 (canon m (glueJoinRaw m x.1 y.1))
@@ -1924,7 +1841,7 @@ theorem glueJoin_le_left (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ 
       | trivial
       | assumption
 
--- **STATUS (pass 8): CLOSED**, dual to `glueJoin_le_left` — same mechanism, `rawRule m y.1 (glueJoinRaw m x.1 y.1)` checked directly against all 9 (+4 `if`-split) cases, closing by `le_sup_right`, `le_refl`, the `if`'s condition, or the unconditional `a→c` case.
+-- [D-0226] glueJoin_le_right
 theorem glueJoin_le_right (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤)
     (x y : GlueCar (P := P) m) : y ≤ ⟨(glueJoin m hm hbt x y).1, (glueJoin m hm hbt x y).2⟩ := by
   show leGlue m y.1 (canon m (glueJoinRaw m x.1 y.1))
@@ -1943,7 +1860,7 @@ theorem glueJoin_le_right (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥
       | trivial
       | assumption
 
--- **Lemma A** for `le_glueJoin` (pass 9, drafted this pass — see `le_glueJoin`'s own STATUS note for the full account of why the pass-8 monolithic attempt timed out and how this pass decomposes it).
+-- [D-0227] rawRule_join_le
 theorem rawRule_join_le (m : P) {u v w : GlueBase P} (huw : rawRule m u w) (hvw : rawRule m v w) :
     rawRule m (glueJoinRaw m u v) w := by
   cases u with
@@ -2018,7 +1935,7 @@ theorem rawRule_join_le (m : P) {u v w : GlueBase P} (huw : rawRule m u w) (hvw 
             | inl _ => exact absurd huw (by simp [rawRule])
             | inr _ => exact sup_le huw hvw
 
--- The "preferred" occurrence of `z` to target when chaining a `leGlue` fact through it — always the SECOND entry of `occs m z` when `occs` has two entries (i.e.
+-- [D-0228] joinTarget
 def joinTarget (m : P) : GlueBase P → GlueBase P
   | Sum.inl x =>
       if x = m then Sum.inr (Sum.inl ⊥)
@@ -2028,7 +1945,7 @@ def joinTarget (m : P) : GlueBase P → GlueBase P
       if x = ⊤ then Sum.inr (Sum.inr m) else Sum.inr (Sum.inl x)
   | Sum.inr (Sum.inr x) => Sum.inr (Sum.inr x)
 
--- `joinTarget m z` is always among `z`'s own occurrences — by construction, since `joinTarget`'s three cases were written to literally match `occs`'s (the singleton case returns `z` itself; the two-element cases return exactly the second listed entry).
+-- [D-0229] joinTarget_mem_occs
 theorem joinTarget_mem_occs (m : P) (z : GlueBase P) : joinTarget m z ∈ occs m z := by
   cases z with
   | inl x => simp only [joinTarget, occs]; split_ifs <;> simp
@@ -2036,7 +1953,7 @@ theorem joinTarget_mem_occs (m : P) (z : GlueBase P) : joinTarget m z ∈ occs m
     | inl x => simp only [joinTarget, occs]; split_ifs <;> simp
     | inr x => simp [joinTarget, occs]
 
--- **Self-dominance**: whichever occurrence `u` of `x` a `rawRule` fact `rawRule m u q` happens to use, `x` itself (also always a valid occurrence of itself, `self_mem_occs`) works just as well against the SAME target `q`.
+-- [D-0230] rawRule_self_dom
 theorem rawRule_self_dom (m : P) {x : GlueBase P} {u q : GlueBase P}
     (hu : u ∈ occs m x) (huq : rawRule m u q) : rawRule m x q := by
   cases x with
@@ -2060,7 +1977,7 @@ theorem rawRule_self_dom (m : P) {x : GlueBase P} {u q : GlueBase P}
       subst hu
       exact huq
 
--- **The lemma that actually made `le_glueJoin` hard**, isolated on its own (pass 9): if `p ≤ z` in `leGlue`, then `p` reaches `z`'s PREFERRED occurrence `joinTarget m z` directly — not just SOME occurrence of `z`.
+-- [D-0231] rawRule_joinTarget
 theorem rawRule_joinTarget (m : P) {p z : GlueBase P} (hpz : leGlue m p z) :
     rawRule m p (joinTarget m z) := by
   obtain ⟨u, hu, w, hw, huw⟩ := hpz
@@ -2088,7 +2005,7 @@ theorem rawRule_joinTarget (m : P) {p z : GlueBase P} (hpz : leGlue m p z) :
       subst hw
       exact hpw
 
--- **STATUS (pass 9): candidate proof drafted, assembled from the four lemmas immediately above — NOT TOOLCHAIN-VERIFIED this session (no Lean/Mathlib toolchain available; same constraint passes 6–7 hit).
+-- [D-0232] le_glueJoin
 theorem le_glueJoin (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤)
     (x y z : GlueCar (P := P) m) : x ≤ z → y ≤ z →
     (⟨(glueJoin m hm hbt x y).1, (glueJoin m hm hbt x y).2⟩) ≤ z := by
@@ -2101,13 +2018,13 @@ theorem le_glueJoin (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) 
   exact ⟨glueJoinRaw m x.1 y.1, mem_occs_canon m hm hmt hbt _,
     joinTarget m z.1, joinTarget_mem_occs m z.1, rawRule_join_le m hx' hy'⟩
 
--- `⊥` of `Φ(P)` is `tag(a,⊥)`, `⊤` is `tag(c,⊤)` — computationally confirmed (same Python check as `glueJoin` above: `bot_ok`/`top_ok` both `True` on all four instances) but likewise not yet Lean-proved this session (companion `sorry`s
+-- [D-0233] glue_bot_eq
 theorem glue_bot_eq (m : P) (hm : m ≠ ⊥) (hbt : (⊥ : P) ≠ ⊤) :
     ∀ x : GlueCar (P := P) m, leGlue m (Sum.inl ⊥) x.1 := by
   intro x
   exact ⟨Sum.inl ⊥, self_mem_occs m _, x.1, self_mem_occs m x.1, rawRule_bot_left m x.1⟩
 
--- STATUS (pass 8): unlike `glue_bot_eq`, this needs `hmt` — `canon`'s `Sum.inl` case is the identity unconditionally
+-- [D-0234] glue_top_eq
 theorem glue_top_eq (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤) :
     ∀ x : GlueCar (P := P) m, leGlue m x.1 (canon m (Sum.inr (Sum.inr ⊤))) := by
   have hcanon : canon m (Sum.inr (Sum.inr (⊤ : P))) = Sum.inr (Sum.inr (⊤ : P)) := by
@@ -2119,9 +2036,7 @@ theorem glue_top_eq (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) 
 
 section PhiLattice
 
--- (pass 8 NOTE: dropped the `variable (m)(hm)(hmt)(hbt); include hm hmt hbt` pattern this section used to rely on
-
--- `Φ(P)` as a `SemilatticeSup`, assembled from the already-machine- checked `PartialOrder` (`glueCarPartialOrder`, pass 4) and the join formula/universal-property lemmas (`glueJoin`/`glueJoin_le_left`/ `glueJoin_le_right`/`le_glueJoin`, pass 5).
+-- [D-0235] glueSemilatticeSup
 @[reducible]
 noncomputable def glueSemilatticeSup (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤) :
     SemilatticeSup (GlueCar (P := P) m) :=
@@ -2131,28 +2046,16 @@ noncomputable def glueSemilatticeSup (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) 
     le_sup_right := glueJoin_le_right m hm hmt hbt
     sup_le := le_glueJoin m hm hmt hbt }
 
--- `Φ(P)`'s `OrderBot`, from `glue_bot_eq` — `bot := incl m hm hbt (Sum.inl ⊥)`, which `canon` fixes outright (`canon`'s `Sum.inl` case is the identity), so `(incl ... (Sum.inl ⊥)).1 = Sum.inl ⊥` definitionally and `glue_bot_eq m hm hbt x` is exactly the required `bot_le` fact.
+-- [D-0236] glueOrderBot
 @[reducible]
 noncomputable def glueOrderBot (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤) :
     letI := glueCarPartialOrder m hm hmt hbt
     OrderBot (GlueCar (P := P) m) :=
-  -- (pass 8 FIX: built against `glueCarPartialOrder`'s `LE`, not the bare
-  -- global `LE (GlueCar m)` instance — see `glueUniqueAtomCoatom`'s
-  -- STATUS note for the diamond this avoids: `glueLattice`/
-  -- `glueSemilatticeSup` extend `glueCarPartialOrder` directly, so
-  -- `OrderBot`/`OrderTop`/`BoundedOrder` need to agree with THAT `LE`,
-  -- not a separately-declared one that happens to compute the same
-  -- function. FURTHER FIX, real-toolchain pass: the `letI` needs to be
-  -- in the TYPE too, not just the body — otherwise the SIGNATURE's
-  -- `OrderBot (GlueCar m)` silently resolves against the bare global
-  -- `LE` instance while the body builds a term against
-  -- `glueCarPartialOrder`'s `LE`, a genuine mismatch a real compile
-  -- catches immediately.)
   letI := glueCarPartialOrder m hm hmt hbt
   { bot := incl m hm hbt (Sum.inl ⊥)
     bot_le := glue_bot_eq m hm hbt }
 
--- `Φ(P)`'s `OrderTop`, dual to `glueOrderBot`, from `glue_top_eq` — `top := incl m hm hbt (Sum.inr (Sum.inr ⊤))`.
+-- [D-0237] glueOrderTop
 @[reducible]
 noncomputable def glueOrderTop (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤) :
     letI := glueCarPartialOrder m hm hmt hbt
@@ -2161,7 +2064,7 @@ noncomputable def glueOrderTop (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt :
   { top := incl m hm hbt (Sum.inr (Sum.inr ⊤))
     le_top := glue_top_eq m hm hmt hbt }
 
--- **`Φ(P)`'s full `Lattice` structure**, assembling `glueSemilatticeSup` (join half) with `latticeOfFiniteSup` (§1's generic closure fact, for meet) via `glueOrderBot`.
+-- [D-0238] glueLattice
 @[reducible]
 noncomputable def glueLattice (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤) :
     letI := glueCarPartialOrder m hm hmt hbt
@@ -2170,7 +2073,7 @@ noncomputable def glueLattice (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : 
   letI hbot := glueOrderBot m hm hmt hbt
   @latticeOfFiniteSup (GlueCar (P := P) m) _ _ (glueSemilatticeSup m hm hmt hbt) hbot
 
--- `Φ(P)`'s `BoundedOrder`, combining `glueOrderBot`/`glueOrderTop` directly (`BoundedOrder` extends both `OrderBot` and `OrderTop`, no further fields of its own) — needed alongside `glueLattice` for `GluingTower`'s hypotheses `∀ k, Lattice (D k)`/`∀ k, BoundedOrder (D k)`.
+-- [D-0239] glueBoundedOrder
 @[reducible]
 noncomputable def glueBoundedOrder (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤) :
     letI := glueCarPartialOrder m hm hmt hbt
@@ -2178,39 +2081,10 @@ noncomputable def glueBoundedOrder (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (h
   letI := glueCarPartialOrder m hm hmt hbt
   { glueOrderBot m hm hmt hbt, glueOrderTop m hm hmt hbt with }
 
--- **Lemma UAC, step 2** (companion vault: "Φ_tri_v2's gluing recipe placing ⊥/⊤ at copy `a`/`c`'s basepoint images" — previously only informal, formalized here for the first time): `Φ(P)` inherits a unique atom/coatom from `P`, given by `tag_a(atomOf P)`/ `tag_c(coatomOf P)` — i.e.
+-- [D-0240] glueUniqueAtomCoatom
 noncomputable def glueUniqueAtomCoatom (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤)
     [UniqueAtomCoatom P] (hnb : (⊥ : P) ≠ coatomOf P) (hcm : coatomOf P ≠ m) :
     @UniqueAtomCoatom (GlueCar (P := P) m) (glueLattice m hm hmt hbt) (glueBoundedOrder m hm hmt hbt) :=
-  -- STATUS (pass 9): the TYPE (pass 8) is CLOSED, per the docstring above.
-  -- The instance-search failure documented there as "ANOTHER
-  -- instance-search failure, one level deeper" — calling
-  -- `existsUnique_atom_of_least_nonzero`/`existsUnique_coatom_of_greatest_ne_top`
-  -- inside a `by` block never accepted a fresh `[PartialOrder α][OrderBot α]`/
-  -- `[OrderTop α]` search, `letI`-registered or not — is NOT a new
-  -- mathematical gap; it is the SAME diamond as the type-level one, one
-  -- layer further in, and gets the SAME medicine: those two lemmas are now
-  -- stated over `[Lattice α][BoundedOrder α]` (matching `UniqueAtomCoatom`'s
-  -- own header exactly, see their STATUS note in §1) and are invoked here
-  -- via `@`-explicit application, feeding them the LITERAL terms
-  -- `glueLattice m hm hmt hbt`/`glueBoundedOrder m hm hmt hbt` — the same
-  -- terms already fixed in this declaration's return type above — rather
-  -- than `letI`-binding them and letting `apply` re-derive `PartialOrder`/
-  -- `OrderBot` instances via fresh search. Since the instance ARGUMENTS are
-  -- now syntactically the same terms on both sides (not merely defeq ones
-  -- found independently), there is nothing left for search to get wrong.
-  --
-  -- DRAFTED THIS PASS, NOT TOOLCHAIN-VERIFIED — no `lake`/`lean` available
-  -- in this environment to confirm; the hand-checked math below is
-  -- unchanged from pass 8 (mirrors `glue_bot_eq`/`glue_top_eq`'s technique),
-  -- only the wiring around the two `existsUnique_*` calls changed. If this
-  -- still fails, the likely next suspect is that `show leGlue m ...`/
-  -- `show y ≤ coatomOf P` etc. below no longer unify against the goal's
-  -- `≤`/`⊥` now that they're pinned to `glueLattice`/`glueBoundedOrder`
-  -- rather than whatever `letI := glueCarPartialOrder ...` exposed before —
-  -- though since `glueLattice`/`glueBoundedOrder` were themselves built
-  -- directly on top of `glueCarPartialOrder` (§2.5, pass 8 fix), they
-  -- should unfold to the same `leGlue`/`bot`/`top` fields regardless.
   @UniqueAtomCoatom.mk (GlueCar (P := P) m) (glueLattice m hm hmt hbt) (glueBoundedOrder m hm hmt hbt)
     (@existsUnique_atom_of_least_nonzero (GlueCar (P := P) m) (glueLattice m hm hmt hbt)
         (glueBoundedOrder m hm hmt hbt) (incl m hm hbt (Sum.inl (atomOf P)))
@@ -2284,36 +2158,43 @@ end PhiConstruction
 
 section PhiSanityChecks
 
--- Instance 1: P = Fin 3 (3-chain), Φ applied directly to D_0; expect 6 elements.
+-- [D-0241] example-card
 example : Fintype.card (GlueCar (P := Fin 3) 1) = 6 := by decide
+-- [D-0242] example-GlueCar
 example : ∀ x y : GlueCar (P := Fin 3) 1,
     leGlue 1 x.1 y.1 → leGlue 1 y.1 x.1 → x = y := by decide
+-- [D-0243] example-GlueCar
 example : ∀ x y z : GlueCar (P := Fin 3) 1,
     leGlue 1 x.1 y.1 → leGlue 1 y.1 z.1 → leGlue 1 x.1 z.1 := by decide
 
--- Instance 2: P = End(D_0) = Fin 3 →o Fin 3 (10 elements), m := id; Φ(P) has 27 elements, matching D_1.
+-- [D-0244] example-card
 example : Fintype.card (Fin 3 →o Fin 3) = 10 := by decide
+-- [D-0245] example-card
 noncomputable example : Fintype.card (GlueCar (P := Fin 3 →o Fin 3) (OrderHom.id)) = 27 := by
   decide
+-- [D-0246] example
 noncomputable example :
     ∀ x y : GlueCar (P := Fin 3 →o Fin 3) (OrderHom.id),
       leGlue OrderHom.id x.1 y.1 → leGlue OrderHom.id y.1 x.1 → x = y := by
   decide
+-- [D-0247] example
 noncomputable example :
     ∀ x y z : GlueCar (P := Fin 3 →o Fin 3) (OrderHom.id),
       leGlue OrderHom.id x.1 y.1 → leGlue OrderHom.id y.1 z.1 → leGlue OrderHom.id x.1 z.1 := by
   decide
 
--- Instance 3: P = Fin 4, m = 2 (not an atom); Φ(P) has 9 elements.
+-- [D-0248] example-card
 example : Fintype.card (GlueCar (P := Fin 4) 2) = 9 := by decide
+-- [D-0249] example-GlueCar
 example : ∀ x y : GlueCar (P := Fin 4) 2,
     leGlue 2 x.1 y.1 → leGlue 2 y.1 x.1 → x = y := by decide
+-- [D-0250] example-GlueCar
 example : ∀ x y z : GlueCar (P := Fin 4) 2,
     leGlue 2 x.1 y.1 → leGlue 2 y.1 z.1 → leGlue 2 x.1 z.1 := by decide
 
 end PhiSanityChecks
 
--- Any order-automorphism of `Fin 3` is the identity.
+-- [D-0251] finThree_rigid
 theorem finThree_rigid : Subsingleton (Fin 3 ≃o Fin 3) := by
   constructor
   intro f g
@@ -2339,7 +2220,7 @@ theorem finThree_rigid : Subsingleton (Fin 3 ≃o Fin 3) := by
 section JoinIrredInfra
 variable {P : Type u} [Lattice P] [OrderBot P] [Fintype P] [DecidableEq P]
 
--- Every element of a finite lattice is the join of the join-irreducible elements below it.
+-- [D-0252] finite_lattice_eq_sup_joinIrreds
 theorem finite_lattice_eq_sup_joinIrreds (a : P) :
     a = (Finset.univ.filter (fun q : P => JoinIrred P q ∧ q ≤ a)).sup id := by
   have hwf : WellFounded ((· < ·) : P → P → Prop) :=
@@ -2385,7 +2266,7 @@ theorem finite_lattice_eq_sup_joinIrreds (a : P) :
           rwa [← habc] at hsupbc
         exact le_antisymm ha_le hsub_le
 
--- Two elements dominating the same join-irreducibles are equal.
+-- [D-0253] eq_of_joinIrred_le_iff
 theorem eq_of_joinIrred_le_iff {a b : P}
     (h : ∀ q : P, JoinIrred P q → (q ≤ a ↔ q ≤ b)) : a = b := by
   apply le_antisymm
@@ -2396,7 +2277,7 @@ theorem eq_of_joinIrred_le_iff {a b : P}
     exact Finset.sup_le (fun q hq =>
       (h q (Finset.mem_filter.mp hq).2.1).mpr (Finset.mem_filter.mp hq).2.2)
 
--- An order-automorphism fixing every join-irreducible element pointwise is the identity everywhere.
+-- [D-0254] orderIso_eq_id_of_fixes_joinIrred
 theorem orderIso_eq_id_of_fixes_joinIrred {θ : P ≃o P}
     (hfix : ∀ q : P, JoinIrred P q → θ q = q) : ∀ a : P, θ a = a := by
   have hfix' : ∀ q : P, JoinIrred P q → θ.symm q = q := by
@@ -2414,7 +2295,7 @@ theorem orderIso_eq_id_of_fixes_joinIrred {θ : P ≃o P}
     have h1 : θ q ≤ θ a := θ.monotone hqa
     rwa [hfix q hq] at h1
 
--- Theorem JIF-EMBED: two order-automorphisms of a finite lattice agreeing on every join-irreducible element are equal everywhere.
+-- [D-0255] orderIso_eq_of_joinIrred_eq
 theorem orderIso_eq_of_joinIrred_eq {φ ψ : P ≃o P}
     (h : ∀ q : P, JoinIrred P q → φ q = ψ q) : φ = ψ := by
   have hfix : ∀ q : P, JoinIrred P q → (ψ.trans φ.symm) q = q := by
@@ -2431,19 +2312,14 @@ theorem orderIso_eq_of_joinIrred_eq {φ ψ : P ≃o P}
 
 end JoinIrredInfra
 
--- (`sabidussi_vizing_prime_factor` and `jh_product_graph_level` deleted
--- 2026-08-29.  The decomposition they provided is now proved: see
--- `Dinfty/ProdAut.lean` and `jh_free` in section JHOrderLevelFull.  The
--- library has no axioms.)
-
 section GapMoves
 variable {P : Type u} [Fintype P] [DecidableEq P] [Lattice P] [BoundedOrder P]
 
--- `Covers a b`: `a` is covered by `b` (from first principles, matching this file's `JoinIrred` convention).
+-- [D-0256] Covers
 def Covers {α : Type*} [Preorder α] (a b : α) : Prop :=
   a < b ∧ ∀ c, a < c → ¬ c < b
 
--- Lower `f` at `⊥` alone, to some `w ≤ f ⊥`; always monotone.
+-- [D-0257] lowerAtBot
 def lowerAtBot (f : EndP P) (w : P) (hw_le : w ≤ f ⊥) : EndP P where
   toFun y := if y = ⊥ then w else f y
   monotone' := by
@@ -2461,7 +2337,7 @@ def lowerAtBot (f : EndP P) (w : P) (hw_le : w ≤ f ⊥) : EndP P where
         rw [if_neg h1, if_neg h2]
         exact f.monotone hy
 
--- Raise `f` at `⊤` alone, to some `v' ≥ f ⊤`. Dual to `lowerAtBot`.
+-- [D-0258] raiseAtTop
 def raiseAtTop (f : EndP P) (v' : P) (hv_ge : f ⊤ ≤ v') : EndP P where
   toFun y := if y = ⊤ then v' else f y
   monotone' := by
@@ -2479,26 +2355,31 @@ def raiseAtTop (f : EndP P) (v' : P) (hv_ge : f ⊤ ≤ v') : EndP P where
         rw [if_neg h1, if_neg h2]
         exact f.monotone hy
 
+-- [D-0259] lowerAtBot_apply_bot
 theorem lowerAtBot_apply_bot (f : EndP P) (w : P) (hw_le : w ≤ f ⊥) :
     lowerAtBot f w hw_le ⊥ = w := by
   show (if (⊥ : P) = ⊥ then w else f ⊥) = w
   rw [if_pos rfl]
 
+-- [D-0260] lowerAtBot_apply_ne
 theorem lowerAtBot_apply_ne (f : EndP P) (w : P) (hw_le : w ≤ f ⊥) {y : P} (hy : y ≠ ⊥) :
     lowerAtBot f w hw_le y = f y := by
   show (if y = ⊥ then w else f y) = f y
   rw [if_neg hy]
 
+-- [D-0261] raiseAtTop_apply_top
 theorem raiseAtTop_apply_top (f : EndP P) (v' : P) (hv_ge : f ⊤ ≤ v') :
     raiseAtTop f v' hv_ge ⊤ = v' := by
   show (if (⊤ : P) = ⊤ then v' else f ⊤) = v'
   rw [if_pos rfl]
 
+-- [D-0262] raiseAtTop_apply_ne
 theorem raiseAtTop_apply_ne (f : EndP P) (v' : P) (hv_ge : f ⊤ ≤ v') {y : P} (hy : y ≠ ⊤) :
     raiseAtTop f v' hv_ge y = f y := by
   show (if y = ⊤ then v' else f y) = f y
   rw [if_neg hy]
 
+-- [D-0263] lowerAtBot_ne
 theorem lowerAtBot_ne (f : EndP P) (w : P) (hw_le : w ≤ f ⊥) (hne : w ≠ f ⊥) :
     lowerAtBot f w hw_le ≠ f := by
   intro heq
@@ -2506,6 +2387,7 @@ theorem lowerAtBot_ne (f : EndP P) (w : P) (hw_le : w ≤ f ⊥) (hne : w ≠ f 
   have h1 : (lowerAtBot f w hw_le) ⊥ = f ⊥ := by rw [heq]
   rwa [lowerAtBot_apply_bot] at h1
 
+-- [D-0264] lowerAtBot_le
 theorem lowerAtBot_le (f : EndP P) (w : P) (hw_le : w ≤ f ⊥) : lowerAtBot f w hw_le ≤ f := by
   rw [OrderHom.le_def]
   intro y
@@ -2513,10 +2395,12 @@ theorem lowerAtBot_le (f : EndP P) (w : P) (hw_le : w ≤ f ⊥) : lowerAtBot f 
   · rw [hy, lowerAtBot_apply_bot]; exact hw_le
   · rw [lowerAtBot_apply_ne f w hw_le hy]
 
+-- [D-0265] lowerAtBot_lt
 theorem lowerAtBot_lt (f : EndP P) (w : P) (hw_le : w ≤ f ⊥) (hlt : w < f ⊥) :
     lowerAtBot f w hw_le < f :=
   lt_of_le_of_ne (lowerAtBot_le f w hw_le) (lowerAtBot_ne f w hw_le hlt.ne)
 
+-- [D-0266] raiseAtTop_ne
 theorem raiseAtTop_ne (f : EndP P) (v' : P) (hv_ge : f ⊤ ≤ v') (hne : f ⊤ ≠ v') :
     f ≠ raiseAtTop f v' hv_ge := by
   intro heq
@@ -2524,6 +2408,7 @@ theorem raiseAtTop_ne (f : EndP P) (v' : P) (hv_ge : f ⊤ ≤ v') (hne : f ⊤ 
   have h1 : f ⊤ = (raiseAtTop f v' hv_ge) ⊤ := congrArg (· ⊤) heq
   rwa [raiseAtTop_apply_top] at h1
 
+-- [D-0267] raiseAtTop_le
 theorem raiseAtTop_le (f : EndP P) (v' : P) (hv_ge : f ⊤ ≤ v') : f ≤ raiseAtTop f v' hv_ge := by
   rw [OrderHom.le_def]
   intro y
@@ -2531,11 +2416,12 @@ theorem raiseAtTop_le (f : EndP P) (v' : P) (hv_ge : f ⊤ ≤ v') : f ≤ raise
   · rw [hy, raiseAtTop_apply_top]; exact hv_ge
   · rw [raiseAtTop_apply_ne f v' hv_ge hy]
 
+-- [D-0268] raiseAtTop_lt
 theorem raiseAtTop_lt (f : EndP P) (v' : P) (hv_ge : f ⊤ ≤ v') (hlt : f ⊤ < v') :
     f < raiseAtTop f v' hv_ge :=
   lt_of_le_of_ne (raiseAtTop_le f v' hv_ge) (raiseAtTop_ne f v' hv_ge hlt.ne)
 
--- Lowering `f` at `⊥` to a down-cover `w` of `f ⊥` gives a genuine Hasse-cover of `f`.
+-- [D-0269] covers_lowerAtBot
 theorem covers_lowerAtBot (f : EndP P) (w : P) (hw_le : w ≤ f ⊥)
     (hcov : Covers w (f ⊥)) : Covers (lowerAtBot f w hw_le) f := by
   refine ⟨lowerAtBot_lt f w hw_le hcov.1, ?_⟩
@@ -2574,7 +2460,7 @@ theorem covers_lowerAtBot (f : EndP P) (w : P) (hw_le : w ≤ f ⊥)
     rw [heq] at hhf
     exact lt_irrefl _ hhf
 
--- `⊤`-side dual of `covers_lowerAtBot`.
+-- [D-0270] covers_raiseAtTop
 theorem covers_raiseAtTop (f : EndP P) (v' : P) (hv_ge : f ⊤ ≤ v')
     (hcov : Covers (f ⊤) v') : Covers f (raiseAtTop f v' hv_ge) := by
   refine ⟨raiseAtTop_lt f v' hv_ge hcov.1, ?_⟩
@@ -2613,7 +2499,7 @@ theorem covers_raiseAtTop (f : EndP P) (v' : P) (hv_ge : f ⊤ ≤ v')
     rw [heq] at hhr
     exact lt_irrefl _ hhr
 
--- GAP1-GENERAL, sufficiency-only existence form: for interior `v`, a down-cover and up-cover of `v` in `P` produce two independent up-covers of a down-cover of `const v` in `EndP P`.
+-- [D-0271] gap1_second_cover
 theorem gap1_second_cover (v w v' : P) (hbt : (⊥ : P) ≠ ⊤)
     (hw : Covers w v) (hv' : Covers v v') :
     ∃ g g2 : EndP P, Covers g (constHom v) ∧ Covers g g2 ∧ constHom v ≠ g2 := by
@@ -2638,23 +2524,25 @@ end GapMoves
 section JConstruction
 variable {P : Type u} [Fintype P] [DecidableEq P] [Lattice P] [BoundedOrder P]
 
--- The Hasse graph of a poset: adjacency is "one covers the other, either way".
+-- [D-0272] Graph.Hasse
 def Graph.Hasse (P : Type u) [Preorder P] : Graph P where
   adj a b := Covers a b ∨ Covers b a
   symm := fun h => h.symm
   irrefl := fun a h => h.elim (fun hc => hc.1.ne rfl) (fun hc => hc.1.ne rfl)
 
--- `J(P)`, the join-irreducible sub-poset, as a `Fintype`, using classical decidability of `JoinIrred`.
+-- [D-0273] decidableJoinIrred
 noncomputable instance decidableJoinIrred : DecidablePred (JoinIrred P) :=
   Classical.decPred _
 
+-- [D-0274] JSub
 def JSub (P : Type u) [Lattice P] [OrderBot P] : Type u := {a : P // JoinIrred P a}
 
+-- [D-0275] inst-Fintype
 noncomputable instance : Fintype (JSub P) := Subtype.fintype _
+-- [D-0276] inst-DecidableEq
 noncomputable instance : DecidableEq (JSub P) := Classical.decEq _
 
--- `stepMap x q`: the monotone self-map of `P` sending everything `≥ q` to `x` and everything else to `⊥`.
--- (2026-08-27: `letI := latticeDecLE` so the `≤`-guard is kernel-reducible rather than frozen to `Classical.propDecidable` — see `latticeDecLE`'s docstring. Signature unchanged, so no call site is affected.)
+-- [D-0277] stepMap
 def stepMap (x q : P) : EndP P :=
   letI := latticeDecLE (P := P)
   { toFun := fun y => if q ≤ y then x else ⊥
@@ -2667,18 +2555,21 @@ def stepMap (x q : P) : EndP P :=
         · simp only [if_neg hqy, if_pos hqz]; exact bot_le
         · simp only [if_neg hqy, if_neg hqz]; exact le_refl _ }
 
+-- [D-0278] stepMap_apply_of_ge
 @[simp] theorem stepMap_apply_of_ge (x q : P) {y : P} (h : q ≤ y) :
     stepMap x q y = x := if_pos h
 
+-- [D-0279] stepMap_apply_of_not_ge
 @[simp] theorem stepMap_apply_of_not_ge (x q : P) {y : P} (h : ¬ q ≤ y) :
     stepMap x q y = ⊥ := if_neg h
 
+-- [D-0280] stepMap_apply_self
 @[simp] theorem stepMap_apply_self (x q : P) : stepMap x q q = x :=
   stepMap_apply_of_ge x q le_rfl
 
 end JConstruction
 
--- Lemma PRODUCT-COVERS: in a product of two partial orders, (a,b) is covered by (a',b') iff exactly one coordinate moves by a genuine cover, the other staying fixed.
+-- [D-0281] covers_prod_iff
 theorem covers_prod_iff {P L : Type u} [PartialOrder P] [PartialOrder L]
     (a a' : P) (b b' : L) :
     Covers (a, b) (a', b') ↔
@@ -2739,7 +2630,7 @@ theorem covers_prod_iff {P L : Type u} [PartialOrder P] [PartialOrder L]
 section StepMapCharacterization
 variable {P : Type u} [Fintype P] [DecidableEq P] [Lattice P] [BoundedOrder P]
 
--- `stepMap` is join-linear in its `x`-argument, `q` fixed.
+-- [D-0282] stepMap_join
 theorem stepMap_join (x1 x2 q : P) :
     (stepMap x1 q : EndP P) ⊔ stepMap x2 q = stepMap (x1 ⊔ x2) q := by
   apply OrderHom.ext
@@ -2750,7 +2641,7 @@ theorem stepMap_join (x1 x2 q : P) :
   · rw [stepMap_apply_of_not_ge x1 q hqy, stepMap_apply_of_not_ge x2 q hqy,
         stepMap_apply_of_not_ge (x1 ⊔ x2) q hqy, sup_idem]
 
--- Join-irreducibility distributes over an arbitrary `Finset.sup`: if a join-irreducible element equals a finite sup, it equals one of the summands.
+-- [D-0283] exists_mem_eq_of_joinIrred_sup
 theorem exists_mem_eq_of_joinIrred_sup {L : Type*} [Lattice L] [OrderBot L]
     {ι : Type*} [DecidableEq ι] (s : Finset ι) (g : ι → L) {a : L}
     (ha : JoinIrred L a) (heq : a = s.sup g) : ∃ i ∈ s, a = g i := by
@@ -2763,7 +2654,7 @@ theorem exists_mem_eq_of_joinIrred_sup {L : Type*} [Lattice L] [OrderBot L]
       · obtain ⟨j, hjt, hj⟩ := ih h
         exact ⟨j, Finset.mem_insert_of_mem hjt, hj⟩
 
--- Evaluation at a point commutes with `Finset.sup` on `EndP P`.
+-- [D-0284] endP_finset_sup_apply
 theorem endP_finset_sup_apply {ι : Type*} [DecidableEq ι] (s : Finset ι) (g : ι → EndP P) (y : P) :
     (s.sup g) y = s.sup (fun i => g i y) := by
   induction s using Finset.induction with
@@ -2772,7 +2663,7 @@ theorem endP_finset_sup_apply {ι : Type*} [DecidableEq ι] (s : Finset ι) (g :
       rw [Finset.sup_insert, Finset.sup_insert,
           show (g i ⊔ t.sup g) y = g i y ⊔ (t.sup g) y from rfl, ih]
 
--- Every `f : EndP P` reconstructs as the join of its own single-point step approximations.
+-- [D-0285] endP_stepMap_sup_eq_self
 theorem endP_stepMap_sup_eq_self (f : EndP P) :
     f = Finset.univ.sup (fun p => (stepMap (f p) p : EndP P)) := by
   apply OrderHom.ext
@@ -2790,7 +2681,7 @@ theorem endP_stepMap_sup_eq_self (f : EndP P) :
     · rw [stepMap_apply_of_not_ge (f p) p hpy]
       exact bot_le
 
--- The characterization: `J(EndP P) = {stepMap x q : x ∈ J(P), q ∈ P}`.
+-- [D-0286] joinIrred_endP_iff_exists_stepMap
 theorem joinIrred_endP_iff_exists_stepMap (f : EndP P) :
     JoinIrred (EndP P) f ↔ ∃ x q : P, JoinIrred P x ∧ f = stepMap x q := by
   constructor
@@ -2861,7 +2752,7 @@ theorem joinIrred_endP_iff_exists_stepMap (f : EndP P) :
           rw [stepMap_apply_of_not_ge x q hqy] at hub
           exact le_antisymm bot_le hub
 
--- Injectivity of `(x,q) ↦ stepMap x q` whenever both target values are `≠ ⊥`.
+-- [D-0287] stepMap_inj_of_ne_bot
 theorem stepMap_inj_of_ne_bot {x x' q q' : P} (hx : x ≠ ⊥) (hx' : x' ≠ ⊥)
     (heq : (stepMap x q : EndP P) = stepMap x' q') : x = x' ∧ q = q' := by
   have h1 : (stepMap x q : EndP P) q = (stepMap x' q' : EndP P) q := by rw [heq]
@@ -2879,7 +2770,7 @@ theorem stepMap_inj_of_ne_bot {x x' q q' : P} (hx : x ≠ ⊥) (hx' : x' ≠ ⊥
     exact hx' h2.symm
   exact ⟨h1, le_antisymm hqq' hq'q⟩
 
--- Order-correspondence for `stepMap`: `x` order-preserving, `q` order-reversing (needs `x ≠ ⊥`).
+-- [D-0288] stepMap_le_stepMap_iff
 theorem stepMap_le_stepMap_iff {x x2 q q2 : P} (hx : x ≠ ⊥) :
     (stepMap x q : EndP P) ≤ stepMap x2 q2 ↔ x ≤ x2 ∧ q2 ≤ q := by
   constructor
@@ -2903,19 +2794,20 @@ theorem stepMap_le_stepMap_iff {x x2 q q2 : P} (hx : x ≠ ⊥) :
     · rw [stepMap_apply_of_not_ge x q hqy]
       exact bot_le
 
--- Canonical `x`-witness extracted from a join-irreducible `f : EndP P`.
+-- [D-0289] jiWitnessX
 noncomputable def jiWitnessX (f : EndP P) (hf : JoinIrred (EndP P) f) : P :=
   ((joinIrred_endP_iff_exists_stepMap f).mp hf).choose
 
--- Canonical `q`-witness, paired with `jiWitnessX`.
+-- [D-0290] jiWitnessQ
 noncomputable def jiWitnessQ (f : EndP P) (hf : JoinIrred (EndP P) f) : P :=
   (((joinIrred_endP_iff_exists_stepMap f).mp hf).choose_spec).choose
 
+-- [D-0291] jiWitness_spec
 theorem jiWitness_spec (f : EndP P) (hf : JoinIrred (EndP P) f) :
     JoinIrred P (jiWitnessX f hf) ∧ f = stepMap (jiWitnessX f hf) (jiWitnessQ f hf) :=
   (((joinIrred_endP_iff_exists_stepMap f).mp hf).choose_spec).choose_spec
 
--- The bijection `P × J(P) ≃ J(EndP P)`, built from the characterization plus injectivity.
+-- [D-0292] jiEquiv
 noncomputable def jiEquiv :
     P × {x : P // JoinIrred P x} ≃ {f : EndP P // JoinIrred (EndP P) f} where
   toFun := fun (q, x) =>
@@ -2940,6 +2832,7 @@ end StepMapCharacterization
 section JICovers
 variable {P : Type u} [Fintype P] [DecidableEq P] [Lattice P] [BoundedOrder P]
 
+-- [D-0293] stepMap_ne_iff
 theorem stepMap_ne_iff {x x2 q q2 : P} (hx : x ≠ ⊥) (hx2 : x2 ≠ ⊥) :
     (stepMap x q : EndP P) ≠ stepMap x2 q2 ↔ x ≠ x2 ∨ q ≠ q2 := by
   constructor
@@ -2951,7 +2844,7 @@ theorem stepMap_ne_iff {x x2 q q2 : P} (hx : x ≠ ⊥) (hx2 : x2 ≠ ⊥) :
     · exact h (stepMap_inj_of_ne_bot hx hx2 heq).1
     · exact h (stepMap_inj_of_ne_bot hx hx2 heq).2
 
--- The `<` companion to `stepMap_le_stepMap_iff`.
+-- [D-0294] stepMap_lt_iff
 theorem stepMap_lt_iff {x x2 q q2 : P} (hx : x ≠ ⊥) (hx2 : x2 ≠ ⊥) :
     (stepMap x q : EndP P) < stepMap x2 q2 ↔ (x < x2 ∧ q2 ≤ q) ∨ (x ≤ x2 ∧ q2 < q) := by
   rw [lt_iff_le_and_ne, stepMap_le_stepMap_iff hx, stepMap_ne_iff hx hx2]
@@ -2963,7 +2856,7 @@ theorem stepMap_lt_iff {x x2 q q2 : P} (hx : x ≠ ⊥) (hx2 : x2 ≠ ⊥) :
     · exact ⟨⟨hxlt.le, hq2q⟩, Or.inl hxlt.ne⟩
     · exact ⟨⟨hxle, hq2lt.le⟩, Or.inr hq2lt.ne.symm⟩
 
--- `jiEquiv` carries `Covers`-adjacency exactly between `J(EndP P)` and the `stepMap` product coordinates.
+-- [D-0295] stepMap_ji_covers_iff
 theorem stepMap_ji_covers_iff {x x2 q q2 : P} (hx : JoinIrred P x) (hx2 : JoinIrred P x2) :
     Covers (⟨stepMap x q, (joinIrred_endP_iff_exists_stepMap _).mpr ⟨x, q, hx, rfl⟩⟩ :
               {f : EndP P // JoinIrred (EndP P) f})
@@ -3051,18 +2944,20 @@ end JICovers
 section LemmaMCL
 variable {P L : Type u} [Fintype P] [DecidableEq P] [PartialOrder P] [Lattice L] [OrderBot L]
 
--- `joinBelow f x := ⊔_{y<x} f(y)` (`⊥` if `x` has no strict predecessors).
+-- [D-0296] joinBelow
 noncomputable def joinBelow (f : P → L) (x : P) : L :=
   (Finset.univ.filter (fun y => y < x)).sup f
 
+-- [D-0297] le_joinBelow
 theorem le_joinBelow (f : P → L) {x y : P} (hy : y < x) : f y ≤ joinBelow f x :=
   Finset.le_sup (f := f) (Finset.mem_filter.mpr ⟨Finset.mem_univ y, hy⟩)
 
+-- [D-0298] joinBelow_le
 theorem joinBelow_le (f : P → L) {x : P} {v : L} (h : ∀ y, y < x → f y ≤ v) :
     joinBelow f x ≤ v :=
   Finset.sup_le (fun y hy => h y (Finset.mem_filter.mp hy).2)
 
--- Modify `f` at exactly `x0`, replacing its value with `v`.
+-- [D-0299] updateAt
 def updateAt (f : P →o L) (x0 : P) (v : L) (hv_le : v ≤ f x0)
     (hv_ge : joinBelow f x0 ≤ v) : P →o L where
   toFun y := if y = x0 then v else f y
@@ -3090,17 +2985,20 @@ def updateAt (f : P →o L) (x0 : P) (v : L) (hv_le : v ≤ f x0)
         rw [if_neg h1, if_neg h2]
         exact f.monotone hy
 
+-- [D-0300] updateAt_apply_self
 theorem updateAt_apply_self (f : P →o L) (x0 : P) (v : L) (hv_le : v ≤ f x0)
     (hv_ge : joinBelow f x0 ≤ v) : updateAt f x0 v hv_le hv_ge x0 = v := by
   show (if x0 = x0 then v else f x0) = v
   rw [if_pos rfl]
 
+-- [D-0301] updateAt_apply_ne
 theorem updateAt_apply_ne (f : P →o L) (x0 : P) (v : L) (hv_le : v ≤ f x0)
     (hv_ge : joinBelow f x0 ≤ v) {y : P} (hy : y ≠ x0) :
     updateAt f x0 v hv_le hv_ge y = f y := by
   show (if y = x0 then v else f y) = f y
   rw [if_neg hy]
 
+-- [D-0302] updateAt_ne
 theorem updateAt_ne (f : P →o L) (x0 : P) (v : L) (hv_le : v ≤ f x0)
     (hv_ge : joinBelow f x0 ≤ v) (hne : v ≠ f x0) :
     updateAt f x0 v hv_le hv_ge ≠ f := by
@@ -3109,6 +3007,7 @@ theorem updateAt_ne (f : P →o L) (x0 : P) (v : L) (hv_le : v ≤ f x0)
   have h1 : (updateAt f x0 v hv_le hv_ge) x0 = f x0 := by rw [heq]
   rwa [updateAt_apply_self] at h1
 
+-- [D-0303] updateAt_le
 theorem updateAt_le (f : P →o L) (x0 : P) (v : L) (hv_le : v ≤ f x0)
     (hv_ge : joinBelow f x0 ≤ v) : updateAt f x0 v hv_le hv_ge ≤ f := by
   rw [OrderHom.le_def]
@@ -3117,12 +3016,13 @@ theorem updateAt_le (f : P →o L) (x0 : P) (v : L) (hv_le : v ≤ f x0)
   · rw [hy, updateAt_apply_self]; exact hv_le
   · rw [updateAt_apply_ne f x0 v hv_le hv_ge hy]
 
+-- [D-0304] updateAt_lt
 theorem updateAt_lt (f : P →o L) (x0 : P) (v : L) (hv_le : v ≤ f x0)
     (hv_ge : joinBelow f x0 ≤ v) (hlt : v < f x0) :
     updateAt f x0 v hv_le hv_ge < f :=
   lt_of_le_of_ne (updateAt_le f x0 v hv_le hv_ge) (updateAt_ne f x0 v hv_le hv_ge hlt.ne)
 
--- Sufficiency half of Lemma MCL's classification: `updateAt` at a genuine down-cover value gives a genuine Hasse-cover.
+-- [D-0305] covers_updateAt
 theorem covers_updateAt (f : P →o L) (x0 : P) (v : L) (hv_le : v ≤ f x0)
     (hv_ge : joinBelow f x0 ≤ v) (hcov : Covers v (f x0)) :
     Covers (updateAt f x0 v hv_le hv_ge) f := by
@@ -3162,7 +3062,7 @@ theorem covers_updateAt (f : P →o L) (x0 : P) (v : L) (hv_le : v ≤ f x0)
     rw [heq] at hhf
     exact lt_irrefl _ hhf
 
--- Necessity half of Lemma MCL's classification: every Hasse-cover `g` of `f` has the `updateAt` shape at some point `x0`.
+-- [D-0306] exists_updateAt_of_covers
 theorem exists_updateAt_of_covers (f g : P →o L) (hcov : Covers g f) :
     ∃ x0 v, ∃ (hv_le : v ≤ f x0) (hv_ge : joinBelow f x0 ≤ v),
       g = updateAt f x0 v hv_le hv_ge ∧ Covers v (f x0) := by
@@ -3315,7 +3215,7 @@ theorem exists_updateAt_of_covers (f g : P →o L) (hcov : Covers g f) :
     have hg'f_lt : g' < f := lt_of_le_of_ne (OrderHom.le_def.mpr hg'f_le) hg'f_ne
     exact hcov.2 g' hgg'_lt hg'f_lt
 
--- Lemma MCL, as a single theorem: `g` is a Hasse-cover of `f` iff it has the `updateAt` shape at some point.
+-- [D-0307] covers_iff_exists_updateAt
 theorem covers_iff_exists_updateAt (f g : P →o L) :
     Covers g f ↔ ∃ x0 v, ∃ (hv_le : v ≤ f x0) (hv_ge : joinBelow f x0 ≤ v),
       g = updateAt f x0 v hv_le hv_ge ∧ Covers v (f x0) := by
@@ -3325,11 +3225,11 @@ theorem covers_iff_exists_updateAt (f g : P →o L) :
     rw [hgeq]
     exact covers_updateAt f x0 v hv_le hv_ge hvcov
 
--- `joinBelow f x ≤ f x` always, for monotone `f`.
+-- [D-0308] joinBelow_le_self
 theorem joinBelow_le_self (f : P →o L) (x : P) : joinBelow f x ≤ f x :=
   joinBelow_le f (fun y hy => f.monotone hy.le)
 
--- If `a < b`, some down-cover of `b` is `≥ a` (via a maximal element of `{x : a ≤ x < b}`).
+-- [D-0309] exists_covBy_ge
 theorem exists_covBy_ge {Q : Type u} [Fintype Q] [PartialOrder Q] {a b : Q}
     (hab : a < b) : ∃ w, Covers w b ∧ a ≤ w := by
   classical
@@ -3343,7 +3243,7 @@ theorem exists_covBy_ge {Q : Type u} [Fintype Q] [PartialOrder Q] {a b : Q}
   have hcS : c ∈ S := Finset.mem_filter.mpr ⟨Finset.mem_univ c, hac, hcb⟩
   exact absurd (hwc.trans_le (hw_max hcS hwc.le)) (lt_irrefl w)
 
--- "Fact 1", general form: if `f`'s down-cover is unique, `f` agrees with `joinBelow f` everywhere except at the witness point.
+-- [D-0310] forced_eq_joinBelow_of_unique_cover
 theorem forced_eq_joinBelow_of_unique_cover [Fintype L] (f g : P →o L)
     (hgcov : Covers g f) (huniq : ∀ g', Covers g' f → g' = g) :
     ∃ x0 v, ∃ (hv_le : v ≤ f x0) (hv_ge : joinBelow f x0 ≤ v),
@@ -3371,18 +3271,20 @@ end LemmaMCL
 section LemmaMCLUp
 variable {P L : Type u} [Fintype P] [DecidableEq P] [PartialOrder P] [Lattice L] [OrderTop L]
 
--- `meetAbove f x := ⊓_{y>x} f(y)`, dual to `joinBelow` (`⊤` if `x` has no strict successors).
+-- [D-0311] meetAbove
 noncomputable def meetAbove (f : P → L) (x : P) : L :=
   (Finset.univ.filter (fun y => x < y)).inf f
 
+-- [D-0312] meetAbove_le
 theorem meetAbove_le (f : P → L) {x y : P} (hy : x < y) : meetAbove f x ≤ f y :=
   Finset.inf_le (f := f) (Finset.mem_filter.mpr ⟨Finset.mem_univ y, hy⟩)
 
+-- [D-0313] le_meetAbove
 theorem le_meetAbove (f : P → L) {x : P} {v : L} (h : ∀ y, x < y → v ≤ f y) :
     v ≤ meetAbove f x :=
   Finset.le_inf (fun y hy => h y (Finset.mem_filter.mp hy).2)
 
--- Modify `f` at exactly `x0`, raising its value to `v` — dual to `updateAt`.
+-- [D-0314] updateAtUp
 def updateAtUp (f : P →o L) (x0 : P) (v : L) (hv_ge : f x0 ≤ v)
     (hv_le : v ≤ meetAbove f x0) : P →o L where
   toFun y := if y = x0 then v else f y
@@ -3410,17 +3312,20 @@ def updateAtUp (f : P →o L) (x0 : P) (v : L) (hv_ge : f x0 ≤ v)
         rw [if_neg h1, if_neg h2]
         exact f.monotone hy
 
+-- [D-0315] updateAtUp_apply_self
 theorem updateAtUp_apply_self (f : P →o L) (x0 : P) (v : L) (hv_ge : f x0 ≤ v)
     (hv_le : v ≤ meetAbove f x0) : updateAtUp f x0 v hv_ge hv_le x0 = v := by
   show (if x0 = x0 then v else f x0) = v
   rw [if_pos rfl]
 
+-- [D-0316] updateAtUp_apply_ne
 theorem updateAtUp_apply_ne (f : P →o L) (x0 : P) (v : L) (hv_ge : f x0 ≤ v)
     (hv_le : v ≤ meetAbove f x0) {y : P} (hy : y ≠ x0) :
     updateAtUp f x0 v hv_ge hv_le y = f y := by
   show (if y = x0 then v else f y) = f y
   rw [if_neg hy]
 
+-- [D-0317] updateAtUp_ne
 theorem updateAtUp_ne (f : P →o L) (x0 : P) (v : L) (hv_ge : f x0 ≤ v)
     (hv_le : v ≤ meetAbove f x0) (hne : v ≠ f x0) :
     updateAtUp f x0 v hv_ge hv_le ≠ f := by
@@ -3429,6 +3334,7 @@ theorem updateAtUp_ne (f : P →o L) (x0 : P) (v : L) (hv_ge : f x0 ≤ v)
   have h1 : (updateAtUp f x0 v hv_ge hv_le) x0 = f x0 := by rw [heq]
   rwa [updateAtUp_apply_self] at h1
 
+-- [D-0318] updateAtUp_ge
 theorem updateAtUp_ge (f : P →o L) (x0 : P) (v : L) (hv_ge : f x0 ≤ v)
     (hv_le : v ≤ meetAbove f x0) : f ≤ updateAtUp f x0 v hv_ge hv_le := by
   rw [OrderHom.le_def]
@@ -3437,13 +3343,14 @@ theorem updateAtUp_ge (f : P →o L) (x0 : P) (v : L) (hv_ge : f x0 ≤ v)
   · rw [hy, updateAtUp_apply_self]; exact hv_ge
   · rw [updateAtUp_apply_ne f x0 v hv_ge hv_le hy]
 
+-- [D-0319] updateAtUp_gt
 theorem updateAtUp_gt (f : P →o L) (x0 : P) (v : L) (hv_ge : f x0 ≤ v)
     (hv_le : v ≤ meetAbove f x0) (hlt : f x0 < v) :
     f < updateAtUp f x0 v hv_ge hv_le :=
   lt_of_le_of_ne (updateAtUp_ge f x0 v hv_ge hv_le)
     (updateAtUp_ne f x0 v hv_ge hv_le hlt.ne').symm
 
--- Sufficiency half of the up-cover classification, dual to `covers_updateAt`.
+-- [D-0320] covers_updateAtUp
 theorem covers_updateAtUp (f : P →o L) (x0 : P) (v : L) (hv_ge : f x0 ≤ v)
     (hv_le : v ≤ meetAbove f x0) (hcov : Covers (f x0) v) :
     Covers f (updateAtUp f x0 v hv_ge hv_le) := by
@@ -3483,7 +3390,7 @@ theorem covers_updateAtUp (f : P →o L) (x0 : P) (v : L) (hv_ge : f x0 ≤ v)
     rw [heq] at hhu
     exact lt_irrefl _ hhu
 
--- Necessity half of the up-cover classification, dual to `exists_updateAt_of_covers`.
+-- [D-0321] exists_updateAtUp_of_covers
 theorem exists_updateAtUp_of_covers (f h : P →o L) (hcov : Covers f h) :
     ∃ x0 v, ∃ (hv_ge : f x0 ≤ v) (hv_le : v ≤ meetAbove f x0),
       h = updateAtUp f x0 v hv_ge hv_le ∧ Covers (f x0) v := by
@@ -3637,7 +3544,7 @@ theorem exists_updateAtUp_of_covers (f h : P →o L) (hcov : Covers f h) :
     have hh'h_lt : h' < h := lt_of_le_of_ne (OrderHom.le_def.mpr hh'h_le) hh'h_ne
     exact hcov.2 h' hfh'_lt hh'h_lt
 
--- Lemma MCL's up-cover classification, combined, dual to `covers_iff_exists_updateAt`.
+-- [D-0322] covers_iff_exists_updateAtUp
 theorem covers_iff_exists_updateAtUp (f h : P →o L) :
     Covers f h ↔ ∃ x0 v, ∃ (hv_ge : f x0 ≤ v) (hv_le : v ≤ meetAbove f x0),
       h = updateAtUp f x0 v hv_ge hv_le ∧ Covers (f x0) v := by
@@ -3647,11 +3554,11 @@ theorem covers_iff_exists_updateAtUp (f h : P →o L) :
     rw [hheq]
     exact covers_updateAtUp f x0 v hv_ge hv_le hvcov
 
--- Dual to `joinBelow_le_self`.
+-- [D-0323] self_le_meetAbove
 theorem self_le_meetAbove (f : P →o L) (x : P) : f x ≤ meetAbove f x :=
   le_meetAbove f (fun y hy => f.monotone hy.le)
 
--- Dual to `exists_covBy_ge`: if `a < b`, some up-cover of `a` is `≤ b`.
+-- [D-0324] exists_covBy_le
 theorem exists_covBy_le {Q : Type u} [Fintype Q] [PartialOrder Q] {a b : Q}
     (hab : a < b) : ∃ w, Covers a w ∧ w ≤ b := by
   classical
@@ -3665,7 +3572,7 @@ theorem exists_covBy_le {Q : Type u} [Fintype Q] [PartialOrder Q] {a b : Q}
   have hcS : c ∈ S := Finset.mem_filter.mpr ⟨Finset.mem_univ c, hac, hcb⟩
   exact absurd (hcw.trans_le (hw_min hcS hcw.le)) (lt_irrefl c)
 
--- "Fact 2"'s dependency, dual to `forced_eq_joinBelow_of_unique_cover`: if `f`'s up-cover is unique, `f` agrees with `meetAbove f` off the witness point.
+-- [D-0325] forced_eq_meetAbove_of_unique_cover
 theorem forced_eq_meetAbove_of_unique_cover [Fintype L] (f h : P →o L)
     (hhcov : Covers f h) (huniq : ∀ h', Covers f h' → h' = h) :
     ∃ x0 v, ∃ (hv_ge : f x0 ≤ v) (hv_le : v ≤ meetAbove f x0),
@@ -3693,7 +3600,7 @@ end LemmaMCLUp
 section DcnmiFact1
 variable {P : Type u} [Fintype P] [DecidableEq P] [Lattice P] [BoundedOrder P]
 
--- "Fact 1": if `p` is the unique-down-cover witness of `f`, then `f x = ⊥` for every `x` not above `p`.
+-- [D-0326] fact1_forced_bot
 theorem fact1_forced_bot (f : EndP P) (p : P)
     (hforced : ∀ x, x ≠ p → f x = joinBelow f x) :
     ∀ x, ¬ p ≤ x → f x = ⊥ := by
@@ -3714,7 +3621,7 @@ theorem fact1_forced_bot (f : EndP P) (p : P)
       rw [ih y hy hyne]
     · exact bot_le
 
--- "Fact 2", dual to `fact1_forced_bot`: if `p` is the unique-up-cover witness of `f`, then `f x = ⊤` for every `x` not below `p`.
+-- [D-0327] fact2_forced_top
 theorem fact2_forced_top (f : EndP P) (p : P)
     (hforced : ∀ x, x ≠ p → f x = meetAbove f x) :
     ∀ x, ¬ x ≤ p → f x = ⊤ := by
@@ -3735,7 +3642,7 @@ theorem fact2_forced_top (f : EndP P) (p : P)
       have hyne : ¬ y ≤ p := fun hy0 => hx (hy.le.trans hy0)
       rw [ih y hy hyne]
 
--- If `f`'s down-cover and up-cover are both uniquely witnessed at the same point `p`, `p` is comparable to every element of `P`.
+-- [D-0328] comp_of_same_witness
 theorem comp_of_same_witness (f : EndP P) (p : P) (hbt : (⊥ : P) ≠ ⊤)
     (hforced_down : ∀ x, x ≠ p → f x = joinBelow f x)
     (hforced_up : ∀ x, x ≠ p → f x = meetAbove f x) :
@@ -3756,19 +3663,19 @@ end DcnmiFact1
 section DcnmiSameGeneral
 variable {P : Type u} [Fintype P] [DecidableEq P] [Lattice P] [BoundedOrder P] [UniqueAtomCoatom P]
 
--- The unique coatom is exactly the element covered by `⊤`.
+-- [D-0329] coatomOf_covers_top
 theorem coatomOf_covers_top : Covers (coatomOf P) (⊤ : P) := by
   refine ⟨lt_of_le_of_ne le_top (coatomOf_ne_top P), ?_⟩
   intro c hc1 hc2
   exact absurd (hc1.trans_le (coatomOf_le hc2.ne)) (lt_irrefl _)
 
--- Dual: `atomOf P` is covered by `⊥`, i.e. `Covers ⊥ (atomOf P)`.
+-- [D-0330] atomOf_covers_bot
 theorem atomOf_covers_bot : Covers (⊥ : P) (atomOf P) := by
   refine ⟨lt_of_le_of_ne bot_le (Ne.symm (atomOf_ne_bot P)), ?_⟩
   intro c hc1 hc2
   exact absurd (hc2.trans_le (atomOf_le hc1.ne')) (lt_irrefl _)
 
--- Region computation, down side: if `f` is forced to `⊥` strictly below `p` and `x` is an immediate `P`-cover of `p`, then `joinBelow f x = f p`.
+-- [D-0331] joinBelow_eq_forced
 theorem joinBelow_eq_forced (f : EndP P) (p : P) (hp : Comp P p)
     (hdown : ∀ y, ¬ p ≤ y → f y = ⊥) {x : P} (hx : Covers p x) :
     joinBelow f x = f p := by
@@ -3787,7 +3694,7 @@ theorem joinBelow_eq_forced (f : EndP P) (p : P) (hp : Comp P p)
       exact bot_le
   · exact le_joinBelow f hx.1
 
--- Region computation, up side, dual to `joinBelow_eq_forced`.
+-- [D-0332] meetAbove_eq_forced
 theorem meetAbove_eq_forced (f : EndP P) (p : P) (hp : Comp P p)
     (hup : ∀ y, ¬ y ≤ p → f y = ⊤) {x : P} (hx : Covers x p) :
     meetAbove f x = f p := by
@@ -3806,7 +3713,7 @@ theorem meetAbove_eq_forced (f : EndP P) (p : P) (hp : Comp P p)
     · rw [hup y (fun hle => absurd (hlt.trans_le hle) (lt_irrefl p))]
       exact le_top
 
--- Theorem DCNMI-SAME-GENERAL: if `f`'s down-cover is uniquely witnessed at `p` and its up-cover is also uniquely witnessed at `p`, `False`.
+-- [D-0333] dcnmi_same_general
 theorem dcnmi_same_general
     (f : EndP P) (hbt : (⊥ : P) ≠ ⊤) (p : P)
     (g : EndP P) (hgcov : Covers g f) (hguniq : ∀ g', Covers g' f → g' = g)
@@ -3826,10 +3733,7 @@ theorem dcnmi_same_general
   have hdown : ∀ x, ¬ p ≤ x → f x = ⊥ := fact1_forced_bot f p hforced_down
   have hup : ∀ x, ¬ x ≤ p → f x = ⊤ := fact2_forced_top f p hforced_up
   by_cases hpt : p = (⊤ : P)
-  · -- Case p = ⊤: no upper-cover of p exists, so the down side is
-    -- immediately pinned; the up side (`Covers (f p) w`) either
-    -- collapses directly (`f p = ⊥`, impossible) or admits a second
-    -- up-cover at `coatomOf P` (`f p ≠ ⊥`), contradicting uniqueness.
+  ·
     by_cases hmb : f p = (⊥ : P)
     · rw [hmb] at hvcov
       exact absurd (hvcov.1.trans_le bot_le) (lt_irrefl _)
@@ -3854,9 +3758,7 @@ theorem dcnmi_same_general
           (updateAtUp f p w hv_ge' hv_le') (coatomOf P) := by rw [heq2]
       rw [updateAtUp_apply_self, updateAtUp_apply_ne f p w hv_ge' hv_le' hx_ne_p] at hcontra
       exact atomOf_ne_bot P (hcontra.trans hfx)
-  · -- Case p ≠ ⊤: dual — an upper-cover of p always exists; the down
-    -- side either collapses directly (`f p = ⊤`, impossible) or admits
-    -- a second down-cover at that upper-cover, using `coatomOf P`.
+  ·
     by_cases hmt : f p = (⊤ : P)
     · rw [hmt] at hwcov
       exact absurd (hwcov.1.trans_le le_top) (lt_irrefl _)
@@ -3887,7 +3789,7 @@ end DcnmiSameGeneral
 section Sig1BreakGeneric
 variable {P L : Type u} [Fintype P] [DecidableEq P] [PartialOrder P] [Lattice L] [BoundedOrder L]
 
--- "Unchanged region," up side: if `g` agrees with `f` except at `x0`, and `x` is not strictly below `x0`, `meetAbove g x = meetAbove f x`.
+-- [D-0334] meetAbove_eq_of_agree_off
 theorem meetAbove_eq_of_agree_off (f g : P → L) (x0 : P)
     (hagree : ∀ y, y ≠ x0 → g y = f y) {x : P} (hx : ¬ x < x0) :
     meetAbove g x = meetAbove f x := by
@@ -3898,7 +3800,7 @@ theorem meetAbove_eq_of_agree_off (f g : P → L) (x0 : P)
   rintro rfl
   exact hx (Finset.mem_filter.mp hy).2
 
--- "Unchanged region," down side, dual to `meetAbove_eq_of_agree_off`.
+-- [D-0335] joinBelow_eq_of_agree_off
 theorem joinBelow_eq_of_agree_off (f g : P → L) (x0 : P)
     (hagree : ∀ y, y ≠ x0 → g y = f y) {x : P} (hx : ¬ x0 < x) :
     joinBelow g x = joinBelow f x := by
@@ -3909,7 +3811,7 @@ theorem joinBelow_eq_of_agree_off (f g : P → L) (x0 : P)
   rintro rfl
   exact hx (Finset.mem_filter.mp hy).2
 
--- If `f`'s down-cover `g` (at `p0`) and up-cover `h` (at `p1`) have different witness points, with `p1` not strictly below `p0`, then `g` has a second up-cover beyond `f`.
+-- [D-0336] second_upcover_of_ne_witness
 theorem second_upcover_of_ne_witness
     (f : P →o L) (p0 : P) (v0 : L) (hv_le0 : v0 ≤ f p0) (hv_ge0 : joinBelow f p0 ≤ v0)
     (p1 : P) (w1 : L) (hv_ge1 : f p1 ≤ w1) (hv_le1 : w1 ≤ meetAbove f p1)
@@ -3939,7 +3841,7 @@ end Sig1BreakGeneric
 section AcPin
 variable {P : Type u} [Fintype P] [DecidableEq P] [Lattice P] [BoundedOrder P] [UniqueAtomCoatom P]
 
--- Any `v` covered by `⊤` is `coatomOf P`.
+-- [D-0337] eq_coatomOf_of_covers_top
 theorem eq_coatomOf_of_covers_top {v : P} (h : Covers v (⊤ : P)) : v = coatomOf P := by
   have hvne : v ≠ (⊤ : P) := h.1.ne
   have hle : v ≤ coatomOf P := coatomOf_le hvne
@@ -3948,7 +3850,7 @@ theorem eq_coatomOf_of_covers_top {v : P} (h : Covers v (⊤ : P)) : v = coatomO
   · exact heq
   · exact absurd hcoatomlt (h.2 (coatomOf P) hlt)
 
--- Dual: any `w` covering `⊥` is `atomOf P`.
+-- [D-0338] eq_atomOf_of_covers_bot
 theorem eq_atomOf_of_covers_bot {w : P} (h : Covers (⊥ : P) w) : w = atomOf P := by
   have hwne : w ≠ (⊥ : P) := h.1.ne'
   have hle : atomOf P ≤ w := atomOf_le hwne
@@ -3957,7 +3859,7 @@ theorem eq_atomOf_of_covers_bot {w : P} (h : Covers (⊥ : P) w) : w = atomOf P 
   · exact heq.symm
   · exact absurd hlt (h.2 (atomOf P) hatomlt)
 
--- Theorem AC-PIN, `¬(p0≤p1)` sub-case: given `f`'s down-cover uniquely witnessed at `p0` and up-cover uniquely witnessed at `p1`, with `¬(p0≤p1)` and non-degeneracy, `g` has a second up-cover beyond `f`.
+-- [D-0339] ac_pin_second_upcover
 theorem ac_pin_second_upcover
     (f : EndP P) (hnb : (⊥ : P) ≠ coatomOf P)
     (p0 v0 : P) (hv_le0 : v0 ≤ f p0) (hv_ge0 : joinBelow f p0 ≤ v0)
@@ -4002,7 +3904,7 @@ theorem ac_pin_second_upcover
     rw [hp1] at h1
     exact atomOf_ne_bot P h1
 
--- Assembly of SIG1BREAK-GENERAL's `p0≠p1` case: `p0≤p1` and `¬(p0≤p1)` are jointly exhaustive, so `g` always has a second up-cover beyond `f` (`uc(g)≥2`) whenever `p0≠p1`.
+-- [D-0340] sig1break_p0_ne_p1_second_upcover
 theorem sig1break_p0_ne_p1_second_upcover
     (f : EndP P) (hnb : (⊥ : P) ≠ coatomOf P)
     (p0 v0 : P) (hv_le0 : v0 ≤ f p0) (hv_ge0 : joinBelow f p0 ≤ v0)
@@ -4019,7 +3921,7 @@ theorem sig1break_p0_ne_p1_second_upcover
 
 end AcPin
 
--- Transporting a symmetric relation's reflexive-transitive closure.
+-- [D-0341] reflTransGen_symm_of_symm
 theorem reflTransGen_symm_of_symm {α : Type*} {r : α → α → Prop} (hsymm : ∀ a b, r a b → r b a)
     {a b : α} (h : Relation.ReflTransGen r a b) : Relation.ReflTransGen r b a := by
   induction h with
@@ -4029,7 +3931,7 @@ theorem reflTransGen_symm_of_symm {α : Type*} {r : α → α → Prop} (hsymm :
 section HasseConnected
 variable {P : Type u} [Fintype P] [Lattice P] [BoundedOrder P]
 
--- Every element connects to `⊤` via a chain of up-covers.
+-- [D-0342] hasse_connects_to_top
 theorem hasse_connects_to_top (a : P) :
     Relation.ReflTransGen (Graph.Hasse P).adj a (⊤ : P) := by
   have hwf : WellFounded (fun a b : P => b < a) := Finite.wellFounded_of_trans_of_irrefl _
@@ -4041,7 +3943,7 @@ theorem hasse_connects_to_top (a : P) :
       have hadj : (Graph.Hasse P).adj a w := Or.inl hcov
       exact Relation.ReflTransGen.head hadj (ih w hcov.1)
 
--- `Graph.Hasse P` is connected for any finite lattice `P`.
+-- [D-0343] hasse_connected_of_lattice
 theorem hasse_connected_of_lattice : (Graph.Hasse P).Connected := by
   intro a b
   have ha := hasse_connects_to_top a
@@ -4054,7 +3956,7 @@ end HasseConnected
 section JHWiring
 variable {P : Type u} [Fintype P] [DecidableEq P] [Lattice P] [BoundedOrder P] [UniqueAtomCoatom P]
 
--- `⊥`'s only Hasse-neighbour is `atomOf P`.
+-- [D-0344] hasse_bot_degree_one
 theorem hasse_bot_degree_one :
     ∀ w, (Graph.Hasse P).adj (⊥ : P) w → ∀ w', (Graph.Hasse P).adj (⊥ : P) w' → w = w' := by
   intro w hw w' hw'
@@ -4062,16 +3964,17 @@ theorem hasse_bot_degree_one :
   have hw2' : Covers (⊥ : P) w' := hw'.resolve_right (fun h => absurd h.1 (not_lt_bot))
   rw [eq_atomOf_of_covers_bot hw2, eq_atomOf_of_covers_bot hw2']
 
+-- [D-0345] hasse_bot_nonempty
 theorem hasse_bot_nonempty : ∃ w, (Graph.Hasse P).adj (⊥ : P) w :=
   ⟨atomOf P, Or.inl atomOf_covers_bot⟩
 
--- Theorem HASSE-PRIME instantiated at `Graph.Hasse P` via `UniqueAtomCoatom`.
+-- [D-0346] hasse_P_prime
 theorem hasse_P_prime : GraphPrime (Graph.Hasse P) :=
   hasse_prime_of_degree_one (Graph.Hasse P) ⊥ hasse_bot_degree_one hasse_bot_nonempty
 
 end JHWiring
 
--- The join-irreducible elements of a finite lattice are strictly fewer than the elements (⊥ is excluded).
+-- [D-0347] card_joinIrred_lt
 theorem card_joinIrred_lt {P : Type u} [Fintype P] [Lattice P] [BoundedOrder P] :
     Fintype.card {x : P // JoinIrred P x} < Fintype.card P :=
   Fintype.card_subtype_lt (show ¬ JoinIrred P (⊥ : P) from fun h => h.1 rfl)
@@ -4079,7 +3982,7 @@ theorem card_joinIrred_lt {P : Type u} [Fintype P] [Lattice P] [BoundedOrder P] 
 section JIAdj
 variable {P : Type u} [Fintype P] [DecidableEq P] [Lattice P] [BoundedOrder P]
 
--- `jiEquiv` carries `prodGraph` adjacency exactly, transporting automorphisms of `Hasse(J(EndP P))` to automorphisms of `Hasse(P) □ Hasse(J(P))`.
+-- [D-0348] jiEquiv_adj_iff
 theorem jiEquiv_adj_iff (p1 p2 : P × {x : P // JoinIrred P x}) :
     (Graph.Hasse {f : EndP P // JoinIrred (EndP P) f}).adj (jiEquiv p1) (jiEquiv p2) ↔
     (prodGraph (Graph.Hasse P) (Graph.Hasse {x : P // JoinIrred P x})).adj p1 p2 := by
@@ -4111,11 +4014,7 @@ theorem jiEquiv_adj_iff (p1 p2 : P × {x : P // JoinIrred P x}) :
 
 end JIAdj
 
--- (section JHOrderLevel deleted 2026-08-29: it existed only to route the
--- Sabidussi/Vizing axiom into `jh_product_order_level_full`, which now uses
--- `jh_free` instead.)
-
--- General, relation-level row/column-restriction fact: given a decomposed order-preserving equiv on a product of relations, each factor relation is itself preserved by its own projected equiv.
+-- [D-0349] row_col_rel_iso
 theorem row_col_rel_iso {A B : Type*} [Nonempty A] [Nonempty B]
     (leA : A → A → Prop) (leB : B → B → Prop)
     (hAref : ∀ a, leA a a) (hBref : ∀ b, leB b b)
@@ -4140,7 +4039,7 @@ theorem row_col_rel_iso {A B : Type*} [Nonempty A] [Nonempty B]
 section JIOrder
 variable {P : Type u} [Fintype P] [DecidableEq P] [Lattice P] [BoundedOrder P]
 
--- `jiEquiv`'s own `≤`-correspondence, specializing `stepMap_le_stepMap_iff`.
+-- [D-0350] jiEquiv_le_iff
 theorem jiEquiv_le_iff (p1 p2 : P × {x : P // JoinIrred P x}) :
     jiEquiv p1 ≤ jiEquiv p2 ↔ p1.2.1 ≤ p2.2.1 ∧ p2.1 ≤ p1.1 := by
   obtain ⟨q1, x1v, hx1⟩ := p1
@@ -4153,13 +4052,7 @@ section JHOrderLevelFull
 variable {P : Type u} [Fintype P] [DecidableEq P] [Lattice P] [BoundedOrder P] [UniqueAtomCoatom P]
   [Nonempty {x : P // JoinIrred P x}]
 
--- ## Axiom-free JH-PRODUCT (2026-08-29)
---
--- Replaces the Sabidussi/Vizing route.  `ProdAut.prod_decomposition_of_card`
--- decomposes any ORDER-automorphism of a product poset from a unique atom on
--- one side plus `0 < |B| < |A|`; `jiOrderIso` puts `J(EndP P)` in that form.
--- The result needs neither connectivity nor the adjacency hypothesis.
-
+-- [D-0351] joinIrred_atomOf
 theorem joinIrred_atomOf : JoinIrred P (atomOf P) := by
   refine ⟨atomOf_ne_bot P, ?_⟩
   intro b c hbc
@@ -4169,20 +4062,25 @@ theorem joinIrred_atomOf : JoinIrred P (atomOf P) := by
     have h1 : b ≤ atomOf P := by rw [hbc]; exact le_sup_left
     exact le_antisymm (atomOf_le hb) h1
 
+-- [D-0352] instOrderBotJI
 noncomputable instance instOrderBotJI :
     OrderBot {x : P // JoinIrred P x} where
   bot := ⟨atomOf P, joinIrred_atomOf⟩
   bot_le := fun x => atomOf_le x.2.1
 
+-- [D-0353] isAtomic_of_finite
 theorem isAtomic_of_finite {α : Type*} [PartialOrder α] [Finite α] [OrderBot α] :
     IsAtomic α :=
   isAtomic_of_orderBot_wellFounded_lt (Finite.wellFounded_of_trans_of_irrefl _)
 
+-- [D-0354] inst-IsAtomic
 noncomputable instance : IsAtomic {x : P // JoinIrred P x} :=
   isAtomic_of_finite
 
+-- [D-0355] inst-IsAtomic
 noncomputable instance : IsAtomic (Pᵒᵈ) := isAtomic_of_finite
 
+-- [D-0356] isAtom_toDual_coatomOf
 theorem isAtom_toDual_coatomOf :
     IsAtom (α := Pᵒᵈ) (OrderDual.toDual (coatomOf P)) := by
   constructor
@@ -4194,6 +4092,7 @@ theorem isAtom_toDual_coatomOf :
     have hne : OrderDual.ofDual b ≠ (⊤ : P) := fun hc => hbt (congrArg OrderDual.toDual hc)
     exact absurd (lt_of_lt_of_le hb' (coatomOf_le hne)) (lt_irrefl _)
 
+-- [D-0357] toDual_atom_unique
 theorem toDual_atom_unique (k : Pᵒᵈ) (hk : IsAtom k) :
     k = OrderDual.toDual (coatomOf P) := by
   have hkt : OrderDual.ofDual k ≠ (⊤ : P) := fun h => hk.1 (congrArg OrderDual.toDual h)
@@ -4202,6 +4101,7 @@ theorem toDual_atom_unique (k : Pᵒᵈ) (hk : IsAtom k) :
   · exact absurd (congrArg OrderDual.ofDual (hk.2 (OrderDual.toDual (coatomOf P)) h))
       (coatomOf_ne_top P)
 
+-- [D-0358] jiOrderIso
 noncomputable def jiOrderIso :
     (Pᵒᵈ × {x : P // JoinIrred P x}) ≃o {f : EndP P // JoinIrred (EndP P) f} where
   toFun p := jiEquiv (OrderDual.ofDual p.1, p.2)
@@ -4219,8 +4119,7 @@ noncomputable def jiOrderIso :
     rw [jiEquiv_le_iff]
     exact ⟨fun h => ⟨h.2, h.1⟩, fun h => ⟨h.2, h.1⟩⟩
 
-
-
+-- [D-0359] jh_free
 theorem jh_free
     (φ : {f : EndP P // JoinIrred (EndP P) f} ≃ {f : EndP P // JoinIrred (EndP P) f})
     (hφord : ∀ v w, v ≤ w ↔ φ v ≤ φ w) :
@@ -4229,7 +4128,6 @@ theorem jh_free
       (∀ b1 b2, b1 ≤ b2 ↔ γB b1 ≤ γB b2) ∧
       (∀ p : P × {x : P // JoinIrred P x}, φ (jiEquiv p) = jiEquiv (γA p.1, γB p.2)) := by
   classical
-  -- Bundle `φ` as an order-isomorphism and conjugate onto the product.
   let Φ : {f : EndP P // JoinIrred (EndP P) f} ≃o {f : EndP P // JoinIrred (EndP P) f} :=
     { toEquiv := φ, map_rel_iff' := fun {v w} => (hφord v w).symm }
   let Ψ : (Pᵒᵈ × {x : P // JoinIrred P x}) ≃o (Pᵒᵈ × {x : P // JoinIrred P x}) :=
@@ -4241,7 +4139,6 @@ theorem jh_free
     isAtom_toDual_coatomOf toDual_atom_unique hposJ hsizeJ Ψ
   have hdec' := ProdAut.prod_decomposition_of_card (A := Pᵒᵈ)
     isAtom_toDual_coatomOf toDual_atom_unique hposJ hsizeJ Ψ.symm
-  -- The two coordinate maps.
   set fA : Pᵒᵈ → Pᵒᵈ := fun a => (Ψ (a, ⊥)).1 with hfA
   set fB : {x : P // JoinIrred P x} → {x : P // JoinIrred P x} :=
     fun b => (Ψ ((⊥ : Pᵒᵈ), b)).2 with hfB
@@ -4293,8 +4190,7 @@ theorem jh_free
     rw [h] at h2
     exact h2.symm
 
-
--- Lemma JH-PRODUCT, order level, in full: given `φ` preserves the full order and `J(P)`'s connectivity, both `γA` and `γB` are genuine order-isomorphisms of their factors.
+-- [D-0360] jh_product_order_level_full
 theorem jh_product_order_level_full
     (hBconn : (Graph.Hasse {x : P // JoinIrred P x}).Connected)
     (φ : {f : EndP P // JoinIrred (EndP P) f} ≃ {f : EndP P // JoinIrred (EndP P) f})
@@ -4312,13 +4208,14 @@ end JHOrderLevelFull
 section PhiHat
 variable {P : Type u} [Fintype P] [DecidableEq P] [Lattice P] [BoundedOrder P]
 
+-- [D-0361] stepMap_bot
 theorem stepMap_bot (q : P) : (stepMap (⊥ : P) q : EndP P) = ⊥ := by
   apply OrderHom.ext; funext y
   by_cases hqy : q ≤ y
   · rw [stepMap_apply_of_ge (⊥ : P) q hqy, endPBot_apply]
   · rw [stepMap_apply_of_not_ge (⊥ : P) q hqy, endPBot_apply]
 
--- `stepMap` distributes over `Finset.sup` (the `Finset` generalization of `stepMap_join`).
+-- [D-0362] stepMap_finset_sup
 theorem stepMap_finset_sup {ι : Type*} [DecidableEq ι] (s : Finset ι) (f : ι → P) (q : P) :
     (stepMap (s.sup f) q : EndP P) = s.sup (fun i => (stepMap (f i) q : EndP P)) := by
   induction s using Finset.induction with
@@ -4326,7 +4223,7 @@ theorem stepMap_finset_sup {ι : Type*} [DecidableEq ι] (s : Finset ι) (f : ι
   | insert i t hi ih =>
       rw [Finset.sup_insert, Finset.sup_insert, ← ih, stepMap_join]
 
--- Any lattice order-isomorphism distributes over `Finset.sup`.
+-- [D-0363] orderIso_finset_sup
 theorem orderIso_finset_sup {L : Type*} [Lattice L] [OrderBot L] {ι : Type*} [DecidableEq ι]
     (Ψ : L ≃o L) (s : Finset ι) (f : ι → L) :
     Ψ (s.sup f) = s.sup (fun i => Ψ (f i)) := by
@@ -4335,11 +4232,12 @@ theorem orderIso_finset_sup {L : Type*} [Lattice L] [OrderBot L] {ι : Type*} [D
   | insert i t hi ih =>
       rw [Finset.sup_insert, Finset.sup_insert, Ψ.map_sup, ih]
 
--- `tauHat`: the join extension of a join-irreducible relabeling `τ` to all of `P`, indexed by raw `P`.
+-- [D-0364] tauHat
 noncomputable def tauHat (τ : {x : P // JoinIrred P x} ≃ {x : P // JoinIrred P x}) (v : P) : P :=
   (Finset.univ.filter (fun x : P => JoinIrred P x ∧ x ≤ v)).sup
     (fun x => if hx : JoinIrred P x then (τ ⟨x, hx⟩).1 else ⊥)
 
+-- [D-0365] tauHat_monotone
 theorem tauHat_monotone (τ : {x : P // JoinIrred P x} ≃ {x : P // JoinIrred P x}) :
     Monotone (tauHat τ) := by
   intro v1 v2 hv
@@ -4349,7 +4247,7 @@ theorem tauHat_monotone (τ : {x : P // JoinIrred P x} ≃ {x : P // JoinIrred P
   rw [Finset.mem_filter] at hx ⊢
   exact ⟨hx.1, hx.2.1, hx.2.2.trans hv⟩
 
--- The vertical hypothesis, extended from join-irreducible `x` to all of `P`.
+-- [D-0366] phi_hat_vertical_general
 theorem phi_hat_vertical_general
     (τ : {x : P // JoinIrred P x} ≃ {x : P // JoinIrred P x})
     (Ψ : EndP P ≃o EndP P)
@@ -4372,7 +4270,7 @@ theorem phi_hat_vertical_general
   rw [Finset.mem_filter] at hx
   rw [dif_pos hx.2.1, hvert x hx.2.1 q]
 
--- Theorem Φ-HAT, closed form: an order-automorphism `Ψ` of `EndP P` whose restriction to join-irreducibles has the "vertical" shape equals `tauHat τ ∘ g` everywhere.
+-- [D-0367] phi_hat_closed_form
 theorem phi_hat_closed_form
     (τ : {x : P // JoinIrred P x} ≃ {x : P // JoinIrred P x})
     (Ψ : EndP P ≃o EndP P)
@@ -4399,7 +4297,7 @@ theorem phi_hat_closed_form
       _ ≤ Finset.univ.sup (fun q => (stepMap (tauHat τ (g q)) q : EndP P) y) :=
           Finset.le_sup (f := fun q => (stepMap (tauHat τ (g q)) q : EndP P) y) (Finset.mem_univ y)
 
--- `tauHat τ` is injective on `P`, given `Ψ` bijective.
+-- [D-0368] tauHat_injective
 theorem tauHat_injective
     (τ : {x : P // JoinIrred P x} ≃ {x : P // JoinIrred P x})
     (Ψ : EndP P ≃o EndP P)
@@ -4416,7 +4314,7 @@ theorem tauHat_injective
   have h3 : (constHom p1 : EndP P) ⊥ = (constHom p2 : EndP P) ⊥ := by rw [h2]
   rwa [constHom_apply, constHom_apply] at h3
 
--- `tauHat τ` is order-reflecting too, so combined with monotonicity+injectivity it is a genuine order-automorphism of `P`.
+-- [D-0369] tauHat_le_iff
 theorem tauHat_le_iff
     (τ : {x : P // JoinIrred P x} ≃ {x : P // JoinIrred P x})
     (Ψ : EndP P ≃o EndP P)
@@ -4441,29 +4339,29 @@ theorem tauHat_le_iff
 
 end PhiHat
 
--- `deg=1`, down side: `b` has a unique down-cover.
+-- [D-0370] HasUniqueDownCover
 def HasUniqueDownCover {α : Type*} [Preorder α] (b : α) : Prop :=
   ∃ a, Covers a b ∧ ∀ a', Covers a' b → a' = a
 
--- `deg=1`, up side, dual.
+-- [D-0371] HasUniqueUpCover
 def HasUniqueUpCover {α : Type*} [Preorder α] (a : α) : Prop :=
   ∃ b, Covers a b ∧ ∀ b', Covers a b' → b' = b
 
--- An explicit second up-cover, distinct from a known up-cover, refutes HasUniqueUpCover.
+-- [D-0372] not_hasUniqueUpCover_of_second
 theorem not_hasUniqueUpCover_of_second {α : Type*} [Preorder α] {a b : α}
     (hab : Covers a b) {b2 : α} (hb2 : Covers a b2) (hne : b2 ≠ b) :
     ¬ HasUniqueUpCover a := by
   rintro ⟨c, _, huniq⟩
   exact hne ((huniq b2 hb2).trans (huniq b hab).symm)
 
--- Dual: an explicit second down-cover refutes HasUniqueDownCover.
+-- [D-0373] not_hasUniqueDownCover_of_second
 theorem not_hasUniqueDownCover_of_second {α : Type*} [Preorder α] {a b : α}
     (hab : Covers a b) {a2 : α} (ha2 : Covers a2 b) (hne : a2 ≠ a) :
     ¬ HasUniqueDownCover b := by
   rintro ⟨c, _, huniq⟩
   exact hne ((huniq a2 ha2).trans (huniq a hab).symm)
 
--- Fully general: any element covered by ⊤ has a unique up-cover, namely ⊤ itself.
+-- [D-0374] hasUniqueUpCover_of_covers_top
 theorem hasUniqueUpCover_of_covers_top {α : Type*} [PartialOrder α] [OrderTop α] {b : α}
     (h : Covers b (⊤ : α)) : HasUniqueUpCover b :=
   ⟨⊤, h, fun c hc => by
@@ -4473,15 +4371,15 @@ theorem hasUniqueUpCover_of_covers_top {α : Type*} [PartialOrder α] [OrderTop 
 section Sig1BreakAssembled
 variable {P : Type u} [Fintype P] [DecidableEq P] [Lattice P] [BoundedOrder P] [UniqueAtomCoatom P]
 
--- Claim A (SKEL-DEG, general `k`): any finite lattice with a unique atom/coatom has its own top with a unique down-cover, namely `coatomOf P`.
+-- [D-0375] hasUniqueDownCover_top
 theorem hasUniqueDownCover_top : HasUniqueDownCover (⊤ : P) :=
   ⟨coatomOf P, coatomOf_covers_top, fun a' ha' => eq_coatomOf_of_covers_top ha'⟩
 
--- Dual of `hasUniqueDownCover_top`.
+-- [D-0376] hasUniqueUpCover_bot
 theorem hasUniqueUpCover_bot : HasUniqueUpCover (⊥ : P) :=
   ⟨atomOf P, atomOf_covers_bot, fun b' hb' => eq_atomOf_of_covers_bot hb'⟩
 
--- Uniqueness of an `updateAt` representation's witness point, given the second representation's `Covers` side-condition.
+-- [D-0377] updateAt_witness_eq_of_covers
 theorem updateAt_witness_eq_of_covers (f : EndP P) {x0 x0' : P} {v v' : P}
     (hv_le : v ≤ f x0) (hv_ge : joinBelow f x0 ≤ v)
     (hv_le' : v' ≤ f x0') (hv_ge' : joinBelow f x0' ≤ v') (hcov' : Covers v' (f x0'))
@@ -4494,7 +4392,7 @@ theorem updateAt_witness_eq_of_covers (f : EndP P) {x0 x0' : P} {v v' : P}
   rw [heq, h2] at h1
   exact hcov'.1.ne h1
 
--- Dual, up side.
+-- [D-0378] updateAtUp_witness_eq_of_covers
 theorem updateAtUp_witness_eq_of_covers (f : EndP P) {x0 x0' : P} {v v' : P}
     (hv_ge : f x0 ≤ v) (hv_le : v ≤ meetAbove f x0)
     (hv_ge' : f x0' ≤ v') (hv_le' : v' ≤ meetAbove f x0') (hcov' : Covers (f x0') v')
@@ -4507,7 +4405,7 @@ theorem updateAtUp_witness_eq_of_covers (f : EndP P) {x0 x0' : P} {v v' : P}
   rw [heq, h2] at h1
   exact hcov'.1.ne h1.symm
 
--- Theorem SIG1BREAK-GENERAL, fully assembled: for `f` with `deg(f)=(1,1)` and any `g` witnessing `f`'s down-cover, `g` does not itself have a unique up-cover (given `⊥≠⊤` and `⊥≠coatomOf P`).
+-- [D-0379] deg11_down_cover_not_uniqueUpCover
 theorem deg11_down_cover_not_uniqueUpCover
     (hbt : (⊥ : P) ≠ ⊤) (hnb : (⊥ : P) ≠ coatomOf P)
     (f : EndP P) (hdc : HasUniqueDownCover f) (huc : HasUniqueUpCover f)
@@ -4538,7 +4436,7 @@ theorem deg11_down_cover_not_uniqueUpCover
     have hcov_gf : Covers (updateAt f p0 v0 hv_le0 hv_ge0) f := by rw [← hgeq]; exact hgcov
     exact not_hasUniqueUpCover_of_second hcov_gf hcov_h2 hne
 
--- Corollary, self-contained: `f`'s down-cover `g` is never itself covered by `⊤` in `EndP P`.
+-- [D-0380] deg11_down_cover_not_covers_top
 theorem deg11_down_cover_not_covers_top
     (hbt : (⊥ : P) ≠ ⊤) (hnb : (⊥ : P) ≠ coatomOf P)
     (f : EndP P) (hdc : HasUniqueDownCover f) (huc : HasUniqueUpCover f)
@@ -4551,7 +4449,7 @@ end Sig1BreakAssembled
 section CoversGlueA
 variable {P : Type u} [Fintype P] [DecidableEq P] [Lattice P] [BoundedOrder P]
 
--- **Copy `A`'s Hasse-cover embedding is exact, unconditionally.** `Covers x' x` in `P` transfers to `Covers (glueA m x')(glueA m x)` in `Φ(P)`, for ALL `x',x:P` — no genericity needed.
+-- [D-0381] covers_glueA_of_covers
 theorem covers_glueA_of_covers (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤) (x' x : P)
     (hcov : Covers x' x) :
     letI := glueCarPartialOrder m hm hmt hbt
@@ -4582,7 +4480,7 @@ theorem covers_glueA_of_covers (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt :
       rw [iotaC_generic_eq m w hwb hwm]; exact hc2.le
     exact not_leGlue_iotaC_iotaA_of_ne_bot_ne_m m w x hm hwb hwm hle
 
--- **Pass 27 — the necessity half `covers_glueA_of_covers` itself doesn't give**: every down-cover of a copy-`A` point `glueA m x` in `Φ(P)` is ITSELF copy-`A`-shaped, for arbitrary `x : P` (no genericity restriction on `x` needed
+-- [D-0382] covers_glueA_shape
 theorem covers_glueA_shape (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤) (x : P)
     (g : GlueCar (P := P) m)
     (hgcov : letI := glueCarPartialOrder m hm hmt hbt; Covers g (glueA m x)) :
@@ -4614,7 +4512,7 @@ theorem covers_glueA_shape (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (�
       rw [iotaC_generic_eq m w hwb hwm]; exact hgcov.1.le
     exact not_leGlue_iotaC_iotaA_of_ne_bot_ne_m m w x hm hwb hwm hle
 
--- **Pass 27 — `D1_rigid`'s "missing piece 1" closed**: `HasUniqueDownCover` transfers exactly across copy `A`, for arbitrary `x : P` (general `x`, not just `x = ⊤`, since neither direction below needed that restriction).
+-- [D-0383] hasUniqueDownCover_glueA_iff
 theorem hasUniqueDownCover_glueA_iff (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤)
     (x : P) :
     letI := glueCarPartialOrder m hm hmt hbt
@@ -4632,7 +4530,7 @@ theorem hasUniqueDownCover_glueA_iff (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) 
     obtain ⟨x', hgeq, hx'cov⟩ := covers_glueA_shape m hm hmt hbt x g' hg'cov
     rw [hgeq, hauniq x' hx'cov]
 
--- Specialization to `x = ⊤`, matching this file's own docstring accounting for `D1_rigid`'s remaining "missing piece 1" (`skelG2 = glueA m ⊤`'s own down-cover count) — subsumed by the fully general `hasUniqueDownCover_glueA_iff` above
+-- [D-0384] hasUniqueDownCover_glueA_top_iff
 theorem hasUniqueDownCover_glueA_top_iff (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤) :
     letI := glueCarPartialOrder m hm hmt hbt
     HasUniqueDownCover (glueA m (⊤ : P)) ↔ HasUniqueDownCover (⊤ : P) :=
@@ -4643,19 +4541,20 @@ end CoversGlueA
 section GlueBTransfer
 variable {P : Type u} [Fintype P] [DecidableEq P] [Lattice P] [BoundedOrder P]
 
--- Copy-`B` embedding of a non-`⊥` point of `P` — `canon`'s `Sum.inr(Sum.inl x)` case redirects exactly `x = ⊥` (to `glueA m m`), so `glueB` deliberately excludes it; that excluded case is exactly where the atom branch below routes through `glueA m m` instead.
+-- [D-0385] glueB
 def glueB (m : P) (x : P) (hx : x ≠ ⊥) : GlueCar (P := P) m :=
   ⟨Sum.inr (Sum.inl x), by simp only [canon]; rw [if_neg hx]⟩
 
+-- [D-0386] glueB_injective
 theorem glueB_injective (m : P) {x y : P} (hx : x ≠ ⊥) (hy : y ≠ ⊥)
     (h : glueB m x hx = glueB m y hy) : x = y := by
   have hv : (Sum.inr (Sum.inl x) : GlueBase P) = Sum.inr (Sum.inl y) := congrArg Subtype.val h
   simpa using hv
 
-/-- `l = tag_b(m)` itself, always canonical since `m ≠ ⊥`. -/
+-- [D-0387] glueL
 def glueL (m : P) (hm : m ≠ ⊥) : GlueCar (P := P) m := glueB m m hm
 
--- Copy `A` into `l` reduces to `P`'s own order, unconditionally in `w` — the one cross-copy relation `rawRule` grants for free (`a→b ⟺ x≤m`, and `l`'s own `occs` is a singleton since `m≠⊤`, so no extra witness can add or remove cases).
+-- [D-0388] leGlue_tagA_skelL_iff
 theorem leGlue_tagA_skelL_iff (m w : P) (hmt : m ≠ ⊤) :
     leGlue m (Sum.inl w) (skelL m) ↔ w ≤ m := by
   constructor
@@ -4672,7 +4571,7 @@ theorem leGlue_tagA_skelL_iff (m w : P) (hmt : m ≠ ⊤) :
   · intro hwle
     exact ⟨Sum.inl w, self_mem_occs m _, skelL m, self_mem_occs m _, hwle⟩
 
-/-- Same-copy `B` into `l`, for `w ≠ ⊥` (so `glueB m w` is genuine). -/
+-- [D-0389] leGlue_tagB_skelL_iff
 theorem leGlue_tagB_skelL_iff (m w : P) (hmt : m ≠ ⊤) (hwb : w ≠ ⊥) :
     leGlue m (Sum.inr (Sum.inl w)) (skelL m) ↔ w ≤ m := by
   constructor
@@ -4691,8 +4590,7 @@ theorem leGlue_tagB_skelL_iff (m w : P) (hmt : m ≠ ⊤) (hwb : w ≠ ⊥) :
   · intro hwle
     exact ⟨Sum.inr (Sum.inl w), self_mem_occs m _, skelL m, self_mem_occs m _, hwle⟩
 
-/-- Copy `C` never relates below `l` at all (`rawRule`'s `c→b` clause is
-    unconditionally `False`). -/
+-- [D-0390] not_leGlue_tagC_skelL
 theorem not_leGlue_tagC_skelL (m w : P) (hmt : m ≠ ⊤) :
     ¬ leGlue m (Sum.inr (Sum.inr w)) (skelL m) := by
   rintro ⟨u, hu, v, hv, huv⟩
@@ -4705,9 +4603,7 @@ theorem not_leGlue_tagC_skelL (m w : P) (hmt : m ≠ ⊤) :
   subst hu'
   exact huv.elim
 
-/-- Same-copy `B`-into-`B`, necessity direction, for a source known
-    `≠ ⊤` (the only case needed below — every `w` this file feeds in is
-    `< m ≤ ⊤`). -/
+-- [D-0391] leGlue_tagB_tagB_imp
 theorem leGlue_tagB_tagB_imp (m w w' : P) (hwt : w ≠ ⊤)
     (h : leGlue m (Sum.inr (Sum.inl w)) (Sum.inr (Sum.inl w'))) : w ≤ w' := by
   obtain ⟨u, hu, v, hv, huv⟩ := h
@@ -4725,7 +4621,7 @@ theorem leGlue_tagB_tagB_imp (m w w' : P) (hwt : w ≠ ⊤)
     subst hv'
     exact huv
 
--- Copy `B` into copy `A` never holds, for `w ≠ ⊥` (so the source is genuinely copy-`B`-shaped; `w = ⊥` isn't canonical, so never arises as an actual `GlueCar` point in the case splits below anyway).
+-- [D-0392] not_leGlue_tagB_tagA
 theorem not_leGlue_tagB_tagA (m w w' : P) (hm : m ≠ ⊥) (hbt : (⊥ : P) ≠ ⊤) (hw : w ≠ ⊥) :
     ¬ leGlue m (Sum.inr (Sum.inl w)) (Sum.inl w') := by
   rintro ⟨u, hu, v, hv, huv⟩
@@ -4756,7 +4652,7 @@ theorem not_leGlue_tagB_tagA (m w w' : P) (hm : m ≠ ⊥) (hbt : (⊥ : P) ≠ 
     · subst hv'; exact hw (le_bot_iff.mp huv)
     · subst hv'; exact hm (le_bot_iff.mp huv)
 
--- **Sufficiency, copy `B` side of Lemma KEPT-TRANSFER**: an actual `P`-cover of `m` (away from `⊥`) transfers to an actual `Φ(P)`-cover of `l`.
+-- [D-0393] covers_glueB_of_covers
 theorem covers_glueB_of_covers (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤)
     (w : P) (hw : w ≠ ⊥) (hwcov : Covers w m) :
     letI := glueCarPartialOrder m hm hmt hbt
@@ -4786,7 +4682,7 @@ theorem covers_glueB_of_covers (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt :
     exact hwcov.2 w' (hww'.lt_of_ne (Ne.symm hw'ne)) (hw'm.lt_of_ne hw'm')
   · exact not_leGlue_tagC_skelL m w' hmt hc2.le
 
--- **Sufficiency, copy `A`/atom side of Lemma KEPT-TRANSFER**: when `m` is `P`'s own atom (`Covers ⊥ m`), `skelG1 = glueA m m` itself becomes `l`'s down-cover instead — the "cross-copy insertion" the archive's own "no cross-copy insertion" wording misses.
+-- [D-0394] covers_glueA_m_of_covers_bot
 theorem covers_glueA_m_of_covers_bot (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤)
     (hbot : Covers (⊥ : P) m) :
     letI := glueCarPartialOrder m hm hmt hbt
@@ -4816,15 +4712,12 @@ theorem covers_glueA_m_of_covers_bot (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) 
     exact hbot.2 w' hbotw' (hw'm.lt_of_ne hw'm')
   · exact not_leGlue_tagC_skelL m w' hmt hc2.le
 
-/-- Copy `A` into an ARBITRARY copy-`B` point, direct witness — the
-    `a→b` rule discards the target's own value, so this holds for any
-    `y`, not just `y = m` (`leGlue_tagA_skelL_iff`'s own special case). -/
+-- [D-0395] leGlue_tagA_tagB_of_le
 theorem leGlue_tagA_tagB_of_le (m x y : P) (hxm : x ≤ m) :
     leGlue m (Sum.inl x) (Sum.inr (Sum.inl y)) :=
   ⟨Sum.inl x, self_mem_occs m _, Sum.inr (Sum.inl y), self_mem_occs m _, hxm⟩
 
-/-- `glueA m x < glueB m y` whenever `x ≤ m` — the `Φ(P)`-strict version
-    of `leGlue_tagA_tagB_of_le`, distinctness free (different copies). -/
+-- [D-0396] glueA_lt_glueB_of_le
 theorem glueA_lt_glueB_of_le (m x y : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤)
     (hxm : x ≤ m) (hy : y ≠ ⊥) :
     letI := glueCarPartialOrder m hm hmt hbt
@@ -4834,9 +4727,7 @@ theorem glueA_lt_glueB_of_le (m x y : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt
     have hv := congrArg Subtype.val heq; simp [glueA, glueB] at hv)
   rw [GlueCar.le_def]; exact leGlue_tagA_tagB_of_le m x y hxm
 
-/-- `glueB m x < glueB m y` whenever `x < y` (both `≠ ⊥`) — the direct
-    same-copy witness always suffices, no `⊤`-adjacent case split
-    needed (unlike `leGlue_tagB_tagB_imp`'s necessity direction). -/
+-- [D-0397] glueB_lt_glueB_of_lt
 theorem glueB_lt_glueB_of_lt (m x y : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤)
     (hxy : x < y) (hx : x ≠ ⊥) (hy : y ≠ ⊥) :
     letI := glueCarPartialOrder m hm hmt hbt
@@ -4846,7 +4737,7 @@ theorem glueB_lt_glueB_of_lt (m x y : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt
   rw [GlueCar.le_def]
   exact ⟨Sum.inr (Sum.inl x), self_mem_occs m _, Sum.inr (Sum.inl y), self_mem_occs m _, hxy.le⟩
 
-/-- `glueB m z < l` whenever `z < m` (`z ≠ ⊥`). -/
+-- [D-0398] glueB_lt_skelL_of_lt
 theorem glueB_lt_skelL_of_lt (m z : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤)
     (hzm : z < m) (hzb : z ≠ ⊥) :
     letI := glueCarPartialOrder m hm hmt hbt
@@ -4855,7 +4746,7 @@ theorem glueB_lt_skelL_of_lt (m z : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt :
   refine lt_of_le_of_ne ?_ (fun heq => hzm.ne (glueB_injective m hzb hm heq))
   rw [GlueCar.le_def]; exact (leGlue_tagB_skelL_iff m z hmt hzb).mpr hzm.le
 
-/-- `glueA m m < l` — `skelG1` is always strictly below `l`. -/
+-- [D-0399] glueA_m_lt_glueL
 theorem glueA_m_lt_glueL (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤) :
     letI := glueCarPartialOrder m hm hmt hbt
     glueA m m < glueL m hm := by
@@ -4864,7 +4755,7 @@ theorem glueA_m_lt_glueL (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ 
     have hv := congrArg Subtype.val heq; simp [glueA, glueL, glueB] at hv)
   rw [GlueCar.le_def]; exact (leGlue_tagA_skelL_iff m m hmt).mpr le_rfl
 
--- **Necessity, Lemma KEPT-TRANSFER**: every actual `Φ(P)`-cover of `l` has one of the two shapes sufficiency produces.
+-- [D-0400] covers_glueL_shape
 theorem covers_glueL_shape (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤)
     (g : GlueCar (P := P) m)
     (hgcov : letI := glueCarPartialOrder m hm hmt hbt; Covers g (glueL m hm)) :
@@ -4896,7 +4787,7 @@ theorem covers_glueL_shape (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (�
       (glueB_lt_skelL_of_lt m z hm hmt hbt hzm hzb)
   · exact absurd hgcov.1.le (not_leGlue_tagC_skelL m w' hmt)
 
--- **`HasUniqueDownCover` transfers exactly at `l`** (Lemma KEPT-TRANSFER, corrected and Lean-verified): combining sufficiency (`covers_glueB_of_covers`/`covers_glueA_m_of_covers_bot`) with necessity (`covers_glueL_shape`).
+-- [D-0401] hasUniqueDownCover_glueL_iff
 theorem hasUniqueDownCover_glueL_iff (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤) :
     letI := glueCarPartialOrder m hm hmt hbt
     HasUniqueDownCover (glueL m hm) ↔ HasUniqueDownCover m := by
@@ -4946,8 +4837,7 @@ end GlueBTransfer
 section GlueBGeneral
 variable {P : Type u} [Fintype P] [DecidableEq P] [Lattice P] [BoundedOrder P]
 
-/-- Copy `A` into an arbitrary copy-`B` point (necessity direction,
-    generalizing `leGlue_tagA_skelL_iff` off `y = m`). -/
+-- [D-0402] leGlue_tagA_tagB_iff
 theorem leGlue_tagA_tagB_iff (m w y : P) (hyt : y ≠ ⊤) :
     leGlue m (Sum.inl w) (Sum.inr (Sum.inl y)) ↔ w ≤ m := by
   constructor
@@ -4964,7 +4854,7 @@ theorem leGlue_tagA_tagB_iff (m w y : P) (hyt : y ≠ ⊤) :
   · intro hwle
     exact ⟨Sum.inl w, self_mem_occs m _, Sum.inr (Sum.inl y), self_mem_occs m _, hwle⟩
 
--- Same-copy `B` into `B`, full iff, general `y` (generalizing `leGlue_tagB_skelL_iff` off `y = m`, keeping its own more robust proof mechanism via `occs_iotaB_mem` — handles `w = ⊤` internally, unlike `leGlue_tagB_tagB_imp`, which needs `w ≠ ⊤` supplied externally).
+-- [D-0403] leGlue_tagB_tagB_iff
 theorem leGlue_tagB_tagB_iff (m w y : P) (hyt : y ≠ ⊤) (hwb : w ≠ ⊥) :
     leGlue m (Sum.inr (Sum.inl w)) (Sum.inr (Sum.inl y)) ↔ w ≤ y := by
   constructor
@@ -4983,8 +4873,7 @@ theorem leGlue_tagB_tagB_iff (m w y : P) (hyt : y ≠ ⊤) (hwb : w ≠ ⊥) :
   · intro hwle
     exact ⟨Sum.inr (Sum.inl w), self_mem_occs m _, Sum.inr (Sum.inl y), self_mem_occs m _, hwle⟩
 
-/-- Copy `C` never relates below any copy-`B` point (generalizing
-    `not_leGlue_tagC_skelL` off `y = m`). -/
+-- [D-0404] not_leGlue_tagC_tagB
 theorem not_leGlue_tagC_tagB (m w y : P) (hyt : y ≠ ⊤) :
     ¬ leGlue m (Sum.inr (Sum.inr w)) (Sum.inr (Sum.inl y)) := by
   rintro ⟨u, hu, v, hv, huv⟩
@@ -4997,8 +4886,7 @@ theorem not_leGlue_tagC_tagB (m w y : P) (hyt : y ≠ ⊤) :
   subst hu'
   exact huv.elim
 
-/-- `glueA m m < glueB m x` unconditionally (generalizing `glueA_m_lt_glueL`
-    off `x = m`). -/
+-- [D-0405] glueA_m_lt_glueB
 theorem glueA_m_lt_glueB (m x : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤)
     (hx : x ≠ ⊥) (hxt : x ≠ ⊤) :
     letI := glueCarPartialOrder m hm hmt hbt
@@ -5008,8 +4896,7 @@ theorem glueA_m_lt_glueB (m x : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (�
     have hv := congrArg Subtype.val heq; simp [glueA, glueB] at hv)
   rw [GlueCar.le_def]; exact (leGlue_tagA_tagB_iff m m x hxt).mpr le_rfl
 
-/-- **Sufficiency, copy `B` side, general target `x`** (generalizing
-    `covers_glueB_of_covers` off `x = m`). -/
+-- [D-0406] covers_glueB_of_covers_gen
 theorem covers_glueB_of_covers_gen (m x : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤)
     (hx : x ≠ ⊥) (hxt : x ≠ ⊤)
     (w : P) (hw : w ≠ ⊥) (hwcov : Covers w x) :
@@ -5040,7 +4927,7 @@ theorem covers_glueB_of_covers_gen (m x : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) 
     exact hwcov.2 w' (hww'.lt_of_ne (Ne.symm hw'ne)) (hw'x.lt_of_ne hw'x')
   · exact not_leGlue_tagC_tagB m w' x hxt hc2.le
 
--- **Sufficiency, copy `A`/atom side, general target `x`** (generalizing `covers_glueA_m_of_covers_bot` off `x = m`: when `x` itself — not necessarily `m` — is `P`'s own atom, `skelG1 = glueA m m` becomes its down-cover instead).
+-- [D-0407] covers_glueA_m_of_covers_bot_gen
 theorem covers_glueA_m_of_covers_bot_gen (m x : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤)
     (hx : x ≠ ⊥) (hxt : x ≠ ⊤)
     (hbot : Covers (⊥ : P) x) :
@@ -5071,9 +4958,7 @@ theorem covers_glueA_m_of_covers_bot_gen (m x : P) (hm : m ≠ ⊥) (hmt : m ≠
     exact hbot.2 w' hbotw' (hw'x.lt_of_ne hw'x')
   · exact not_leGlue_tagC_tagB m w' x hxt hc2.le
 
-/-- **Necessity, general target `x`** (generalizing `covers_glueL_shape`
-    off `x = m`): every actual cover of `glueB m x` has one of the two
-    shapes sufficiency produces. -/
+-- [D-0408] covers_glueB_shape_gen
 theorem covers_glueB_shape_gen (m x : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤)
     (hx : x ≠ ⊥) (hxt : x ≠ ⊤)
     (g : GlueCar (P := P) m)
@@ -5106,7 +4991,7 @@ theorem covers_glueB_shape_gen (m x : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt
       (glueB_lt_glueB_of_lt m z x hm hmt hbt hzx hzb hx)
   · exact absurd hgcov.1.le (not_leGlue_tagC_tagB m w' x hxt)
 
--- **`HasUniqueDownCover` transfers exactly across copy `B`, general target `x`** (generalizing `hasUniqueDownCover_glueL_iff` off `x = m` — the FULL analogue of copy `A`'s `hasUniqueDownCover_ glueA_iff` for copy `B`, closing checklist item 10's main gap).
+-- [D-0409] hasUniqueDownCover_glueB_iff_gen
 theorem hasUniqueDownCover_glueB_iff_gen (m x : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤)
     (hx : x ≠ ⊥) (hxt : x ≠ ⊤) :
     letI := glueCarPartialOrder m hm hmt hbt
@@ -5158,13 +5043,12 @@ end GlueBGeneral
 section GlueCGeneral
 variable {P : Type u} [Fintype P] [DecidableEq P] [Lattice P] [BoundedOrder P]
 
-/-- Copy `A` into any copy-`C` point: unconditional (`rawRule`'s `a→c`
-    clause is bare `True`). -/
+-- [D-0410] leGlue_tagA_tagC
 theorem leGlue_tagA_tagC (m w y : P) :
     leGlue m (Sum.inl w) (Sum.inr (Sum.inr y)) :=
   ⟨Sum.inl w, self_mem_occs m _, Sum.inr (Sum.inr y), self_mem_occs m _, trivial⟩
 
--- Copy `B` into a generic copy-`C` point, iff `m ≤ y` — target-only condition (`rawRule`'s `b→c` clause discards the source value), handled via a case split on the source's own `⊤`-adjacent occurrence (mirroring `not_leGlue_tagB_tagA`'s style).
+-- [D-0411] leGlue_tagB_tagC_iff
 theorem leGlue_tagB_tagC_iff (m w y : P) :
     leGlue m (Sum.inr (Sum.inl w)) (Sum.inr (Sum.inr y)) ↔ m ≤ y := by
   constructor
@@ -5187,7 +5071,7 @@ theorem leGlue_tagB_tagC_iff (m w y : P) :
   · intro hmy
     exact ⟨Sum.inr (Sum.inl w), self_mem_occs m _, Sum.inr (Sum.inr y), self_mem_occs m _, hmy⟩
 
-/-- Same-copy `C` into `C`, always trivial occs on both sides. -/
+-- [D-0412] leGlue_tagC_tagC_iff
 theorem leGlue_tagC_tagC_iff (m x y : P) :
     leGlue m (Sum.inr (Sum.inr x)) (Sum.inr (Sum.inr y)) ↔ x ≤ y := by
   constructor
@@ -5199,7 +5083,7 @@ theorem leGlue_tagC_tagC_iff (m x y : P) :
   · intro hxy
     exact ⟨_, self_mem_occs m _, _, self_mem_occs m _, hxy⟩
 
--- Copy `C` into `skelG3` specifically (`y = ⊤`) — the ONE case `not_leGlue_tagC_tagB` excludes (`y ≠ ⊤`): reachable not via `c→b` (still unconditionally `False`) but via `skelG3`'s OWN alternate `tag_c(m)` representative, same-copy `c→c`.
+-- [D-0413] leGlue_tagC_tagB_top_iff
 theorem leGlue_tagC_tagB_top_iff (m w' : P) :
     leGlue m (Sum.inr (Sum.inr w')) (Sum.inr (Sum.inl (⊤ : P))) ↔ w' ≤ m := by
   constructor
@@ -5213,11 +5097,11 @@ theorem leGlue_tagC_tagB_top_iff (m w' : P) :
   · intro hw'm
     exact ⟨Sum.inr (Sum.inr w'), self_mem_occs m _, Sum.inr (Sum.inr m), by simp [occs], hw'm⟩
 
-/-- Copy-`C` embedding of a point avoiding both redirects (`x = ⊥`
-    redirects to `glueA m ⊤`; `x = m` redirects to `glueB m ⊤`). -/
+-- [D-0414] glueC
 def glueC (m : P) (x : P) (hx : x ≠ ⊥) (hxm : x ≠ m) : GlueCar (P := P) m :=
   ⟨Sum.inr (Sum.inr x), by simp only [canon]; rw [if_neg hx, if_neg hxm]⟩
 
+-- [D-0415] glueC_injective
 theorem glueC_injective (m : P) {x y : P} (hx : x ≠ ⊥) (hxm : x ≠ m) (hy : y ≠ ⊥) (hym : y ≠ m)
     (h : glueC m x hx hxm = glueC m y hy hym) : x = y := by
   have hv : (Sum.inr (Sum.inr x) : GlueBase P) = Sum.inr (Sum.inr y) := congrArg Subtype.val h
@@ -5225,7 +5109,7 @@ theorem glueC_injective (m : P) {x y : P} (hx : x ≠ ⊥) (hxm : x ≠ m) (hy :
 
 variable (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤)
 
-/-- `glueA m ⊤ < glueC m x`, unconditionally. -/
+-- [D-0416] glueA_top_lt_glueC
 theorem glueA_top_lt_glueC (x : P) (hx : x ≠ ⊥) (hxm : x ≠ m) :
     letI := glueCarPartialOrder m hm hmt hbt
     glueA m ⊤ < glueC m x hx hxm := by
@@ -5234,7 +5118,7 @@ theorem glueA_top_lt_glueC (x : P) (hx : x ≠ ⊥) (hxm : x ≠ m) :
     have hv := congrArg Subtype.val heq; simp [glueA, glueC] at hv)
   rw [GlueCar.le_def]; exact leGlue_tagA_tagC m ⊤ x
 
-/-- `glueB m ⊤ < glueC m x`, given `m ≤ x`. -/
+-- [D-0417] glueB_top_lt_glueC_of_le
 theorem glueB_top_lt_glueC_of_le (x : P) (hx : x ≠ ⊥) (hxm : x ≠ m) (hmx : m ≤ x) :
     letI := glueCarPartialOrder m hm hmt hbt
     glueB m ⊤ (hbt ∘ Eq.symm) < glueC m x hx hxm := by
@@ -5243,7 +5127,7 @@ theorem glueB_top_lt_glueC_of_le (x : P) (hx : x ≠ ⊥) (hxm : x ≠ m) (hmx :
     have hv := congrArg Subtype.val heq; simp [glueB, glueC] at hv)
   rw [GlueCar.le_def]; exact (leGlue_tagB_tagC_iff m ⊤ x).mpr hmx
 
-/-- `glueC m w < glueC m x`, given `w < x` (both avoiding redirects). -/
+-- [D-0418] glueC_lt_glueC_of_lt
 theorem glueC_lt_glueC_of_lt (w x : P) (hw : w ≠ ⊥) (hwm : w ≠ m) (hx : x ≠ ⊥) (hxm : x ≠ m)
     (hwx : w < x) :
     letI := glueCarPartialOrder m hm hmt hbt
@@ -5252,9 +5136,7 @@ theorem glueC_lt_glueC_of_lt (w x : P) (hw : w ≠ ⊥) (hwm : w ≠ m) (hx : x 
   refine lt_of_le_of_ne ?_ (fun heq => hwx.ne (glueC_injective m hw hwm hx hxm heq))
   rw [GlueCar.le_def]; exact (leGlue_tagC_tagC_iff m w x).mpr hwx.le
 
-/-- `glueA m ⊤ < glueB m ⊤` — `skelG2 < skelG3` always, via `skelG3`'s
-    own alternate `tag_c(m)` representative relating from copy `A`
-    unconditionally. -/
+-- [D-0419] glueA_top_lt_glueB_top
 theorem glueA_top_lt_glueB_top :
     letI := glueCarPartialOrder m hm hmt hbt
     glueA m ⊤ < glueB m ⊤ (hbt ∘ Eq.symm) := by
@@ -5265,8 +5147,7 @@ theorem glueA_top_lt_glueB_top :
   have hocc : Sum.inr (Sum.inr m) ∈ occs m (Sum.inr (Sum.inl (⊤ : P))) := by simp [occs]
   exact ⟨Sum.inl ⊤, self_mem_occs m _, Sum.inr (Sum.inr m), hocc, trivial⟩
 
-/-- **Sufficiency, copy `A`/atom side**: when `x` is `P`'s own atom,
-    `skelG2 = glueA m ⊤` becomes `glueC(x)`'s down-cover. -/
+-- [D-0420] covers_glueA_top_of_covers_bot_gen
 theorem covers_glueA_top_of_covers_bot_gen (x : P) (hx : x ≠ ⊥) (hxm : x ≠ m)
     (hbot : Covers (⊥ : P) x) :
     letI := glueCarPartialOrder m hm hmt hbt
@@ -5292,8 +5173,7 @@ theorem covers_glueA_top_of_covers_bot_gen (x : P) (hx : x ≠ ⊥) (hxm : x ≠
       simp [canon] at hcvfix
     exact hbot.2 w'' (lt_of_le_of_ne bot_le (Ne.symm hw''b)) hw''x
 
-/-- **Sufficiency, copy `B`/`m`-covers side**: when `m ⋖ x` in `P`,
-    `skelG3 = glueB m ⊤` becomes `glueC(x)`'s down-cover. -/
+-- [D-0421] covers_glueB_top_of_covers_gen
 theorem covers_glueB_top_of_covers_gen (x : P) (hx : x ≠ ⊥) (hxm : x ≠ m) (hcov : Covers m x) :
     letI := glueCarPartialOrder m hm hmt hbt
     Covers (glueB m (⊤ : P) (hbt ∘ Eq.symm)) (glueC m x hx hxm) := by
@@ -5322,7 +5202,7 @@ theorem covers_glueB_top_of_covers_gen (x : P) (hx : x ≠ ⊥) (hxm : x ≠ m) 
     have hmw''lt : m < w'' := lt_of_le_of_ne hmw'' (Ne.symm hw''m)
     exact hcov.2 w'' hmw''lt hw''x
 
--- **Sufficiency, generic copy `C` side**: same-copy covers transfer directly, mirroring copy `B`'s `covers_glueB_of_covers_gen`.
+-- [D-0422] covers_glueC_of_covers_gen
 theorem covers_glueC_of_covers_gen (x : P) (hx : x ≠ ⊥) (hxm : x ≠ m)
     (w : P) (hw : w ≠ ⊥) (hwm : w ≠ m) (hwcov : Covers w x) :
     letI := glueCarPartialOrder m hm hmt hbt
@@ -5364,7 +5244,7 @@ theorem covers_glueC_of_covers_gen (x : P) (hx : x ≠ ⊥) (hxm : x ≠ m)
     have hw'xne : w' ≠ x := fun heq => hc2.ne (by subst heq; rfl)
     exact hwcov.2 w' (hw'w.lt_of_ne (Ne.symm hw'wne)) (hw'x.lt_of_ne hw'xne)
 
--- **Necessity, the full 3-way shape**: every actual cover of `glueC m x` is `skelG2` (iff `x` is `P`'s atom), `skelG3` (iff `Covers m x`), or a generic `glueC m w` (iff `Covers w x`, `w ≠ ⊥, w ≠ m`).
+-- [D-0423] covers_glueC_shape_gen
 theorem covers_glueC_shape_gen (x : P) (hx : x ≠ ⊥) (hxm : x ≠ m)
     (g : GlueCar (P := P) m)
     (hgcov : letI := glueCarPartialOrder m hm hmt hbt; Covers g (glueC m x hx hxm)) :
@@ -5435,9 +5315,7 @@ theorem covers_glueC_shape_gen (x : P) (hx : x ≠ ⊥) (hxm : x ≠ m)
         (glueC_lt_glueC_of_lt m hm hmt hbt w' z hw'b hw'm hzb hzm hz)
         (glueC_lt_glueC_of_lt m hm hmt hbt z x hzb hzm hx hxm hzx)
 
-/-- **`HasUniqueDownCover` transfers exactly across copy `C`** — the
-    final piece, completing the join-irreducible characterization for
-    all three copies. -/
+-- [D-0424] hasUniqueDownCover_glueC_iff_gen
 theorem hasUniqueDownCover_glueC_iff_gen (x : P) (hx : x ≠ ⊥) (hxm : x ≠ m) :
     letI := glueCarPartialOrder m hm hmt hbt
     HasUniqueDownCover (glueC m x hx hxm) ↔ HasUniqueDownCover x := by
@@ -5521,7 +5399,7 @@ end GlueCGeneral
 section JoinIrredCoverConnect
 variable {P : Type u} [Fintype P] [DecidableEq P] [Lattice P] [OrderBot P]
 
--- **Direction 1**: a unique lower cover forces join-irreducibility.
+-- [D-0425] joinIrred_of_hasUniqueDownCover
 theorem joinIrred_of_hasUniqueDownCover {a : P} (h : HasUniqueDownCover a) :
     JoinIrred P a := by
   obtain ⟨g0, hg0cov, hg0uniq⟩ := h
@@ -5541,7 +5419,7 @@ theorem joinIrred_of_hasUniqueDownCover {a : P} (h : HasUniqueDownCover a) :
   have ha_g0 : a ≤ g0 := by rw [habc]; exact sup_le hb_g0 hc_g0
   exact hg0cov.1.ne (le_antisymm hg0cov.1.le ha_g0)
 
--- **Direction 2**: join-irreducibility forces a unique lower cover.
+-- [D-0426] hasUniqueDownCover_of_joinIrred
 theorem hasUniqueDownCover_of_joinIrred {a : P} (h : JoinIrred P a) :
     HasUniqueDownCover a := by
   obtain ⟨hab, hji⟩ := h
@@ -5564,7 +5442,7 @@ theorem hasUniqueDownCover_of_joinIrred {a : P} (h : JoinIrred P a) :
   · have hlt0 : w0 < w0 ⊔ w1 := lt_of_le_of_ne le_sup_left h0
     exact absurd hlt (hw0cov.2 _ hlt0)
 
-/-- Assembled iff, the form the Claim B induction below actually cites. -/
+-- [D-0427] hasUniqueDownCover_iff_joinIrred
 theorem hasUniqueDownCover_iff_joinIrred (a : P) : HasUniqueDownCover a ↔ JoinIrred P a :=
   ⟨joinIrred_of_hasUniqueDownCover, hasUniqueDownCover_of_joinIrred⟩
 
@@ -5573,9 +5451,7 @@ end JoinIrredCoverConnect
 section GlueAJoinIrred
 variable {P : Type u} [Fintype P] [DecidableEq P] [Lattice P] [BoundedOrder P]
 
-/-- Copy `A` preserves join-irreducibility: chase `JoinIrred x` through
-    `hasUniqueDownCover_iff_joinIrred` (twice) and
-    `hasUniqueDownCover_glueA_iff` in the middle. -/
+-- [D-0428] joinIrred_glueA_of_joinIrred
 theorem joinIrred_glueA_of_joinIrred (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤)
     (x : P) (hx : JoinIrred P x) :
     letI := glueCarPartialOrder m hm hmt hbt
@@ -5589,7 +5465,7 @@ theorem joinIrred_glueA_of_joinIrred (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) 
     ((hasUniqueDownCover_glueA_iff m hm hmt hbt x).mpr
       ((hasUniqueDownCover_iff_joinIrred x).mpr hx))
 
--- Copy `A` never lands on `Φ(P)`'s own top: `glueA m x` is always `Sum.inl`-shaped, while `⊤ = incl m hm hbt (Sum.inr (Sum.inr ⊤))` is `Sum.inr`-shaped (`glueOrderTop`) — different constructors, so they can never coincide, for ANY `x : P`.
+-- [D-0429] glueA_ne_top
 theorem glueA_ne_top (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤) (x : P) :
     letI := glueCarPartialOrder m hm hmt hbt
     letI := glueOrderTop m hm hmt hbt
@@ -5610,20 +5486,7 @@ end GlueAJoinIrred
 section GlueBCJoinIrred
 variable {P : Type u} [Fintype P] [DecidableEq P] [Lattice P] [BoundedOrder P]
 
-/-- **Copy `B` preserves join-irreducibility, away from `⊤`.** Same
-    three-step chase as `joinIrred_glueA_of_joinIrred`
-    (`hasUniqueDownCover_iff_joinIrred` on both sides,
-    `hasUniqueDownCover_glueB_iff_gen` in the middle), but assembled as a
-    genuine `Iff` (both directions), and general enough to close the gap
-    flagged in the copy-B/C join-irreducible recursion thread: `tag_B(x)`
-    is join-irreducible in `GlueCar m` iff `x` is join-irreducible in `P`,
-    for any `x ≠ ⊥, x ≠ ⊤`. The `x ≠ ⊤` restriction is real, not an
-    artifact of this proof — `glueB m ⊤ _` is the same point as
-    `glueC m m` would be if that were canonical (it isn't; `canon`
-    redirects `tag_C(m)` to `tag_B(⊤)`), so `x = ⊤` needs to be counted
-    once, as a copy-`B` point, not chased as a separate "copy `C` at `m`"
-    case — this is exactly the double-counting gap the informal write-up
-    flagged, not a failure of the underlying transfer fact. -/
+-- [D-0430] joinIrred_glueB_iff
 theorem joinIrred_glueB_iff (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤)
     (x : P) (hx : x ≠ ⊥) (hxt : x ≠ ⊤) :
     letI := glueCarPartialOrder m hm hmt hbt
@@ -5636,20 +5499,7 @@ theorem joinIrred_glueB_iff (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (�
   rw [← hasUniqueDownCover_iff_joinIrred, ← hasUniqueDownCover_iff_joinIrred]
   exact hasUniqueDownCover_glueB_iff_gen m x hm hmt hbt hx hxt
 
-/-- **Copy `C` preserves join-irreducibility, fully generally — no
-    exception.** Identical chase to `joinIrred_glueB_iff` above, but
-    `hasUniqueDownCover_glueC_iff_gen` carries no extra hypothesis beyond
-    `glueC`'s own validity conditions (`x ≠ ⊥, x ≠ m`), so this Iff holds
-    for every valid copy-`C` point, unconditionally — copy `C`, despite
-    being flagged in the informal write-up as "structurally messier"
-    (its down-set pulls in all of copy `A` and conditionally all of copy
-    `B`), turns out to be the *cleanest* of the three families once
-    routed through `HasUniqueDownCover` rather than chased directly via
-    `rawRule`/`occs`: spot-checked first (Python, 212 checks across 5
-    instances including a real `EndP(4-chain)` tower, 0 mismatches, per
-    house style) before discovering this composition already existed as
-    unused machinery from the treewidth-proof session
-    (`hasUniqueDownCover_glueC_iff_gen`, `covers_glueC_shape_gen`). -/
+-- [D-0431] joinIrred_glueC_iff
 theorem joinIrred_glueC_iff (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤)
     (x : P) (hx : x ≠ ⊥) (hxm : x ≠ m) :
     letI := glueCarPartialOrder m hm hmt hbt
@@ -5667,9 +5517,7 @@ end GlueBCJoinIrred
 section Gap1Closed
 variable {P : Type u} [Fintype P] [DecidableEq P] [Lattice P] [BoundedOrder P]
 
-/-- Away from `⊥`, `const v`'s forced lower bound at any point is `v`
-    itself (`⊥` is always a valid predecessor once `x0 ≠ ⊥`, and every
-    predecessor's value is `v`). -/
+-- [D-0432] joinBelow_constHom_eq
 theorem joinBelow_constHom_eq (v : P) {x0 : P} (hx0 : x0 ≠ ⊥) :
     joinBelow (constHom v : EndP P) x0 = v := by
   apply le_antisymm
@@ -5678,7 +5526,7 @@ theorem joinBelow_constHom_eq (v : P) {x0 : P} (hx0 : x0 ≠ ⊥) :
     have h := le_joinBelow (constHom v : EndP P) hbot
     rwa [constHom_apply] at h
 
--- **Theorem GAP1-GENERAL, down-cover half, closed in full generality**: `g` covers `const v` iff `g` has the `lowerAtBot` shape
+-- [D-0433] covers_constHom_iff_lowerAtBot
 theorem covers_constHom_iff_lowerAtBot (v : P) (g : EndP P) :
     Covers g (constHom v) ↔
       ∃ w, ∃ hw_le : w ≤ (constHom v : EndP P) ⊥, g = lowerAtBot (constHom v) w hw_le ∧
@@ -5707,7 +5555,7 @@ theorem covers_constHom_iff_lowerAtBot (v : P) (g : EndP P) :
     rw [hgeq]
     exact covers_lowerAtBot (constHom v) w hw_le hwcov
 
--- **Pass 27 — "Lemma 2" of `D1_rigid`'s Claim B accounting**: `deg=1` down-side transfers exactly across `constHom`, for ANY `v : P` (including `v = ⊥`, where both sides are vacuously `False` — `⊥` has no down-cover in `P`, and `constHom ⊥ = ⊥ : EndP P` likewise has none).
+-- [D-0434] hasUniqueDownCover_constHom_iff
 theorem hasUniqueDownCover_constHom_iff (v : P) :
     HasUniqueDownCover (constHom v : EndP P) ↔ HasUniqueDownCover v := by
   constructor
@@ -5729,7 +5577,7 @@ theorem hasUniqueDownCover_constHom_iff (v : P) :
     subst hweq
     rw [hg'eq]
 
--- **GAP1-GENERAL, down-cover half, fully unconditional existence form**: for `v` interior and ANY genuine down-cover `g` of `const v` — not a constructed one, an arbitrary given one — `g` has a second, independent up-cover.
+-- [D-0435] gap1_down_cover_has_second_up_cover
 theorem gap1_down_cover_has_second_up_cover (v v' : P) (hbt : (⊥ : P) ≠ ⊤)
     (hv' : Covers v v') (g : EndP P) (hg : Covers g (constHom v)) :
     ∃ g2 : EndP P, Covers g g2 ∧ constHom v ≠ g2 := by
@@ -5752,7 +5600,7 @@ end Gap1Closed
 section IdDownCover
 variable {L : Type u} [Fintype L] [DecidableEq L] [Lattice L] [BoundedOrder L]
 
--- Given `x0` join-irreducible, `id : EndP L` has a down-cover that modifies exactly `x0`, down to its own unique lower cover `v0`.
+-- [D-0436] covers_id_updateAt_of_joinIrred
 theorem covers_id_updateAt_of_joinIrred (x0 : L) (hx0 : JoinIrred L x0) :
     ∃ v0, v0 < x0 ∧ ∃ (hv_le : v0 ≤ (OrderHom.id : EndP L) x0)
       (hv_ge : joinBelow (OrderHom.id : EndP L) x0 ≤ v0),
@@ -5767,7 +5615,7 @@ theorem covers_id_updateAt_of_joinIrred (x0 : L) (hx0 : JoinIrred L x0) :
     exact hyw
   exact ⟨v0, hv0cov.1, hv_le, hv_ge, covers_updateAt _ x0 v0 hv_le hv_ge hv0cov⟩
 
--- **Two distinct join-irreducibles of `L` already break `id`'s down-cover uniqueness** — the actual payoff, general `L`.
+-- [D-0437] not_hasUniqueDownCover_id_of_ne
 theorem not_hasUniqueDownCover_id_of_ne (x1 x2 : L) (hx1 : JoinIrred L x1)
     (hx2 : JoinIrred L x2) (hne : x1 ≠ x2) :
     ¬ HasUniqueDownCover (OrderHom.id : EndP L) := by
@@ -5784,31 +5632,37 @@ end IdDownCover
 section G2Pin
 variable {P : Type u} [Fintype P] [DecidableEq P] [Lattice P] [BoundedOrder P]
 
-/-! ### copy embeddings as total maps `P → GlueCar m` -/
-
+-- [D-0438] §copy-embeddings-as-total-maps-P-GlueCar-m
+-- [D-0439] glueBt
 def glueBt (m : P) (hm : m ≠ ⊥) (hbt : (⊥ : P) ≠ ⊤) (x : P) : GlueCar (P := P) m :=
   ⟨iotaB m x, iotaB_canon m hm hbt x⟩
 
+-- [D-0440] glueCt
 def glueCt (m : P) (hm : m ≠ ⊥) (hbt : (⊥ : P) ≠ ⊤) (x : P) : GlueCar (P := P) m :=
   ⟨iotaC m x, iotaC_canon m hm hbt x⟩
 
+-- [D-0441] unA
 def unA : GlueBase P → P
   | Sum.inl x => x
   | Sum.inr (Sum.inl _) => ⊥
   | Sum.inr (Sum.inr _) => ⊥
 
+-- [D-0442] unB
 def unB : GlueBase P → P
   | Sum.inl _ => ⊥
   | Sum.inr (Sum.inl x) => x
   | Sum.inr (Sum.inr _) => ⊤
 
+-- [D-0443] unC
 def unC (m : P) : GlueBase P → P
   | Sum.inl _ => ⊥
   | Sum.inr (Sum.inl _) => m
   | Sum.inr (Sum.inr x) => x
 
+-- [D-0444] unA_glueA
 theorem unA_glueA (m x : P) : unA (glueA m x).1 = x := rfl
 
+-- [D-0445] unB_glueBt
 theorem unB_glueBt (m : P) (hm : m ≠ ⊥) (hbt : (⊥ : P) ≠ ⊤) (x : P) :
     unB (glueBt m hm hbt x).1 = x := by
   by_cases hxb : x = ⊥
@@ -5820,6 +5674,7 @@ theorem unB_glueBt (m : P) (hm : m ≠ ⊥) (hbt : (⊥ : P) ≠ ⊤) (x : P) :
     rw [iotaB_generic_eq m x hxb]
     rfl
 
+-- [D-0446] unC_glueCt
 theorem unC_glueCt (m : P) (hm : m ≠ ⊥) (hbt : (⊥ : P) ≠ ⊤) (x : P) :
     unC m (glueCt m hm hbt x).1 = x := by
   by_cases hxb : x = ⊥
@@ -5835,42 +5690,47 @@ theorem unC_glueCt (m : P) (hm : m ≠ ⊥) (hbt : (⊥ : P) ≠ ⊤) (x : P) :
       rw [iotaC_generic_eq m x hxb hxm]
       rfl
 
+-- [D-0447] glueBt_le_iff
 theorem glueBt_le_iff (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤) (x y : P) :
     glueBt m hm hbt x ≤ glueBt m hm hbt y ↔ x ≤ y := by
   rw [GlueCar.le_def]; exact tagB_iso m hm hmt hbt x y
 
+-- [D-0448] glueCt_le_iff
 theorem glueCt_le_iff (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤) (x y : P) :
     glueCt m hm hbt x ≤ glueCt m hm hbt y ↔ x ≤ y := by
   rw [GlueCar.le_def]; exact tagC_iso m hm hmt hbt x y
 
-/-! ### canonicity extraction -/
-
+-- [D-0449] §canonicity-extraction
+-- [D-0450] canon_inr_inl_ne_bot
 theorem canon_inr_inl_ne_bot (m w : P)
     (h : canon m (Sum.inr (Sum.inl w)) = Sum.inr (Sum.inl w)) : w ≠ ⊥ := by
   intro hw; subst hw; simp only [canon] at h; split_ifs at h <;> simp at h
 
+-- [D-0451] canon_inr_inr_ne
 theorem canon_inr_inr_ne (m w : P)
     (h : canon m (Sum.inr (Sum.inr w)) = Sum.inr (Sum.inr w)) : w ≠ ⊥ ∧ w ≠ m := by
   constructor
   · intro hw; subst hw; simp only [canon] at h; split_ifs at h <;> simp at h
   · intro hw; subst hw; simp only [canon] at h; split_ifs at h <;> simp at h
 
+-- [D-0452] occs_inr_inl_mem
 theorem occs_inr_inl_mem (m w : P) {t : GlueBase P} (ht : t ∈ occs m (Sum.inr (Sum.inl w))) :
     t = Sum.inr (Sum.inl w) ∨ (w = ⊤ ∧ t = Sum.inr (Sum.inr m)) := by
   simp only [occs] at ht
   split_ifs at ht with hw <;> simp at ht <;> tauto
 
+-- [D-0453] occs_inr_inr_mem
 theorem occs_inr_inr_mem (m w : P) {t : GlueBase P} (ht : t ∈ occs m (Sum.inr (Sum.inr w))) :
     t = Sum.inr (Sum.inr w) := by
   simp only [occs] at ht; simpa using ht
 
+-- [D-0454] occs_inr_inl_ne_top
 theorem occs_inr_inl_ne_top (m x : P) (hxt : x ≠ ⊤) {t : GlueBase P}
     (ht : t ∈ occs m (Sum.inr (Sum.inl x))) : t = Sum.inr (Sum.inl x) := by
   simp only [occs] at ht; rw [if_neg hxt] at ht; simpa using ht
 
-/-! ### shape lemmas -/
-
-/-- Everything below a copy-`A` point is copy-`A`, at a smaller `P`-value. -/
+-- [D-0455] §shape-lemmas
+-- [D-0456] le_tagA_shape
 theorem le_tagA_shape (m : P) (hm : m ≠ ⊥) (x : P) {z : GlueBase P}
     (hzc : canon m z = z) (hz : leGlue m z (Sum.inl x)) :
     ∃ y, y ≤ x ∧ z = Sum.inl y := by
@@ -5903,7 +5763,7 @@ theorem le_tagA_shape (m : P) (hm : m ≠ ⊥) (x : P) {z : GlueBase P}
         | exact huv
         | exact hwb' (le_bot_iff.mp huv)
 
-/-- Everything above `g2` is copy-`C`. -/
+-- [D-0457] tagA_top_le_shape
 theorem tagA_top_le_shape (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤)
     {z : GlueBase P} (hzc : canon m z = z) (hz : leGlue m (Sum.inl (⊤ : P)) z) :
     ∃ y, z = iotaC m y := by
@@ -5926,7 +5786,7 @@ theorem tagA_top_le_shape (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥
   · obtain ⟨hwb, hwm⟩ := canon_inr_inr_ne m w hzc
     exact ⟨w, (iotaC_generic_eq m w hwb hwm).symm⟩
 
-/-- Down-set shape at an interior copy-`B` point. -/
+-- [D-0458] le_tagB_shape
 theorem le_tagB_shape (m : P) (hm : m ≠ ⊥) (x : P) (hxb : x ≠ ⊥) (hxt : x ≠ ⊤)
     {z : GlueBase P} (hzc : canon m z = z) (hz : leGlue m z (Sum.inr (Sum.inl x))) :
     (∃ y, y ≤ m ∧ z = Sum.inl y) ∨ (∃ y, y ≤ x ∧ y ≠ ⊥ ∧ z = Sum.inr (Sum.inl y)) := by
@@ -5951,7 +5811,7 @@ theorem le_tagB_shape (m : P) (hm : m ≠ ⊥) (x : P) (hxb : x ≠ ⊥) (hxt : 
     subst hu'
     exact huv
 
-/-- Up-set shape at an interior copy-`B` point. -/
+-- [D-0459] tagB_le_shape
 theorem tagB_le_shape (m : P) (hm : m ≠ ⊥) (x : P) (hxb : x ≠ ⊥) (hxt : x ≠ ⊤)
     {z : GlueBase P} (hzc : canon m z = z) (hz : leGlue m (Sum.inr (Sum.inl x)) z) :
     (∃ y, x ≤ y ∧ z = Sum.inr (Sum.inl y)) ∨
@@ -5976,7 +5836,7 @@ theorem tagB_le_shape (m : P) (hm : m ≠ ⊥) (x : P) (hxb : x ≠ ⊥) (hxt : 
     subst hv'
     exact ⟨w, huv, hwm, rfl⟩
 
-/-- A point incomparable to `g2` is an interior copy-`B` point. -/
+-- [D-0460] incomp_g2_shape
 theorem incomp_g2_shape (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤)
     {z : GlueBase P} (hzc : canon m z = z)
     (h1 : ¬ leGlue m z (Sum.inl (⊤ : P))) (h2 : ¬ leGlue m (Sum.inl (⊤ : P)) z) :
@@ -5990,19 +5850,17 @@ theorem incomp_g2_shape (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ :
   · exfalso
     exact h2 ⟨Sum.inl ⊤, self_mem_occs m _, Sum.inr (Sum.inr w), self_mem_occs m _, trivial⟩
 
-/-- Every copy-`A` point sits below every copy-`C`-tagged point. -/
+-- [D-0461] tagA_le_tagC
 theorem tagA_le_tagC (m y w : P) : leGlue m (Sum.inl y) (Sum.inr (Sum.inr w)) :=
   ⟨Sum.inl y, self_mem_occs m _, Sum.inr (Sum.inr w), self_mem_occs m _, trivial⟩
 
-/-- Every copy-`A` point sits below `g3`. -/
+-- [D-0462] tagA_le_g3
 theorem tagA_le_g3 (m y : P) : leGlue m (Sum.inl y) (Sum.inr (Sum.inl (⊤ : P))) := by
   refine ⟨Sum.inl y, self_mem_occs m _, Sum.inr (Sum.inr m), ?_, trivial⟩
   simp [occs]
 
-/-! ### two purely `P`-level counting facts -/
-
-/-- If some `p` is incomparable to `m`, then `↓m` together with `↑m \ {m}`
-    still misses at least one point of `P` (namely `p`). -/
+-- [D-0463] §two-purely-P-level-counting-facts
+-- [D-0464] ncard_down_add_strict_up_lt
 theorem ncard_down_add_strict_up_lt (m p : P) (hp1 : ¬ p ≤ m) (hp2 : ¬ m ≤ p) :
     ({y : P | y ≤ m}).ncard + ({y : P | m ≤ y ∧ y ≠ m}).ncard + 1 ≤ Nat.card P := by
   have hdisj : Disjoint ({y : P | y ≤ m}) ({y : P | m ≤ y ∧ y ≠ m}) := by
@@ -6020,7 +5878,7 @@ theorem ncard_down_add_strict_up_lt (m p : P) (hp1 : ¬ p ≤ m) (hp2 : ¬ m ≤
       Set.ncard_union_eq hdisj (Set.toFinite _) (Set.toFinite _), Set.ncard_univ] at hle
   exact hle
 
-/-- `↓x \ {⊥}` together with `↑x` misses `⊥` and double-counts only `x`. -/
+-- [D-0465] ncard_strict_down_add_up_le
 theorem ncard_strict_down_add_up_le (x : P) (hxb : x ≠ ⊥) :
     ({y : P | y ≤ x ∧ y ≠ ⊥}).ncard + ({y : P | x ≤ y}).ncard ≤ Nat.card P := by
   have hinter : ({y : P | y ≤ x ∧ y ≠ ⊥}) ∩ ({y : P | x ≤ y}) = {x} := by
@@ -6041,11 +5899,13 @@ theorem ncard_strict_down_add_up_le (x : P) (hxb : x ≠ ⊥) :
   rw [hinter, Set.ncard_singleton] at hsum
   omega
 
-/-! ### down-sets / up-sets in `Φ(P)` -/
-
+-- [D-0466] §down-sets-up-sets-in-P
+-- [D-0467] gDown
 def gDown (m : P) (z : GlueCar (P := P) m) : Set (GlueCar (P := P) m) := {w | w ≤ z}
+-- [D-0468] gUp
 def gUp (m : P) (z : GlueCar (P := P) m) : Set (GlueCar (P := P) m) := {w | z ≤ w}
 
+-- [D-0469] gDown_ncard_map
 theorem gDown_ncard_map (m : P) (φ : GlueCar (P := P) m ≃o GlueCar (P := P) m)
     (z : GlueCar (P := P) m) : (gDown m (φ z)).ncard = (gDown m z).ncard := by
   have himg : gDown m (φ z) = φ '' gDown m z := by
@@ -6059,6 +5919,7 @@ theorem gDown_ncard_map (m : P) (φ : GlueCar (P := P) m ≃o GlueCar (P := P) m
     · rintro ⟨w', hw', rfl⟩; exact φ.le_iff_le.mpr hw'
   rw [himg]; exact Set.ncard_image_of_injective _ φ.injective
 
+-- [D-0470] gUp_ncard_map
 theorem gUp_ncard_map (m : P) (φ : GlueCar (P := P) m ≃o GlueCar (P := P) m)
     (z : GlueCar (P := P) m) : (gUp m (φ z)).ncard = (gUp m z).ncard := by
   have himg : gUp m (φ z) = φ '' gUp m z := by
@@ -6072,6 +5933,7 @@ theorem gUp_ncard_map (m : P) (φ : GlueCar (P := P) m ≃o GlueCar (P := P) m)
     · rintro ⟨w', hw', rfl⟩; exact φ.le_iff_le.mpr hw'
   rw [himg]; exact Set.ncard_image_of_injective _ φ.injective
 
+-- [D-0471] gDown_glueA
 theorem gDown_glueA (m : P) (hm : m ≠ ⊥) (x : P) :
     gDown m (glueA m x) = (glueA m) '' {y : P | y ≤ x} := by
   ext w
@@ -6083,18 +5945,22 @@ theorem gDown_glueA (m : P) (hm : m ≠ ⊥) (x : P) :
   · rintro ⟨y, hy, rfl⟩
     exact (glueA_le_iff m hm y x).mpr hy
 
+-- [D-0472] glueA_inj
 theorem glueA_inj (m : P) : Function.Injective (glueA m) := fun _ _ h => glueA_injective m h
 
+-- [D-0473] glueCt_inj
 theorem glueCt_inj (m : P) (hm : m ≠ ⊥) (hbt : (⊥ : P) ≠ ⊤) :
     Function.Injective (glueCt m hm hbt) := by
   intro a b h
   rw [← unC_glueCt m hm hbt a, ← unC_glueCt m hm hbt b, h]
 
+-- [D-0474] glueBt_inj
 theorem glueBt_inj (m : P) (hm : m ≠ ⊥) (hbt : (⊥ : P) ≠ ⊤) :
     Function.Injective (glueBt m hm hbt) := by
   intro a b h
   rw [← unB_glueBt m hm hbt a, ← unB_glueBt m hm hbt b, h]
 
+-- [D-0475] gDown_g2_ncard
 theorem gDown_g2_ncard (m : P) (hm : m ≠ ⊥) :
     (gDown m (glueA m ⊤)).ncard = Nat.card P := by
   rw [gDown_glueA m hm ⊤,
@@ -6102,6 +5968,7 @@ theorem gDown_g2_ncard (m : P) (hm : m ≠ ⊥) :
       show ({y : P | y ≤ ⊤}) = Set.univ from Set.eq_univ_of_forall (fun _ => le_top),
       Set.ncard_univ]
 
+-- [D-0476] gUp_g2_ncard_ge
 theorem gUp_g2_ncard_ge (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤) :
     Nat.card P ≤ (gUp m (glueA m ⊤)).ncard := by
   have hsub : Set.range (glueCt m hm hbt) ⊆ gUp m (glueA m ⊤) := by
@@ -6112,11 +5979,8 @@ theorem gUp_g2_ncard_ge (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ :
             Set.ncard_univ]
     _ ≤ _ := Set.ncard_le_ncard hsub (Set.toFinite _)
 
-/-! ### the pinning theorem -/
-
-/-- **Theorem SKEL-DEG (pass 28)**: if `P` has ANY point incomparable to
-    the marked point `m`, then `g2 = tag_a(⊤)` is the unique point of
-    `Φ(P)` whose down-set and up-set each have exactly `|P|` elements. -/
+-- [D-0477] §the-pinning-theorem
+-- [D-0478] glue_g2_unique
 theorem glue_g2_unique (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤)
     (p : P) (hp1 : ¬ p ≤ m) (hp2 : ¬ m ≤ p) (z : GlueCar (P := P) m)
     (hdn : (gDown m z).ncard = Nat.card P)
@@ -6124,7 +5988,7 @@ theorem glue_g2_unique (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : 
     z = glueA m ⊤ := by
   obtain ⟨zv, hzc⟩ := z
   rcases zv with x | x | x
-  · -- copy `A`: the down-set count forces `x = ⊤`
+  ·
     have hcard : ({y : P | y ≤ x}).ncard = Nat.card P := by
       rw [← Set.ncard_image_of_injective _ (glueA_inj m), ← gDown_glueA m hm x]
       exact hdn
@@ -6135,11 +5999,11 @@ theorem glue_g2_unique (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : 
     have hx : x = ⊤ := le_antisymm le_top htop
     subst hx
     rfl
-  · -- copy `B`
+  ·
     exfalso
     have hxb : x ≠ ⊥ := canon_inr_inl_ne_bot m x hzc
     by_cases hxt : x = ⊤
-    · -- `g3`: all of copy `A`, plus `g3` itself, sit below it
+    ·
       subst hxt
       have hsub : Set.range (glueA m) ⊆ gDown m ⟨Sum.inr (Sum.inl (⊤ : P)), hzc⟩ := by
         rintro _ ⟨y, rfl⟩
@@ -6158,7 +6022,7 @@ theorem glue_g2_unique (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : 
       rw [← Set.image_univ, Set.ncard_image_of_injective _ (glueA_inj m),
           Set.ncard_univ, hdn] at hlt
       omega
-    · -- interior copy-`B` point: the counting contradiction
+    ·
       have hD : gDown m ⟨Sum.inr (Sum.inl x), hzc⟩ ⊆
           ((glueA m) '' {y : P | y ≤ m}) ∪
             ((glueBt m hm hbt) '' {y : P | y ≤ x ∧ y ≠ ⊥}) := by
@@ -6208,7 +6072,7 @@ theorem glue_g2_unique (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : 
       have c3 := ncard_down_add_strict_up_lt m p hp1 hp2
       have c4 := ncard_strict_down_add_up_le x hxb
       omega
-  · -- copy `C`: strictly more than `|P|` points below
+  ·
     exfalso
     obtain ⟨hxb, hxm⟩ := canon_inr_inr_ne m x hzc
     have hsub : Set.range (glueA m) ⊆ gDown m ⟨Sum.inr (Sum.inr x), hzc⟩ := by
@@ -6229,8 +6093,7 @@ theorem glue_g2_unique (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : 
         Set.ncard_univ, hdn] at hlt
     omega
 
-/-- Every order-automorphism of `Φ(P)` fixes `g2`, given a point of `P`
-    incomparable to `m`. -/
+-- [D-0479] glue_g2_pinned
 theorem glue_g2_pinned (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤)
     (p : P) (hp1 : ¬ p ≤ m) (hp2 : ¬ m ≤ p)
     (φ : GlueCar (P := P) m ≃o GlueCar (P := P) m) :
@@ -6239,11 +6102,8 @@ theorem glue_g2_pinned (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : 
   · rw [gDown_ncard_map]; exact gDown_g2_ncard m hm
   · rw [gUp_ncard_map]; exact gUp_g2_ncard_ge m hm hmt hbt
 
-/-! ### the UP-TRANSFER assembly -/
-
-/-- **Copy-transport**: an automorphism of `Φ(P)` preserving one copy's
-    image setwise restricts to an automorphism of `P`; if `Aut(P) = {id}`
-    it therefore fixes that copy pointwise. -/
+-- [D-0480] §the-UP-TRANSFER-assembly
+-- [D-0481] glue_copy_fixed
 theorem glue_copy_fixed (m : P) (hAut : Subsingleton (P ≃o P))
     (ι : P → GlueCar (P := P) m) (un : GlueCar (P := P) m → P)
     (hun : ∀ x, un (ι x) = x)
@@ -6277,9 +6137,7 @@ theorem glue_copy_fixed (m : P) (hAut : Subsingleton (P ≃o P))
     exact h2
   rw [← hf x, hx]
 
-/-- **Theorem UP-TRANSFER, general `Φ(P)` form (pass 28)**: if `Aut(P)`
-    is trivial and `P` has a point incomparable to the marked point `m`,
-    then `Aut(Φ(P))` is trivial. -/
+-- [D-0482] glue_rigid_of_incomparable
 theorem glue_rigid_of_incomparable (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤)
     (hAut : Subsingleton (P ≃o P)) (p : P) (hp1 : ¬ p ≤ m) (hp2 : ¬ m ≤ p) :
     Subsingleton (GlueCar (P := P) m ≃o GlueCar (P := P) m) := by
@@ -6289,7 +6147,6 @@ theorem glue_rigid_of_incomparable (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (h
     have hg2 : φ (glueA m ⊤) = glueA m ⊤ := glue_g2_pinned m hm hmt hbt p hp1 hp2 φ
     have hg2' : φ.symm (glueA m ⊤) = glueA m ⊤ :=
       glue_g2_pinned m hm hmt hbt p hp1 hp2 φ.symm
-    -- copy `A` = the down-set of `g2`
     have hA : ∀ x, φ (glueA m x) = glueA m x := by
       refine glue_copy_fixed m hAut (glueA m) (fun w => unA w.1) (fun x => rfl)
         (fun x y => glueA_le_iff m hm x y) φ ?_ ?_
@@ -6303,7 +6160,6 @@ theorem glue_rigid_of_incomparable (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (h
           rw [← hg2']; exact φ.symm.le_iff_le.mpr (skel_dsi_copyA_le_g2 m x)
         obtain ⟨y, _, hy⟩ := le_tagA_shape m hm ⊤ (φ.symm (glueA m x)).2 h1
         exact ⟨y, Subtype.ext hy⟩
-    -- copy `C` = the up-set of `g2`
     have hC : ∀ x, φ (glueCt m hm hbt x) = glueCt m hm hbt x := by
       refine glue_copy_fixed m hAut (glueCt m hm hbt) (fun w => unC m w.1)
         (unC_glueCt m hm hbt) (fun x y => glueCt_le_iff m hm hmt hbt x y) φ ?_ ?_
@@ -6317,7 +6173,6 @@ theorem glue_rigid_of_incomparable (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (h
           rw [← hg2']; exact φ.symm.le_iff_le.mpr (skel_dsi_copyC_g2_le m hm hmt hbt x)
         obtain ⟨y, hy⟩ := tagA_top_le_shape m hm hmt hbt (φ.symm (glueCt m hm hbt x)).2 h1
         exact ⟨y, Subtype.ext hy⟩
-    -- the two glue points shared with copy `B`
     have hg1 : glueBt m hm hbt (⊥ : P) = glueA m m := by
       apply Subtype.ext
       show iotaB m (⊥ : P) = Sum.inl m
@@ -6327,7 +6182,6 @@ theorem glue_rigid_of_incomparable (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (h
       show iotaB m (⊤ : P) = iotaC m m
       rw [iotaB_generic_eq m ⊤ (Ne.symm hbt),
           show iotaC m m = Sum.inr (Sum.inl (⊤ : P)) from by simp [canon, hm]]
-    -- copy `B`: interior points are exactly the points incomparable to `g2`
     have hBfwd : ∀ (ψ : GlueCar (P := P) m ≃o GlueCar (P := P) m),
         ψ (glueA m ⊤) = glueA m ⊤ →
         (∀ x, ψ (glueA m x) = glueA m x) →
@@ -6364,7 +6218,6 @@ theorem glue_rigid_of_incomparable (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (h
       refine glue_copy_fixed m hAut (glueBt m hm hbt) (fun w => unB w.1)
         (unB_glueBt m hm hbt) (fun x y => glueBt_le_iff m hm hmt hbt x y) φ
         (hBfwd φ hg2 hA hC) (hBfwd φ.symm hg2' hAsymm hCsymm)
-    -- every canonical point lies in one of the three copies
     intro z
     obtain ⟨zv, hzc⟩ := z
     rcases zv with x | x | x
@@ -6385,32 +6238,27 @@ theorem glue_rigid_of_incomparable (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (h
 
 end G2Pin
 
-/- ============================================================
-   §3. The tower, axiomatized structurally
-   ============================================================ -/
-
--- `GluingTower` packages exactly the structural facts about the tower `(D_k)_{k≥0}` (companion note §1, §3) that the rigidity proof (Theorem B) actually consumes, WITHOUT constructing `Φ` or `D_k` from an explicit quotient-metric-space definition.
+-- [D-0483] GluingTower
 class GluingTower (D : ℕ → Type u)
     (_Hlat : ∀ k, Lattice (D k)) (_Hbdd : ∀ k, BoundedOrder (D k))
     (_Hfin : ∀ k, Fintype (D k)) where
-  /-- unique atom / unique coatom at every level (Lemma UAC) -/
   uac : ∀ k, UniqueAtomCoatom (D k)
-  /-- the base case is unconditionally rigid (§3.1) -/
   base0_rigid : Subsingleton (D 0 ≃o D 0)
   base1_rigid : Subsingleton (D 1 ≃o D 1)
 
--- The UP step (Theorem UP-TRANSFER, companion note §3.2), taken here as an axiom of the tower package since its proof (via Theorem TAGB-ISO + Theorem SKEL + Lemma DSI) is genuinely tower-specific combinatorics not reducible to the general lemmas of §1–§2.
+-- [D-0484] GluingTowerUp
 class GluingTowerUp (D : ℕ → Type u) [∀ k, Lattice (D k)]
     [∀ k, BoundedOrder (D k)] : Prop where
   up_transfer : ∀ k, Subsingleton (EndP (D k) ≃o EndP (D k)) →
     Subsingleton (D (k+1) ≃o D (k+1))
 
--- The DOWN step (§3.3), likewise taken as an axiom bundling Theorem JIF-EMBED + Lemma JH-PRODUCT + Theorem Φ-HAT + Theorem HASSE-PRIME + Theorem J-CONN
+-- [D-0485] GluingTowerDown
 class GluingTowerDown (D : ℕ → Type u) [∀ k, Lattice (D k)]
     [∀ k, BoundedOrder (D k)] : Prop where
   down_transfer : ∀ k, Subsingleton (D k ≃o D k) →
     Subsingleton (EndP (D k) ≃o EndP (D k))
 
+-- [D-0486] connected_of_le_subtype
 theorem connected_of_le_subtype {α : Type*} [Fintype α] [DecidableEq α] [PartialOrder α]
     (S : α → Prop) [DecidablePred S] :
     ∀ (n : ℕ) (a b : {x : α // S x}), (a : α) ≤ (b : α) →
@@ -6482,6 +6330,7 @@ theorem connected_of_le_subtype {α : Type*} [Fintype α] [DecidableEq α] [Part
           _ ≤ n := by omega
       exact hac.trans hcb
 
+-- [D-0487] connected_of_le_subtype'
 theorem connected_of_le_subtype' {α : Type*} [Fintype α] [DecidableEq α] [PartialOrder α]
     (S : α → Prop) [DecidablePred S] (a b : {x : α // S x}) (hab : (a : α) ≤ (b : α)) :
     Relation.ReflTransGen (Graph.Hasse {x : α // S x}).adj a b :=
@@ -6490,9 +6339,7 @@ theorem connected_of_le_subtype' {α : Type*} [Fintype α] [DecidableEq α] [Par
 section JConnHub
 variable {P : Type u} [Fintype P] [DecidableEq P] [Lattice P] [BoundedOrder P] [UniqueAtomCoatom P]
 
-/-- `atomOf P` is always join-irreducible (unique down-cover `⊥`): dual
-    in spirit to `hasUniqueUpCover_bot`, but about `atomOf P`'s OWN
-    down-cover count in `P`, not `⊥`'s up-cover count. -/
+-- [D-0488] atomOf_hasUniqueDownCover
 theorem atomOf_hasUniqueDownCover : HasUniqueDownCover (atomOf P) :=
   ⟨⊥, atomOf_covers_bot, fun a' ha' => by
     by_contra hne
@@ -6501,7 +6348,7 @@ theorem atomOf_hasUniqueDownCover : HasUniqueDownCover (atomOf P) :=
 
 variable (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤)
 
--- **Theorem J-CONN's actual mechanism, simplified**: `Hasse` of the `HasUniqueDownCover`-subtype of `GlueCar m` is connected, for ANY finite lattice `P` with a unique atom/coatom
+-- [D-0489] hasse_hasUniqueDownCover_glueCar_connected
 theorem hasse_hasUniqueDownCover_glueCar_connected :
     letI := glueCarPartialOrder m hm hmt hbt
     (Graph.Hasse {f : GlueCar (P := P) m // HasUniqueDownCover f}).Connected := by
@@ -6528,10 +6375,10 @@ theorem hasse_hasUniqueDownCover_glueCar_connected :
   rintro ⟨gc, hg_udc⟩
   obtain ⟨cv, hcvfix⟩ := gc
   rcases cv with w | w | w
-  · -- copy A: gc = glueA m w, connects directly to hub1 via w ≤ ⊤
+  ·
     have hle : glueA m w ≤ glueA m (⊤ : P) := (glueA_le_iff m hm w (⊤ : P)).mpr le_top
     exact connected_of_le_subtype' HasUniqueDownCover _ _ hle
-  · -- copy B: gc = glueB m w hwb, hub2 connects directly to it
+  ·
     have hwb : w ≠ ⊥ := by rintro rfl; simp [canon] at hcvfix
     have hle : glueA m (atomOf P) ≤ glueB m w hwb := by
       rw [GlueCar.le_def]
@@ -6545,7 +6392,7 @@ theorem hasse_hasUniqueDownCover_glueCar_connected :
     exact (reflTransGen_symm_of_symm
         (fun x y hxy => (Graph.Hasse {f : GlueCar (P := P) m // HasUniqueDownCover f}).symm hxy)
         hstep).trans hub2pt_to_hub1
-  · -- copy C: gc = glueC m w hwb hwm, hub1 connects directly to it
+  ·
     have hwb : w ≠ ⊥ := by rintro rfl; simp [canon] at hcvfix
     have hwm : w ≠ m := by
       rintro rfl
@@ -6564,7 +6411,7 @@ theorem hasse_hasUniqueDownCover_glueCar_connected :
 
 end JConnHub
 
--- If two predicates on a partial order are pointwise equivalent, their induced Hasse-connectivity facts transfer — literal type equality via `propext`/`funext`, not just an equivalence, so no bijection bookkeeping is needed.
+-- [D-0490] connected_of_pointwise_iff
 theorem connected_of_pointwise_iff {α : Type*} [PartialOrder α]
     (S1 S2 : α → Prop) (h : ∀ a, S1 a ↔ S2 a) :
     (Graph.Hasse {x : α // S1 x}).Connected → (Graph.Hasse {x : α // S2 x}).Connected := by
@@ -6572,9 +6419,7 @@ theorem connected_of_pointwise_iff {α : Type*} [PartialOrder α]
   subst heq
   exact id
 
--- Base case, Theorem J-CONN: `Hasse(J(D 0))` is connected — `D 0` is a (linearly ordered) chain, so ANY two elements are ambiently comparable, and `connected_of_le_subtype'` (the general finite-poset fact) does the rest directly
-
-/-- Order-isomorphisms preserve `Covers` (general, any two preorders). -/
+-- [D-0491] covers_orderIso
 theorem covers_orderIso {L M : Type*} [Preorder L] [Preorder M] (Ψ : L ≃o M) {a b : L}
     (h : Covers a b) : Covers (Ψ a) (Ψ b) := by
   refine ⟨Ψ.strictMono h.1, ?_⟩
@@ -6587,7 +6432,7 @@ theorem covers_orderIso {L M : Type*} [Preorder L] [Preorder M] (Ψ : L ≃o M) 
     simpa using this
   exact h.2 (Ψ.symm c) h1 h2
 
-/-- Order-isomorphisms preserve `JoinIrred` (general, any two lattices). -/
+-- [D-0492] joinIrred_orderIso
 theorem joinIrred_orderIso {L M : Type*} [Lattice L] [OrderBot L] [Lattice M] [OrderBot M]
     (Ψ : L ≃o M) {a : L} (ha : JoinIrred L a) : JoinIrred M (Ψ a) := by
   refine ⟨fun h => ha.1 (Ψ.injective (h.trans (OrderIso.map_bot Ψ).symm)), ?_⟩
@@ -6603,7 +6448,7 @@ theorem joinIrred_orderIso {L M : Type*} [Lattice L] [OrderBot L] [Lattice M] [O
 section TauHatJI
 variable {P : Type u} [Fintype P] [DecidableEq P] [Lattice P] [BoundedOrder P]
 
--- `tauHat τ` restricted to a join-irreducible point `v` recovers `τ` itself — the sup defining `tauHat` collapses to the single term at `v`, using `τ`'s own order-preservation to dominate every other term (`x ≤ v` with `x` join-irreducible gives `τ x ≤ τ v` too).
+-- [D-0493] tauHat_eq_of_joinIrred
 theorem tauHat_eq_of_joinIrred (τ : {x : P // JoinIrred P x} ≃ {x : P // JoinIrred P x})
     (hτord : ∀ b1 b2 : {x : P // JoinIrred P x}, b1 ≤ b2 ↔ τ b1 ≤ τ b2)
     (v : P) (hv : JoinIrred P v) : tauHat τ v = (τ ⟨v, hv⟩).1 := by
@@ -6621,7 +6466,7 @@ theorem tauHat_eq_of_joinIrred (τ : {x : P // JoinIrred P x} ≃ {x : P // Join
 
 end TauHatJI
 
--- **Theorem B, the assembly step.** Given the base case and the two transfer steps (`GluingTowerUp`/`GluingTowerDown`), rigidity `Subsingleton (D k ≃o D k)` propagates to every level `k` by ordinary induction.
+-- [D-0494] aut_D_k_trivial
 theorem aut_D_k_trivial
     (D : ℕ → Type u) [∀ k, Lattice (D k)] [∀ k, BoundedOrder (D k)]
     [GluingTowerUp D] [GluingTowerDown D]
@@ -6635,8 +6480,7 @@ theorem aut_D_k_trivial
         GluingTowerDown.down_transfer n ih
       exact GluingTowerUp.up_transfer n hEnd
 
--- **Theorem B, colimit form.** `Aut(D∞,≤)={id}` given per-level rigidity plus `colimit_compat`, the hypothesis that automorphisms of the colimit `Dinfty` restrict to a compatible family of stage automorphisms.
--- This result is generic/conditional on `colimit_compat` and requires a `[Lattice Dinfty]` instance, which the real, concrete `DInfty` in this project never has (only `PartialOrder`) -- so later code (§50) could not call this theorem directly on the real tower, and reimplemented the same one-line logic inline instead. NOT directly usable on the real tower as stated; only on abstract towers satisfying the typeclass.
+-- [D-0495] aut_D_infinity_trivial
 theorem aut_D_infinity_trivial
     (Dinfty : Type u) [Lattice Dinfty] [BoundedOrder Dinfty]
     (D : ℕ → Type u) [∀ k, Lattice (D k)] [∀ k, BoundedOrder (D k)]
@@ -6647,7 +6491,7 @@ theorem aut_D_infinity_trivial
     Subsingleton (Dinfty ≃o Dinfty) :=
   colimit_compat.mpr (aut_D_k_trivial D base)
 
--- constHom c ≤ constHom d iff c ≤ d (constHom is order-reflecting).
+-- [D-0496] constHom_le_iff
 theorem constHom_le_iff {P : Type u} [Lattice P] [BoundedOrder P] (c d : P) :
     (constHom c : EndP P) ≤ constHom d ↔ c ≤ d := by
   constructor
@@ -6659,14 +6503,13 @@ theorem constHom_le_iff {P : Type u} [Lattice P] [BoundedOrder P] (c d : P) :
     intro y
     rwa [constHom_apply, constHom_apply]
 
--- constHom is injective.
+-- [D-0497] constHom_injective
 theorem constHom_injective {P : Type u} [Lattice P] [BoundedOrder P] :
     Function.Injective (constHom (P := P)) := by
   intro c d h
   exact le_antisymm ((constHom_le_iff c d).mp h.le) ((constHom_le_iff d c).mp h.ge)
 
--- meetHom c ≤ meetHom d iff c ≤ d (meetHom is order-reflecting) -- the real-tower
--- analogue of the `check_H1_embedding.py` finding that `meetid` order-embeds.
+-- [D-0498] meetHom_le_iff
 theorem meetHom_le_iff {P : Type u} [Lattice P] [BoundedOrder P] (c d : P) :
     (meetHom c : EndP P) ≤ meetHom d ↔ c ≤ d := by
   constructor
@@ -6678,18 +6521,18 @@ theorem meetHom_le_iff {P : Type u} [Lattice P] [BoundedOrder P] (c d : P) :
     intro y
     simpa using inf_le_inf_left y h
 
--- meetHom is injective.
+-- [D-0499] meetHom_injective
 theorem meetHom_injective {P : Type u} [Lattice P] [BoundedOrder P] :
     Function.Injective (meetHom (P := P)) := by
   intro c d h
   exact le_antisymm ((meetHom_le_iff c d).mp h.le) ((meetHom_le_iff d c).mp h.ge)
 
--- meetHom ⊤ = id, meetHom ⊥ = constHom ⊥ -- the real-tower confirmation of the symbolic
--- tower's `sigma(KEPT_C) = GLUE1` / `sigma(KEPT_A) = KEPT_A` findings (2026-08-20 session).
+-- [D-0500] meetHom_top
 @[simp] theorem meetHom_top {P : Type u} [Lattice P] [BoundedOrder P] :
     (meetHom (⊤ : P) : EndP P) = OrderHom.id := by
   ext x; simp [meetHom_apply]
 
+-- [D-0501] meetHom_bot
 @[simp] theorem meetHom_bot {P : Type u} [Lattice P] [BoundedOrder P] :
     (meetHom (⊥ : P) : EndP P) = constHom ⊥ := by
   ext x; simp [meetHom_apply]
@@ -6698,19 +6541,20 @@ section EpPairProjection
 
 variable {L : Type u} [DecidableEq L] [Lattice L] [BoundedOrder L] [Fintype L]
 
--- The ep-pair projection, general in L.
+-- [D-0502] pGen
 noncomputable def pGen (w : GlueCar (P := EndP L) (OrderHom.id)) : L :=
   match w.1 with
   | Sum.inl f => f (⊥ : L)
   | Sum.inr (Sum.inl f) => if f = (⊤ : EndP L) then (⊤ : L) else (⊥ : L)
   | Sum.inr (Sum.inr _) => (⊤ : L)
 
+-- [D-0503] pGen_section
 theorem pGen_section (x : L) :
     pGen (glueA (OrderHom.id : EndP L) (constHom x)) = x := by
   show (constHom x : EndP L) ⊥ = x
   rw [constHom_apply]
 
--- Copy C never relates above (≤) copy A: leGlue m (tagC w) (tagA x) never holds when w ≠ ⊥.
+-- [D-0504] not_leGlue_tagC_tagA
 theorem not_leGlue_tagC_tagA {P : Type u} [DecidableEq P] [Lattice P] [BoundedOrder P] [Fintype P]
     (m w x : P) (hw : w ≠ ⊥) :
     ¬ leGlue m (Sum.inr (Sum.inr w)) (Sum.inl x) := by
@@ -6722,11 +6566,7 @@ theorem not_leGlue_tagC_tagA {P : Type u} [DecidableEq P] [Lattice P] [BoundedOr
   · exact huv.elim
   · exact hw (le_bot_iff.mp huv)
 
--- **Copy A is a down-set**: anything ≤ a copy-A point is itself copy-A-shaped. Needed to
--- prove `glueA` is a genuine LATTICE embedding (`glueA_inf` below), not just an order-
--- embedding (`colimit_compat` "give DInfty a Lattice instance" attempt, 2026-08-20 session:
--- `Θ`, the one invariant that stays bounded across levels instead of exploding like down-sets
--- do, needs DInfty to have inf/sup to even be stated there).
+-- [D-0505] le_glueA_imp_glueA_shaped
 theorem le_glueA_imp_glueA_shaped {P : Type u} [DecidableEq P] [Lattice P] [BoundedOrder P]
     [Fintype P] (m : P) (hm : m ≠ ⊥) (hbt : (⊥ : P) ≠ ⊤)
     (z : GlueCar (P := P) m) (x : P) (hz : leGlue m z.1 (Sum.inl x)) :
@@ -6741,8 +6581,7 @@ theorem le_glueA_imp_glueA_shaped {P : Type u} [DecidableEq P] [Lattice P] [Boun
     have hw : w ≠ ⊥ := by rintro rfl; simp [canon] at hzc
     exact not_leGlue_tagC_tagA m w x hw hz
 
--- **`glueA` preserves binary join** — the clean case, `glueJoinRaw` on two copy-A points is
--- literally `Sum.inl (x⊔y)`, no folding involved.
+-- [D-0506] glueA_sup
 theorem glueA_sup {P : Type u} [DecidableEq P] [Lattice P] [BoundedOrder P] [Fintype P]
     (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤) (x y : P) :
     letI := glueLattice m hm hmt hbt
@@ -6752,10 +6591,7 @@ theorem glueA_sup {P : Type u} [DecidableEq P] [Lattice P] [BoundedOrder P] [Fin
   show canon m (glueJoinRaw m (Sum.inl x) (Sum.inl y)) = Sum.inl (x ⊔ y)
   simp [glueJoinRaw, canon]
 
--- **`glueA` preserves binary meet** too — harder, since `glueLattice`'s `inf` is derived
--- abstractly via `latticeOfFiniteSup` (no closed formula), but `le_glueA_imp_glueA_shaped`
--- (copy A is a down-set) lets the universal property alone finish it, no need to unfold
--- `latticeOfFiniteSup` at all.
+-- [D-0507] glueA_inf
 theorem glueA_inf {P : Type u} [DecidableEq P] [Lattice P] [BoundedOrder P] [Fintype P]
     (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤) (x y : P) :
     letI := glueLattice m hm hmt hbt
@@ -6774,9 +6610,7 @@ theorem glueA_inf {P : Type u} [DecidableEq P] [Lattice P] [BoundedOrder P] [Fin
   · exact le_inf ((glueA_le_iff m hm (x ⊓ y) x).mpr inf_le_left)
       ((glueA_le_iff m hm (x ⊓ y) y).mpr inf_le_right)
 
--- **`glueA` sends `P`'s bottom to `GlueCar`'s bottom** — the copy-A embedding is bottom-
--- preserving (matches the informally-established "iotaD stabilizes the bottom" fact,
--- `_archive/check_dinfty_no_top.py`).
+-- [D-0508] glueA_bot
 theorem glueA_bot {P : Type u} [DecidableEq P] [Lattice P] [BoundedOrder P] [Fintype P]
     (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤) :
     letI := glueLattice m hm hmt hbt
@@ -6786,16 +6620,7 @@ theorem glueA_bot {P : Type u} [DecidableEq P] [Lattice P] [BoundedOrder P] [Fin
   letI := glueBoundedOrder m hm hmt hbt
   rfl
 
--- **Join-irreducibility transfers exactly across the copy-A embedding**: `glueA m v` is
--- join-irreducible in `GlueCar m` iff `v` is join-irreducible in `P`. Uses `glueA_sup`
--- (glueA preserves joins) for the forward direction; the harder backward direction needs
--- `le_glueA_imp_glueA_shaped` (copy A is a down-set) first, to show an arbitrary join
--- decomposition `glueA m v = b ⊔ c` (`b c : GlueCar m`, not a priori copy-A-shaped) must
--- itself be copy-A-shaped, before `glueA_sup`/injectivity can finish it.
--- (2026-08-20 session, Θ(DInfty)/order-definability thread: the copy-A-recursive
--- characterization of J(D_n) -- "tag_a(v) join-irreducible in D iff v join-irreducible in
--- Q" -- Python-verified 11/11 on a toy instance across two independent transitions
--- (D_0->D_1, D_1->D_2); this is that finding as a real, unconditional theorem.)
+-- [D-0509] joinIrred_glueA_iff
 theorem joinIrred_glueA_iff {P : Type u} [DecidableEq P] [Lattice P] [BoundedOrder P]
     [Fintype P] (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤) (v : P) :
     letI := glueLattice m hm hmt hbt
@@ -6826,37 +6651,37 @@ theorem joinIrred_glueA_iff {P : Type u} [DecidableEq P] [Lattice P] [BoundedOrd
     · exact Or.inl (by rw [h]; exact hbeq.symm)
     · exact Or.inr (by rw [h]; exact hceq.symm)
 
--- **`constHom` preserves binary join and meet** — `EndP P`'s `Lattice` (`OrderHom.lattice`)
--- is pointwise, so this is immediate.
+-- [D-0510] constHom_sup
 theorem constHom_sup {P : Type u} [Lattice P] [BoundedOrder P] (c d : P) :
     (constHom c : EndP P) ⊔ constHom d = constHom (c ⊔ d) := by
   ext x; simp [constHom_apply]
 
+-- [D-0511] constHom_inf
 theorem constHom_inf {P : Type u} [Lattice P] [BoundedOrder P] (c d : P) :
     (constHom c : EndP P) ⊓ constHom d = constHom (c ⊓ d) := by
   ext x; simp [constHom_apply]
 
--- Copy A always relates below the copy-B boundary point ⊤ (leGlue m (tagA w) (tagB ⊤) holds unconditionally).
+-- [D-0512] leGlue_tagA_tagB_top
 theorem leGlue_tagA_tagB_top {P : Type u} [DecidableEq P] [Lattice P] [BoundedOrder P] [Fintype P]
     (m w : P) : leGlue m (Sum.inl w) (Sum.inr (Sum.inl (⊤ : P))) := by
   refine ⟨Sum.inl w, self_mem_occs m _, Sum.inr (Sum.inr m), ?_, trivial⟩
   simp [occs]
 
--- Canon-fixed copy-B points are never ⊥.
+-- [D-0513] ne_bot_of_canon_tagB
 theorem ne_bot_of_canon_tagB {P : Type u} [DecidableEq P] [Lattice P] [BoundedOrder P]
     (m f : P) (hwv : canon m (Sum.inr (Sum.inl f)) = Sum.inr (Sum.inl f)) : f ≠ ⊥ := by
   intro hfb
   rw [canon, if_pos hfb] at hwv
   exact (Sum.inl_ne_inr) hwv
 
--- Canon-fixed copy-C points are never ⊥.
+-- [D-0514] ne_bot_of_canon_tagC
 theorem ne_bot_of_canon_tagC {P : Type u} [DecidableEq P] [Lattice P] [BoundedOrder P]
     (m f : P) (hwv : canon m (Sum.inr (Sum.inr f)) = Sum.inr (Sum.inr f)) : f ≠ ⊥ := by
   intro hfb
   rw [canon, if_pos hfb] at hwv
   exact (Sum.inl_ne_inr) hwv
 
--- Deflation: ι(p(w)) ≤ w for every w.
+-- [D-0515] pGen_deflation
 theorem pGen_deflation (w : GlueCar (P := EndP L) (OrderHom.id)) :
     leGlue (OrderHom.id : EndP L) (Sum.inl (constHom (pGen w) : EndP L)) w.1 := by
   obtain ⟨wv, hwv⟩ := w
@@ -6880,7 +6705,7 @@ theorem pGen_deflation (w : GlueCar (P := EndP L) (OrderHom.id)) :
   · show leGlue (OrderHom.id : EndP L) (Sum.inl (constHom (⊤ : L) : EndP L)) (Sum.inr (Sum.inr f))
     exact ⟨Sum.inl (constHom (⊤ : L)), self_mem_occs _ _, Sum.inr (Sum.inr f), self_mem_occs _ _, trivial⟩
 
--- Monotonicity of pGen: w ≤ w' implies pGen w ≤ pGen w' (full case split on the tags of w, w').
+-- [D-0516] pGen_monotone
 theorem pGen_monotone (hm : (OrderHom.id : EndP L) ≠ ⊥) (hbt : (⊥ : EndP L) ≠ (⊤ : EndP L))
     (w w' : GlueCar (P := EndP L) (OrderHom.id))
     (hle : w ≤ w') : pGen w ≤ pGen w' := by
@@ -6889,11 +6714,11 @@ theorem pGen_monotone (hm : (OrderHom.id : EndP L) ≠ ⊥) (hbt : (⊥ : EndP L
   obtain ⟨wv', hwv'⟩ := w'
   simp only at hle
   rcases wv with f | f | f <;> rcases wv' with f' | f' | f'
-  · -- A, A
+  ·
     show f (⊥ : L) ≤ f' (⊥ : L)
     have h : f ≤ f' := (tagA_iso (OrderHom.id : EndP L) hm f f').mp hle
     exact (OrderHom.le_def.mp h) ⊥
-  · -- A, B
+  ·
     show f (⊥ : L) ≤ (if f' = (⊤ : EndP L) then (⊤ : L) else (⊥ : L))
     by_cases hf't : f' = (⊤ : EndP L)
     · rw [if_pos hf't]; exact le_top
@@ -6901,13 +6726,13 @@ theorem pGen_monotone (hm : (OrderHom.id : EndP L) ≠ ⊥) (hbt : (⊥ : EndP L
       have hfm : f ≤ (OrderHom.id : EndP L) :=
         (leGlue_tagA_tagB_iff (OrderHom.id : EndP L) f f' hf't).mp hle
       exact OrderHom.le_def.mp hfm ⊥
-  · -- A, C
+  ·
     show f (⊥ : L) ≤ (⊤ : L)
     exact le_top
-  · -- B, A
+  ·
     exact absurd hle (not_leGlue_tagB_tagA (OrderHom.id : EndP L) f f' hm hbt
       (ne_bot_of_canon_tagB (OrderHom.id : EndP L) f hwv))
-  · -- B, B
+  ·
     show (if f = (⊤ : EndP L) then (⊤ : L) else (⊥ : L)) ≤
         (if f' = (⊤ : EndP L) then (⊤ : L) else (⊥ : L))
     by_cases hf't : f' = (⊤ : EndP L)
@@ -6916,24 +6741,24 @@ theorem pGen_monotone (hm : (OrderHom.id : EndP L) ≠ ⊥) (hbt : (⊥ : EndP L
       have hfle : f ≤ f' := (leGlue_tagB_tagB_iff (OrderHom.id : EndP L) f f' hf't hfb).mp hle
       have hfne : f ≠ (⊤ : EndP L) := fun hfT => hf't (top_le_iff.mp (hfT ▸ hfle))
       rw [if_neg hfne, if_neg hf't]
-  · -- B, C
+  ·
     show (if f = (⊤ : EndP L) then (⊤ : L) else (⊥ : L)) ≤ (⊤ : L)
     exact le_top
-  · -- C, A
+  ·
     exact absurd hle (not_leGlue_tagC_tagA (OrderHom.id : EndP L) f f'
       (ne_bot_of_canon_tagC (OrderHom.id : EndP L) f hwv))
-  · -- C, B
+  ·
     by_cases hf't : f' = (⊤ : EndP L)
     · show (⊤ : L) ≤ (if f' = (⊤ : EndP L) then (⊤ : L) else (⊥ : L))
       rw [if_pos hf't]
     · exact absurd hle (not_leGlue_tagC_tagB (OrderHom.id : EndP L) f f' hf't)
-  · -- C, C
+  ·
     show (⊤ : L) ≤ (⊤ : L)
     exact le_refl _
 
 end EpPairProjection
 
--- ⊤ is a fixed point of pGen: pGen ⊤ = ⊤ (via pGen's copy-C branch, since ⊤ is tagged copy C).
+-- [D-0517] pGen_top
 theorem pGen_top {L : Type u} [DecidableEq L] [Lattice L] [BoundedOrder L] [Fintype L]
     (hm : (OrderHom.id : EndP L) ≠ ⊥) (hmt : (OrderHom.id : EndP L) ≠ ⊤)
     (hbt : (⊥ : EndP L) ≠ (⊤ : EndP L)) :
@@ -6957,7 +6782,7 @@ theorem pGen_top {L : Type u} [DecidableEq L] [Lattice L] [BoundedOrder L] [Fint
 
 section DBilimitDcpo
 
--- A nonempty finite directed set in a preorder has an attained greatest element.
+-- [D-0518] directedOn_exists_greatest_of_finite
 theorem directedOn_exists_greatest_of_finite {α : Type u} [Preorder α] {T : Set α}
     (hfin : T.Finite) (hne : T.Nonempty) (hdir : DirectedOn (· ≤ ·) T) :
     ∃ t ∈ T, ∀ s ∈ T, s ≤ t := by
@@ -6966,7 +6791,7 @@ theorem directedOn_exists_greatest_of_finite {α : Type u} [Preorder α] {T : Se
   obtain ⟨c, hc, hsc, htc⟩ := hdir s hs t ht.1
   exact hsc.trans (ht.2 hc htc)
 
--- A monotone map between complete lattices preserves sSup of a nonempty finite directed set: f (sSup T) = sSup (f '' T).
+-- [D-0519] monotone_sSup_image_of_finite_directed
 theorem monotone_sSup_image_of_finite_directed {α β : Type u} [CompleteLattice α]
     [CompleteLattice β] {f : α → β} (hf : Monotone f) {T : Set α} (hfin : T.Finite)
     (hne : T.Nonempty) (hdir : DirectedOn (· ≤ ·) T) :
@@ -6978,7 +6803,7 @@ theorem monotone_sSup_image_of_finite_directed {α β : Type u} [CompleteLattice
   rintro _ ⟨s, hs, rfl⟩
   exact hf (ht s hs)
 
--- Every monotone self-map of a finite complete lattice is Scott-continuous.
+-- [D-0520] monotone_scottContinuous_of_finite
 theorem monotone_scottContinuous_of_finite {α : Type u} [CompleteLattice α] [Finite α]
     {f : α → α} (hf : Monotone f) : ScottContinuous f := by
   intro S hSne hSdir a haLUB
@@ -6987,7 +6812,7 @@ theorem monotone_scottContinuous_of_finite {α : Type u} [CompleteLattice α] [F
   rw [monotone_sSup_image_of_finite_directed hf (Set.toFinite S) hSne hSdir]
   exact isLUB_sSup _
 
--- A monotone map with finite domain (into any preorder codomain) is Scott-continuous, no completeness needed on the codomain.
+-- [D-0521] monotone_scottContinuous_of_finite_dom
 theorem monotone_scottContinuous_of_finite_dom {α : Type u} {β : Type v}
     [PartialOrder α] [Finite α] [Preorder β] {f : α → β} (hf : Monotone f) :
     ScottContinuous f := by
@@ -7002,9 +6827,10 @@ theorem monotone_scottContinuous_of_finite_dom {α : Type u} {β : Type v}
 
 end DBilimitDcpo
 
--- ScottEndP: the Scott-continuous self-maps of DBilimit, as a subtype of EndP DBilimit.
+-- [D-0522] ScottEndP
 def ScottEndP (α : Type*) [Preorder α] : Type _ := {F : α →o α // ScottContinuous (F : α → α)}
 
+-- [D-0523] directedOn_image_of_monotone
 theorem directedOn_image_of_monotone {α β : Type*} [Preorder α] [Preorder β] {f : α → β}
     (hf : Monotone f) {T : Set α} (hdir : DirectedOn (· ≤ ·) T) :
     DirectedOn (· ≤ ·) (f '' T) := by
@@ -7016,9 +6842,10 @@ section PhiConstructionGen
 
 variable {P : Type u} [DecidableEq P] [PartialOrder P] [BoundedOrder P]
 
--- Fintype/Lattice-free copy of GlueBase.
+-- [D-0524] GlueBaseGen
 abbrev GlueBaseGen (P : Type u) := P ⊕ P ⊕ P
 
+-- [D-0525] canonGen
 def canonGen (m : P) : GlueBaseGen P → GlueBaseGen P
   | Sum.inl x => Sum.inl x
   | Sum.inr (Sum.inl x) => if x = ⊥ then Sum.inl m else Sum.inr (Sum.inl x)
@@ -7027,6 +6854,7 @@ def canonGen (m : P) : GlueBaseGen P → GlueBaseGen P
       else if x = m then Sum.inr (Sum.inl ⊤)
       else Sum.inr (Sum.inr x)
 
+-- [D-0526] canonGen_idem
 theorem canonGen_idem (m : P) (hm : m ≠ ⊥) (hbt : (⊥ : P) ≠ ⊤) (x : GlueBaseGen P) :
     canonGen m (canonGen m x) = canonGen m x := by
   cases x with
@@ -7042,8 +6870,10 @@ theorem canonGen_idem (m : P) (hm : m ≠ ⊥) (hbt : (⊥ : P) ≠ ⊤) (x : Gl
       · simp [hx]
       · by_cases hx' : x = m <;> simp [hx, hx', hm, hbt.symm]
 
+-- [D-0527] GlueCarGen
 def GlueCarGen (m : P) := {x : GlueBaseGen P // canonGen m x = x}
 
+-- [D-0528] rawRuleGen
 def rawRuleGen (m : P) : GlueBaseGen P → GlueBaseGen P → Prop
   | Sum.inl x, Sum.inl y => x ≤ y
   | Sum.inr (Sum.inl x), Sum.inr (Sum.inl y) => x ≤ y
@@ -7055,6 +6885,7 @@ def rawRuleGen (m : P) : GlueBaseGen P → GlueBaseGen P → Prop
   | Sum.inr (Sum.inr _), Sum.inl _ => False
   | Sum.inr (Sum.inr _), Sum.inr (Sum.inl _) => False
 
+-- [D-0529] occsGen
 def occsGen (m : P) : GlueBaseGen P → List (GlueBaseGen P)
   | Sum.inl x =>
       if x = m then [Sum.inl x, Sum.inr (Sum.inl ⊥)]
@@ -7065,9 +6896,11 @@ def occsGen (m : P) : GlueBaseGen P → List (GlueBaseGen P)
       else [Sum.inr (Sum.inl x)]
   | Sum.inr (Sum.inr x) => [Sum.inr (Sum.inr x)]
 
+-- [D-0530] leGlueGen
 def leGlueGen (m : P) (x y : GlueBaseGen P) : Prop :=
   ∃ u ∈ occsGen m x, ∃ v ∈ occsGen m y, rawRuleGen m u v
 
+-- [D-0531] rawRuleGen_trans
 theorem rawRuleGen_trans (m : P) {u v w : GlueBaseGen P} (huv : rawRuleGen m u v)
     (hvw : rawRuleGen m v w) : rawRuleGen m u w := by
   cases u with
@@ -7112,6 +6945,7 @@ theorem rawRuleGen_trans (m : P) {u v w : GlueBaseGen P} (huv : rawRuleGen m u v
             | inl _ => exact absurd hvw (by simp [rawRuleGen])
             | inr _ => exact le_trans huv hvw
 
+-- [D-0532] occsGen_canon_mem
 theorem occsGen_canon_mem (m : P) (hm : m ≠ ⊥) {x : GlueBaseGen P} (hxc : canonGen m x = x) :
     ∀ u ∈ occsGen m x, canonGen m u = x := by
   cases x with
@@ -7133,6 +6967,7 @@ theorem occsGen_canon_mem (m : P) (hm : m ≠ ⊥) {x : GlueBaseGen P} (hxc : ca
       simp only [occsGen, List.mem_singleton] at hu
       subst hu; exact hxc
 
+-- [D-0533] leGlueGen_refl
 theorem leGlueGen_refl (m : P) (x : GlueBaseGen P) : leGlueGen m x x := by
   cases x with
   | inl x =>
@@ -7152,8 +6987,10 @@ theorem leGlueGen_refl (m : P) (x : GlueBaseGen P) : leGlueGen m x x := by
       · simp [occsGen]
       · show x ≤ x; exact le_refl x
 
+-- [D-0534] inst-P
 instance (m : P) : LE (GlueCarGen (P := P) m) := ⟨fun x y => leGlueGen m x.1 y.1⟩
 
+-- [D-0535] GlueCarGen.le_def
 theorem GlueCarGen.le_def (m : P) (x y : GlueCarGen (P := P) m) :
     x ≤ y ↔ leGlueGen m x.1 y.1 := Iff.rfl
 
@@ -7161,6 +6998,7 @@ section GlueAntisymmGen
 variable (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤)
 include hm hmt hbt
 
+-- [D-0536] glueGen_antisymm
 set_option maxHeartbeats 8000000 in
 theorem glueGen_antisymm {x y : GlueBaseGen P} (hxc : canonGen m x = x) (hyc : canonGen m y = y)
     (hxy : leGlueGen m x y) (hyx : leGlueGen m y x) : x = y := by
@@ -7182,7 +7020,7 @@ theorem glueGen_antisymm {x y : GlueBaseGen P} (hxc : canonGen m x = x) (hyc : c
       | exact absurd (le_antisymm huv hvu) (by assumption)
       | exact absurd (le_antisymm huv hvu).symm (by assumption)
 
--- Transitivity of leGlueGen on canon-fixed points; final pattern-match branch is an inert, confirmed-unreachable sorry (verified via #print axioms).
+-- [D-0537] glueGen_trans
 set_option maxHeartbeats 8000000 in
 theorem glueGen_trans {x y z : GlueBaseGen P} (hxc : canonGen m x = x) (hyc : canonGen m y = y)
     (hzc : canonGen m z = z) (hxy : leGlueGen m x y) (hyz : leGlueGen m y z) :
@@ -7220,6 +7058,7 @@ theorem glueGen_trans {x y z : GlueBaseGen P} (hxc : canonGen m x = x) (hyc : ca
       | (subst_vars; exact leGlueGen_refl _ _)
       | fail "glueGen_trans: a transitivity case fell through. Do not let a fallback absorb it -- fix rawRuleGen/occsGen or add the case."
 
+-- [D-0538] glueCarPartialOrderGen
 @[reducible]
 def glueCarPartialOrderGen : PartialOrder (GlueCarGen (P := P) m) where
   le x y := leGlueGen m x.1 y.1
@@ -7235,26 +7074,32 @@ section CoherentLiftGen
 
 variable {L : Type u} [DecidableEq L] [Lattice L] [BoundedOrder L] [Fintype L]
 
+-- [D-0539] hmL_of
 theorem hmL_of (hbt : (⊥ : L) ≠ ⊤) : (OrderHom.id : EndP L) ≠ ⊥ := endPId_ne_bot hbt
+-- [D-0540] hmtL_of
 theorem hmtL_of (hbt : (⊥ : L) ≠ ⊤) : (OrderHom.id : EndP L) ≠ ⊤ := endPId_ne_top hbt
+-- [D-0541] hbtEL_of
 theorem hbtEL_of (hbt : (⊥ : L) ≠ ⊤) : (⊥ : EndP L) ≠ (⊤ : EndP L) := endP_bot_ne_top hbt
 
--- iotaGen: the level-independent analogue of iotaD k.
+-- [D-0542] iotaGen
 noncomputable def iotaGen (x : L) : GlueCar (P := EndP L) (OrderHom.id) :=
   glueA (OrderHom.id : EndP L) (constHom x)
 
+-- [D-0543] iotaGen_le_iff
 theorem iotaGen_le_iff (hbt : (⊥ : L) ≠ ⊤) (x y : L) : iotaGen x ≤ iotaGen y ↔ x ≤ y :=
   (glueA_le_iff (OrderHom.id : EndP L) (hmL_of hbt) (constHom x) (constHom y)).trans
     (constHom_le_iff x y)
 
+-- [D-0544] iotaGen_injective
 theorem iotaGen_injective : Function.Injective (@iotaGen L _ _ _ _) := by
   intro x y h
   exact constHom_injective (glueA_injective (OrderHom.id : EndP L) h)
 
+-- [D-0545] iotaGen_monotone
 theorem iotaGen_monotone (hbt : (⊥ : L) ≠ ⊤) {x y : L} (hxy : x ≤ y) : iotaGen x ≤ iotaGen y :=
   (iotaGen_le_iff hbt x y).mpr hxy
 
--- iotaEndPGen: level-independent analogue of iotaEndP k, lifted to EndP (GlueCar (P := EndP L) OrderHom.id).
+-- [D-0546] iotaEndPGen
 noncomputable def iotaEndPGen (hbt : (⊥ : L) ≠ ⊤) (f : EndP L) :
     letI := glueCarPartialOrder (OrderHom.id : EndP L) (hmL_of hbt) (hmtL_of hbt) (hbtEL_of hbt)
     EndP (GlueCar (P := EndP L) (OrderHom.id : EndP L)) :=
@@ -7263,6 +7108,7 @@ noncomputable def iotaEndPGen (hbt : (⊥ : L) ≠ ⊤) (f : EndP L) :
     monotone' := fun w w' hle =>
       iotaGen_monotone hbt (f.monotone (pGen_monotone (hmL_of hbt) (hbtEL_of hbt) w w' hle)) }
 
+-- [D-0547] iotaEndPGen_apply
 theorem iotaEndPGen_apply (hbt : (⊥ : L) ≠ ⊤) (f : EndP L) :
     letI := glueCarPartialOrder (OrderHom.id : EndP L) (hmL_of hbt) (hmtL_of hbt) (hbtEL_of hbt)
     ∀ w : GlueCar (P := EndP L) (OrderHom.id),
@@ -7278,7 +7124,7 @@ section CoherentLiftGenJoin
 
 variable {L : Type u} [DecidableEq L] [Lattice L] [BoundedOrder L] [Fintype L]
 
--- iotaEndPGen is monotone in f (the outer map f ↦ iotaEndPGen hbt f, not the .monotone' field in w).
+-- [D-0548] iotaEndPGen_monotone
 theorem iotaEndPGen_monotone (hbt : (⊥ : L) ≠ ⊤) {f g : EndP L} (hfg : f ≤ g) :
     letI := glueCarPartialOrder (OrderHom.id : EndP L) (hmL_of hbt) (hmtL_of hbt) (hbtEL_of hbt)
     iotaEndPGen hbt f ≤ iotaEndPGen hbt g := by
@@ -7288,7 +7134,7 @@ theorem iotaEndPGen_monotone (hbt : (⊥ : L) ≠ ⊤) {f g : EndP L} (hfg : f �
   show iotaGen (f (pGen w)) ≤ iotaGen (g (pGen w))
   exact iotaGen_monotone hbt (OrderHom.le_def.mp hfg (pGen w))
 
--- If f ≤ g, the "join with v when threshold t is dominated" term is monotone in the dominated argument, for any fixed threshold/target.
+-- [D-0549] ite_dominate_mono
 theorem ite_dominate_mono {Q : Type*} [Preorder Q] [OrderBot Q]
     {t f g : EndP L} (hfg : f ≤ g) (v : Q) :
     (if t ≤ f then v else (⊥ : Q)) ≤ (if t ≤ g then v else (⊥ : Q)) := by
@@ -7297,17 +7143,7 @@ theorem ite_dominate_mono {Q : Type*} [Preorder Q] [OrderBot Q]
   · rw [if_neg h]
     exact bot_le
 
--- liftGen: per-point corrected lift of f, joining the plain lift with the lift of whichever of EndP L's two distinguished points (OrderHom.id, ⊤) f dominates.
--- (2026-08-27: this is a THIRD site of the `Classical.propDecidable`-frozen-`≤`-guard defect
--- fixed in `stepMap`/`glueJoinRaw` — see `latticeDecLE`'s docstring — but it is deliberately
--- LEFT UNPATCHED. Applying the same `letI := latticeDecLE` fix here was tried and REVERTED:
--- it makes kernel-checking of this very definition diverge ((kernel) deterministic timeout at
--- the `liftGen` declaration, cascading into ~24 downstream failures), because unlike `stepMap`'s
--- guard on a plain `P`, these guards compare in `EndP L` and the resulting decision procedure
--- is evaluated against `glueLattice`'s already-deep instance tower. Since `liftGen` belongs to
--- the retired `glueAAGen`/F-iterate thread and nothing needs it `decide`-reducible, the classical
--- guard is harmless here and is kept. Revisit only with a real consumer, and expect to need a
--- cheaper decision procedure than `latticeDecLE` at this type.)
+-- [D-0550] liftGen
 noncomputable def liftGen (hbt : (⊥ : L) ≠ ⊤) (f : EndP L) :
     letI := glueCarPartialOrder (OrderHom.id : EndP L) (hmL_of hbt) (hmtL_of hbt) (hbtEL_of hbt)
     letI := glueLattice (OrderHom.id : EndP L) (hmL_of hbt) (hmtL_of hbt) (hbtEL_of hbt)
@@ -7324,6 +7160,7 @@ noncomputable def liftGen (hbt : (⊥ : L) ≠ ⊤) (f : EndP L) :
         then (⊤ : EndP (GlueCar (P := EndP L) (OrderHom.id : EndP L)))
         else ⊥)
 
+-- [D-0551] liftGen_monotone
 theorem liftGen_monotone (hbt : (⊥ : L) ≠ ⊤) {f g : EndP L} (hfg : f ≤ g) :
     letI := glueCarPartialOrder (OrderHom.id : EndP L) (hmL_of hbt) (hmtL_of hbt) (hbtEL_of hbt)
     letI := glueLattice (OrderHom.id : EndP L) (hmL_of hbt) (hmtL_of hbt) (hbtEL_of hbt)
@@ -7342,10 +7179,11 @@ section CoherentLiftGenBoundary
 
 variable {L : Type u} [DecidableEq L] [Lattice L] [BoundedOrder L] [Fintype L]
 
+-- [D-0552] constHom_bot_eq
 theorem constHom_bot_eq : (constHom (⊥ : L) : EndP L) = ⊥ := by
   ext x; simp [constHom_apply, endPBot_apply]
 
--- iotaGen (pGen w) ≤ w for every w (bundled-≤ restatement of pGen_deflation).
+-- [D-0553] iotaGen_pGen_deflation
 theorem iotaGen_pGen_deflation (hbt : (⊥ : L) ≠ ⊤)
     (w : GlueCar (P := EndP L) (OrderHom.id)) :
     letI := glueCarPartialOrder (OrderHom.id : EndP L) (hmL_of hbt) (hmtL_of hbt) (hbtEL_of hbt)
@@ -7355,6 +7193,7 @@ theorem iotaGen_pGen_deflation (hbt : (⊥ : L) ≠ ⊤)
   show leGlue (OrderHom.id : EndP L) (Sum.inl (constHom (pGen w) : EndP L)) w.1
   exact pGen_deflation w
 
+-- [D-0554] iotaGen_bot
 theorem iotaGen_bot (hbt : (⊥ : L) ≠ ⊤) :
     letI := glueCarPartialOrder (OrderHom.id : EndP L) (hmL_of hbt) (hmtL_of hbt) (hbtEL_of hbt)
     letI := glueBoundedOrder (OrderHom.id : EndP L) (hmL_of hbt) (hmtL_of hbt) (hbtEL_of hbt)
@@ -7365,6 +7204,7 @@ theorem iotaGen_bot (hbt : (⊥ : L) ≠ ⊤) :
   rw [constHom_bot_eq]
   rfl
 
+-- [D-0555] liftGen_bot
 theorem liftGen_bot (hbt : (⊥ : L) ≠ ⊤) :
     letI := glueCarPartialOrder (OrderHom.id : EndP L) (hmL_of hbt) (hmtL_of hbt) (hbtEL_of hbt)
     letI := glueLattice (OrderHom.id : EndP L) (hmL_of hbt) (hmtL_of hbt) (hbtEL_of hbt)
@@ -7385,6 +7225,7 @@ theorem liftGen_bot (hbt : (⊥ : L) ≠ ⊤) :
   rw [if_neg h1, if_neg h2, hA]
   exact le_antisymm (sup_le (sup_le le_rfl le_rfl) le_rfl) bot_le
 
+-- [D-0556] liftGen_id
 theorem liftGen_id (hbt : (⊥ : L) ≠ ⊤) :
     letI := glueCarPartialOrder (OrderHom.id : EndP L) (hmL_of hbt) (hmtL_of hbt) (hbtEL_of hbt)
     letI := glueLattice (OrderHom.id : EndP L) (hmL_of hbt) (hmtL_of hbt) (hbtEL_of hbt)
@@ -7406,6 +7247,7 @@ theorem liftGen_id (hbt : (⊥ : L) ≠ ⊤) :
   rw [if_pos h1, if_neg h2]
   exact le_antisymm (sup_le (sup_le hdefl le_rfl) bot_le) (le_trans le_sup_right le_sup_left)
 
+-- [D-0557] liftGen_top
 theorem liftGen_top (hbt : (⊥ : L) ≠ ⊤) :
     letI := glueCarPartialOrder (OrderHom.id : EndP L) (hmL_of hbt) (hmtL_of hbt) (hbtEL_of hbt)
     letI := glueLattice (OrderHom.id : EndP L) (hmL_of hbt) (hmtL_of hbt) (hbtEL_of hbt)
@@ -7423,7 +7265,7 @@ end CoherentLiftGenBoundary
 
 section GlueAAGen
 
--- Bridge: a rawRule fact between two raw points gives leGlue between their canon-normalizations.
+-- [D-0558] rawRule_leGlue_canon
 theorem rawRule_leGlue_canon {P : Type u} [DecidableEq P] [Lattice P] [BoundedOrder P]
     [Fintype P] (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤) (w1 w2 : GlueBase P)
     (h : rawRule m w1 w2) : leGlue m (canon m w1) (canon m w2) :=
@@ -7431,7 +7273,7 @@ theorem rawRule_leGlue_canon {P : Type u} [DecidableEq P] [Lattice P] [BoundedOr
 
 variable {L : Type u} [DecidableEq L] [Lattice L] [BoundedOrder L] [Fintype L]
 
--- glueAAGen: level-independent analogue of glueA_1'', lifting tag A plainly (iotaEndPGen) and tags B/C via the join-corrected lift (liftGen).
+-- [D-0559] glueAAGen
 noncomputable def glueAAGen (hbt : (⊥ : L) ≠ ⊤) (x : GlueCar (P := EndP L) (OrderHom.id)) :
     letI := glueCarPartialOrder (OrderHom.id : EndP L) (hmL_of hbt) (hmtL_of hbt) (hbtEL_of hbt)
     letI := glueLattice (OrderHom.id : EndP L) (hmL_of hbt) (hmtL_of hbt) (hbtEL_of hbt)
@@ -7450,7 +7292,7 @@ noncomputable def glueAAGen (hbt : (⊥ : L) ≠ ⊤) (x : GlueCar (P := EndP L)
   | Sum.inr (Sum.inr f) =>
       incl (OrderHom.id) (hmL_of hbt') (hbtEL_of hbt') (Sum.inr (Sum.inr (liftGen hbt f)))
 
--- Monotonicity of glueAAGen: x ≤ y implies glueAAGen hbt x ≤ glueAAGen hbt y.
+-- [D-0560] glueAAGen_monotone
 set_option maxHeartbeats 4000000 in
 theorem glueAAGen_monotone (hbt : (⊥ : L) ≠ ⊤) {x y : GlueCar (P := EndP L) (OrderHom.id)}
     (hxy : x ≤ y) : glueAAGen hbt x ≤ glueAAGen hbt y := by
@@ -7474,12 +7316,12 @@ theorem glueAAGen_monotone (hbt : (⊥ : L) ≠ ⊤) {x y : GlueCar (P := EndP L
     (glueAAGen hbt (⟨xv, hxv⟩ : GlueCar (P := EndP L) (OrderHom.id))).1
     (glueAAGen hbt (⟨yv, hyv⟩ : GlueCar (P := EndP L) (OrderHom.id))).1
   rcases xv with f | f | f <;> rcases yv with f' | f' | f'
-  · -- A, A
+  ·
     show leGlue _ (Sum.inl (iotaEndPGen hbt f)) (Sum.inl (iotaEndPGen hbt f'))
     have hff' : f ≤ f' := (tagA_iso (OrderHom.id : EndP L) hm0 f f').mp hxy'
     exact rawRule_leGlue_canon _ hm' hmt' hbtE'
       (Sum.inl (iotaEndPGen hbt f)) (Sum.inl (iotaEndPGen hbt f')) (iotaEndPGen_monotone hbt hff')
-  · -- A, B
+  ·
     show leGlue _ (Sum.inl (iotaEndPGen hbt f)) (canon _ (Sum.inr (Sum.inl (liftGen hbt f'))))
     by_cases hft : f' = (⊤ : EndP L)
     · subst hft
@@ -7500,13 +7342,13 @@ theorem glueAAGen_monotone (hbt : (⊥ : L) ≠ ⊤) {x y : GlueCar (P := EndP L
         exact iotaGen_pGen_deflation hbt w
       exact rawRule_leGlue_canon _ hm' hmt' hbtE'
         (Sum.inl (iotaEndPGen hbt f)) (Sum.inr (Sum.inl (liftGen hbt f'))) hle
-  · -- A, C
+  ·
     exact rawRule_leGlue_canon _ hm' hmt' hbtE'
       (Sum.inl (iotaEndPGen hbt f)) (Sum.inr (Sum.inr (liftGen hbt f'))) trivial
-  · -- B, A
+  ·
     exact absurd hxy' (not_leGlue_tagB_tagA (OrderHom.id : EndP L) f f' hm0 hbt0
       (ne_bot_of_canon_tagB (OrderHom.id : EndP L) f hxv))
-  · -- B, B
+  ·
     show leGlue _ (canon _ (Sum.inr (Sum.inl (liftGen hbt f)))) (canon _ (Sum.inr (Sum.inl (liftGen hbt f'))))
     by_cases hft : f' = (⊤ : EndP L)
     · subst hft
@@ -7517,7 +7359,7 @@ theorem glueAAGen_monotone (hbt : (⊥ : L) ≠ ⊤) {x y : GlueCar (P := EndP L
       have hff' : f ≤ f' := (leGlue_tagB_tagB_iff (OrderHom.id : EndP L) f f' hft hwb).mp hxy'
       exact rawRule_leGlue_canon _ hm' hmt' hbtE'
         (Sum.inr (Sum.inl (liftGen hbt f))) (Sum.inr (Sum.inl (liftGen hbt f'))) (liftGen_monotone hbt hff')
-  · -- B, C
+  ·
     show leGlue _ (canon _ (Sum.inr (Sum.inl (liftGen hbt f)))) (canon _ (Sum.inr (Sum.inr (liftGen hbt f'))))
     have hmf' : (OrderHom.id : EndP L) ≤ f' := (leGlue_tagB_tagC_iff (OrderHom.id : EndP L) f f').mp hxy'
     have hle : (OrderHom.id : EndP (GlueCar (P := EndP L) (OrderHom.id))) ≤ liftGen hbt f' := by
@@ -7526,10 +7368,10 @@ theorem glueAAGen_monotone (hbt : (⊥ : L) ≠ ⊤) {x y : GlueCar (P := EndP L
       exact le_trans le_sup_right le_sup_left
     exact rawRule_leGlue_canon _ hm' hmt' hbtE'
       (Sum.inr (Sum.inl (liftGen hbt f))) (Sum.inr (Sum.inr (liftGen hbt f'))) hle
-  · -- C, A
+  ·
     exact absurd hxy' (not_leGlue_tagC_tagA (OrderHom.id : EndP L) f f'
       (ne_bot_of_canon_tagC (OrderHom.id : EndP L) f hxv))
-  · -- C, B
+  ·
     show leGlue _ (canon _ (Sum.inr (Sum.inr (liftGen hbt f)))) (canon _ (Sum.inr (Sum.inl (liftGen hbt f'))))
     by_cases hft : f' = (⊤ : EndP L)
     · subst hft
@@ -7568,7 +7410,7 @@ theorem glueAAGen_monotone (hbt : (⊥ : L) ≠ ⊤) {x y : GlueCar (P := EndP L
         (Sum.inr (Sum.inr (OrderHom.id : EndP (GlueCar (P := EndP L) (OrderHom.id))))) hle
       rwa [hcanon] at hb
     · exact absurd hxy' (not_leGlue_tagC_tagB (OrderHom.id : EndP L) f f' hft)
-  · -- C, C
+  ·
     show leGlue _ (canon _ (Sum.inr (Sum.inr (liftGen hbt f)))) (canon _ (Sum.inr (Sum.inr (liftGen hbt f'))))
     have hff' : f ≤ f' := (leGlue_tagC_tagC_iff (OrderHom.id : EndP L) f f').mp hxy'
     exact rawRule_leGlue_canon _ hm' hmt' hbtE'
@@ -7580,6 +7422,7 @@ section GlueAAGenReflect
 
 variable {L : Type u} [DecidableEq L] [Lattice L] [BoundedOrder L] [Fintype L]
 
+-- [D-0561] iotaEndPGen_le_iff
 theorem iotaEndPGen_le_iff (hbt : (⊥ : L) ≠ ⊤) {f g : EndP L} :
     letI := glueCarPartialOrder (OrderHom.id : EndP L) (hmL_of hbt) (hmtL_of hbt) (hbtEL_of hbt)
     (iotaEndPGen hbt f ≤ iotaEndPGen hbt g ↔ f ≤ g) := by
@@ -7595,6 +7438,7 @@ theorem iotaEndPGen_le_iff (hbt : (⊥ : L) ≠ ⊤) {f g : EndP L} :
     exact (iotaGen_le_iff hbt _ _).mp hw
   · exact iotaEndPGen_monotone hbt
 
+-- [D-0562] iotaEndPGen_bot
 theorem iotaEndPGen_bot (hbt : (⊥ : L) ≠ ⊤) :
     letI := glueCarPartialOrder (OrderHom.id : EndP L) (hmL_of hbt) (hmtL_of hbt) (hbtEL_of hbt)
     letI := glueLattice (OrderHom.id : EndP L) (hmL_of hbt) (hmtL_of hbt) (hbtEL_of hbt)
@@ -7608,6 +7452,7 @@ theorem iotaEndPGen_bot (hbt : (⊥ : L) ≠ ⊤) :
   rw [endPBot_apply]
   exact iotaGen_bot hbt
 
+-- [D-0563] iotaGen_ne_top
 theorem iotaGen_ne_top (hbt : (⊥ : L) ≠ ⊤) (x : L) :
     letI := glueCarPartialOrder (OrderHom.id : EndP L) (hmL_of hbt) (hmtL_of hbt) (hbtEL_of hbt)
     letI := glueBoundedOrder (OrderHom.id : EndP L) (hmL_of hbt) (hmtL_of hbt) (hbtEL_of hbt)
@@ -7624,6 +7469,7 @@ theorem iotaGen_ne_top (hbt : (⊥ : L) ≠ ⊤) (x : L) :
   rw [h1, h2] at hv
   exact absurd hv (by simp)
 
+-- [D-0564] liftGen_apply
 theorem liftGen_apply (hbt : (⊥ : L) ≠ ⊤) (f : EndP L)
     (w : GlueCar (P := EndP L) (OrderHom.id)) :
     letI := glueCarPartialOrder (OrderHom.id : EndP L) (hmL_of hbt) (hmtL_of hbt) (hbtEL_of hbt)
@@ -7646,6 +7492,7 @@ theorem liftGen_apply (hbt : (⊥ : L) ≠ ⊤) (f : EndP L)
     · exact endPTop_apply w
     · exact endPBot_apply w
 
+-- [D-0565] liftGen_eq_bot_iff
 theorem liftGen_eq_bot_iff (hbt : (⊥ : L) ≠ ⊤) {f : EndP L} :
     letI := glueCarPartialOrder (OrderHom.id : EndP L) (hmL_of hbt) (hmtL_of hbt) (hbtEL_of hbt)
     letI := glueLattice (OrderHom.id : EndP L) (hmL_of hbt) (hmtL_of hbt) (hbtEL_of hbt)
@@ -7666,6 +7513,7 @@ theorem liftGen_eq_bot_iff (hbt : (⊥ : L) ≠ ⊤) {f : EndP L} :
     exact le_bot_iff.mp h4
   · intro h; subst h; exact liftGen_bot hbt
 
+-- [D-0566] liftGen_eq_id_iff
 theorem liftGen_eq_id_iff (hbt : (⊥ : L) ≠ ⊤) {f : EndP L} :
     letI := glueCarPartialOrder (OrderHom.id : EndP L) (hmL_of hbt) (hmtL_of hbt) (hbtEL_of hbt)
     letI := glueLattice (OrderHom.id : EndP L) (hmL_of hbt) (hmtL_of hbt) (hbtEL_of hbt)
@@ -7716,6 +7564,7 @@ theorem liftGen_eq_id_iff (hbt : (⊥ : L) ≠ ⊤) {f : EndP L} :
       exact hmf (hfeq ▸ le_refl _)
   · intro h; subst h; exact liftGen_id hbt
 
+-- [D-0567] liftGen_eq_top_iff
 theorem liftGen_eq_top_iff (hbt : (⊥ : L) ≠ ⊤) {f : EndP L} :
     letI := glueCarPartialOrder (OrderHom.id : EndP L) (hmL_of hbt) (hmtL_of hbt) (hbtEL_of hbt)
     letI := glueLattice (OrderHom.id : EndP L) (hmL_of hbt) (hmtL_of hbt) (hbtEL_of hbt)
@@ -7745,7 +7594,7 @@ theorem liftGen_eq_top_iff (hbt : (⊥ : L) ≠ ⊤) {f : EndP L} :
       exact iotaGen_ne_top hbt _ e1.symm
   · intro h; subst h; exact liftGen_top hbt
 
--- liftGen g agrees with the plain lift on iotaGen's image when g doesn't dominate ⊤: (liftGen hbt g) (iotaGen z) = iotaGen (g z).
+-- [D-0568] liftGen_apply_iotaGen_of_not_top
 theorem liftGen_apply_iotaGen_of_not_top (hbt : (⊥ : L) ≠ ⊤) {g : EndP L}
     (hg : ¬ (⊤ : EndP L) ≤ g) (z : L) :
     letI := glueCarPartialOrder (OrderHom.id : EndP L) (hmL_of hbt) (hmtL_of hbt) (hbtEL_of hbt)
@@ -7769,7 +7618,7 @@ theorem liftGen_apply_iotaGen_of_not_top (hbt : (⊥ : L) ≠ ⊤) {g : EndP L}
   · rw [if_neg hmg, sup_bot_eq, sup_bot_eq] at e1
     exact e1
 
--- Order-reflection of glueAAGen: glueAAGen hbt x ≤ glueAAGen hbt y implies x ≤ y.
+-- [D-0569] glueAAGen_reflect
 set_option maxHeartbeats 4000000 in
 theorem glueAAGen_reflect (hbt : (⊥ : L) ≠ ⊤) {x y : GlueCar (P := EndP L) (OrderHom.id)}
     (hxy : glueAAGen hbt x ≤ glueAAGen hbt y) : x ≤ y := by
@@ -7791,12 +7640,12 @@ theorem glueAAGen_reflect (hbt : (⊥ : L) ≠ ⊤) {x y : GlueCar (P := EndP L)
   rw [GlueCar.le_def]
   show leGlue (OrderHom.id : EndP L) xv yv
   rcases xv with f | f | f <;> rcases yv with f' | f' | f'
-  · -- A, A
+  ·
     have hxy2 : leGlue (OrderHom.id : EndP (GlueCar (P := EndP L) (OrderHom.id)))
         (Sum.inl (iotaEndPGen hbt f)) (Sum.inl (iotaEndPGen hbt f')) := hxy
     have hff' : iotaEndPGen hbt f ≤ iotaEndPGen hbt f' := (tagA_iso _ hm' _ _).mp hxy2
     exact (tagA_iso (OrderHom.id : EndP L) hm0 f f').mpr ((iotaEndPGen_le_iff hbt).mp hff')
-  · -- A, B
+  ·
     by_cases hf't : f' = (⊤ : EndP L)
     · subst hf't; exact leGlue_tagA_tagB_top _ _
     · have hΛnb : liftGen hbt f' ≠ (⊥ : EndP (GlueCar (P := EndP L) (OrderHom.id))) :=
@@ -7823,9 +7672,9 @@ theorem glueAAGen_reflect (hbt : (⊥ : L) ≠ ⊤) {x y : GlueCar (P := EndP L)
         rw [hidz] at hz
         exact (iotaGen_le_iff hbt _ _).mp hz
       exact (leGlue_tagA_tagB_iff (OrderHom.id : EndP L) f f' hf't).mpr hfm
-  · -- A, C
+  ·
     exact tagA_le_tagC (OrderHom.id : EndP L) f f'
-  · -- B, A
+  ·
     exfalso
     have hfb : f ≠ (⊥ : EndP L) := ne_bot_of_canon_tagB (OrderHom.id : EndP L) f hxv
     have hΛnb : liftGen hbt f ≠ (⊥ : EndP (GlueCar (P := EndP L) (OrderHom.id))) :=
@@ -7838,7 +7687,7 @@ theorem glueAAGen_reflect (hbt : (⊥ : L) ≠ ⊤) {x y : GlueCar (P := EndP L)
       rw [← hcanonB]; exact hxy
     exact not_leGlue_tagB_tagA (OrderHom.id : EndP (GlueCar (P := EndP L) (OrderHom.id)))
       (liftGen hbt f) (iotaEndPGen hbt f') hm' hbtE' hΛnb hxy2
-  · -- B, B
+  ·
     by_cases hf't : f' = (⊤ : EndP L)
     · subst hf't
       exact ⟨Sum.inr (Sum.inl f), self_mem_occs _ _, Sum.inr (Sum.inl (⊤ : EndP L)), self_mem_occs _ _, le_top⟩
@@ -7878,7 +7727,7 @@ theorem glueAAGen_reflect (hbt : (⊥ : L) ≠ ⊤) {x y : GlueCar (P := EndP L)
           exact le_trans le_sup_left le_sup_left
         exact (iotaGen_le_iff hbt _ _).mp (le_trans hlb hz)
       exact (leGlue_tagB_tagB_iff (OrderHom.id : EndP L) f f' hf't hfb).mpr hfin
-  · -- B, C
+  ·
     have hf''b : f' ≠ (⊥ : EndP L) := (canon_inr_inr_ne (OrderHom.id : EndP L) f' hyv).1
     have hf''m : f' ≠ (OrderHom.id : EndP L) := (canon_inr_inr_ne (OrderHom.id : EndP L) f' hyv).2
     have hfb : f ≠ (⊥ : EndP L) := ne_bot_of_canon_tagB (OrderHom.id : EndP L) f hxv
@@ -7914,7 +7763,7 @@ theorem glueAAGen_reflect (hbt : (⊥ : L) ≠ ⊤) {x y : GlueCar (P := EndP L)
         rw [hidz] at hz
         exact (iotaGen_le_iff hbt _ _).mp hz
       exact (leGlue_tagB_tagC_iff (OrderHom.id : EndP L) f f').mpr hfin
-  · -- C, A
+  ·
     exfalso
     have hfb := (canon_inr_inr_ne (OrderHom.id : EndP L) f hxv).1
     have hfm := (canon_inr_inr_ne (OrderHom.id : EndP L) f hxv).2
@@ -7930,7 +7779,7 @@ theorem glueAAGen_reflect (hbt : (⊥ : L) ≠ ⊤) {x y : GlueCar (P := EndP L)
       rw [← hcanonC]; exact hxy
     exact not_leGlue_tagC_tagA (OrderHom.id : EndP (GlueCar (P := EndP L) (OrderHom.id)))
       (liftGen hbt f) (iotaEndPGen hbt f') hΛfnb hxy2
-  · -- C, B
+  ·
     have hfb := (canon_inr_inr_ne (OrderHom.id : EndP L) f hxv).1
     have hfm := (canon_inr_inr_ne (OrderHom.id : EndP L) f hxv).2
     have hΛfnb : liftGen hbt f ≠ (⊥ : EndP (GlueCar (P := EndP L) (OrderHom.id))) :=
@@ -7986,7 +7835,7 @@ theorem glueAAGen_reflect (hbt : (⊥ : L) ≠ ⊤) {x y : GlueCar (P := EndP L)
         rw [← hcanonC, ← hcanonB]; exact hxy
       exact not_leGlue_tagC_tagB (OrderHom.id : EndP (GlueCar (P := EndP L) (OrderHom.id)))
         (liftGen hbt f) (liftGen hbt f') hΛ'nt hxy2
-  · -- C, C
+  ·
     by_cases hf't : f' = (⊤ : EndP L)
     · subst hf't; exact (leGlue_tagC_tagC_iff (OrderHom.id : EndP L) f (⊤ : EndP L)).mpr le_top
     · have hfb := (canon_inr_inr_ne (OrderHom.id : EndP L) f hxv).1
@@ -8028,11 +7877,12 @@ theorem glueAAGen_reflect (hbt : (⊥ : L) ≠ ⊤) {x y : GlueCar (P := EndP L)
         exact (iotaGen_le_iff hbt _ _).mp (le_trans hlb hz)
       exact (leGlue_tagC_tagC_iff (OrderHom.id : EndP L) f f').mpr hfin
 
--- Bundled order embedding: glueAAGen is monotone and order-reflecting.
+-- [D-0570] glueAAGen_le_iff
 theorem glueAAGen_le_iff (hbt : (⊥ : L) ≠ ⊤) {x y : GlueCar (P := EndP L) (OrderHom.id)} :
     glueAAGen hbt x ≤ glueAAGen hbt y ↔ x ≤ y :=
   ⟨glueAAGen_reflect hbt, glueAAGen_monotone hbt⟩
 
+-- [D-0571] glueAAGen_injective
 theorem glueAAGen_injective (hbt : (⊥ : L) ≠ ⊤) : Function.Injective (glueAAGen hbt) := by
   have hm0 : (OrderHom.id : EndP L) ≠ ⊥ := hmL_of hbt
   have hmt0 : (OrderHom.id : EndP L) ≠ ⊤ := hmtL_of hbt
@@ -8054,7 +7904,7 @@ section GlueAAGenOverlap
 
 variable {L : Type u} [DecidableEq L] [Lattice L] [BoundedOrder L] [Fintype L]
 
--- iotaEndPGen's coordinate lift, applied to a constHom, collapses to the plain constHom one level up.
+-- [D-0572] iotaEndPGen_constHom
 theorem iotaEndPGen_constHom (hbt : (⊥ : L) ≠ ⊤) (x : L) :
     letI := glueCarPartialOrder (OrderHom.id : EndP L) (hmL_of hbt) (hmtL_of hbt) (hbtEL_of hbt)
     letI := glueLattice (OrderHom.id : EndP L) (hmL_of hbt) (hmtL_of hbt) (hbtEL_of hbt)
@@ -8066,7 +7916,7 @@ theorem iotaEndPGen_constHom (hbt : (⊥ : L) ≠ ⊤) (x : L) :
   ext w
   rw [iotaEndPGen_apply, constHom_apply, constHom_apply]
 
--- Overlap-agreement: glueAAGen restricted to iotaGen's image recovers the next level's iotaGen exactly: glueAAGen hbt (iotaGen x) = iotaGen (iotaGen x).
+-- [D-0573] glueAAGen_iotaGen
 theorem glueAAGen_iotaGen (hbt : (⊥ : L) ≠ ⊤) (x : L) :
     letI := glueCarPartialOrder (OrderHom.id : EndP L) (hmL_of hbt) (hmtL_of hbt) (hbtEL_of hbt)
     letI := glueLattice (OrderHom.id : EndP L) (hmL_of hbt) (hmtL_of hbt) (hbtEL_of hbt)
@@ -8086,7 +7936,7 @@ section GlueAAPDDeflation
 
 variable {L : Type u} [DecidableEq L] [Lattice L] [BoundedOrder L] [Fintype L]
 
--- Tag-A deflation: pGen (glueAAGen hbt (tagA f)) ≤ tagA f.
+-- [D-0574] glueAAGen_pGen_deflation_tagA
 theorem glueAAGen_pGen_deflation_tagA (hbt : (⊥ : L) ≠ ⊤) (f : EndP L) :
     letI := glueCarPartialOrder (OrderHom.id : EndP L) (hmL_of hbt) (hmtL_of hbt) (hbtEL_of hbt)
     letI := glueLattice (OrderHom.id : EndP L) (hmL_of hbt) (hmtL_of hbt) (hbtEL_of hbt)
@@ -8113,7 +7963,7 @@ theorem glueAAGen_pGen_deflation_tagA (hbt : (⊥ : L) ≠ ⊤) (f : EndP L) :
   exact (tagA_iso (OrderHom.id : EndP L) hm0 (constHom (f (⊥ : L))) f).mpr (by
     rw [OrderHom.le_def]; intro z; rw [constHom_apply]; exact f.monotone bot_le)
 
--- Tag-B deflation: same conclusion as tag-A, restricted to f ≠ ⊤.
+-- [D-0575] glueAAGen_pGen_deflation_tagB
 set_option maxHeartbeats 4000000 in
 theorem glueAAGen_pGen_deflation_tagB (hbt : (⊥ : L) ≠ ⊤) {f : EndP L}
     (hxv : canon (OrderHom.id : EndP L) (Sum.inr (Sum.inl f)) = Sum.inr (Sum.inl f))
@@ -8161,8 +8011,8 @@ section CrossTagCA
 
 variable {L : Type u} [DecidableEq L] [Lattice L] [BoundedOrder L] [Fintype L]
 
+-- [D-0576] endP_eq_top_of_apply_bot_eq_top
 omit [DecidableEq L] [Fintype L] in
--- If a monotone self-map hits ⊤ at ⊥, it is constantly ⊤.
 theorem endP_eq_top_of_apply_bot_eq_top (f : EndP L) (h : f (⊥ : L) = (⊤ : L)) :
     f = (⊤ : EndP L) := by
   apply OrderHom.ext
@@ -8173,7 +8023,7 @@ theorem endP_eq_top_of_apply_bot_eq_top (f : EndP L) (h : f (⊥ : L) = (⊤ : L
   rw [hx]
   rfl
 
--- Cross-tag deflation: any point in pGen's fiber over f ⊥ sits below the tag-C point built from f, provided f dominates OrderHom.id.
+-- [D-0577] crossTag_CA_sufficient
 theorem crossTag_CA_sufficient (hbt : (⊥ : L) ≠ ⊤) (f : EndP L)
     (hfb : f ≠ (⊥ : EndP L)) (hfm : f ≠ (OrderHom.id : EndP L))
     (hidf : (OrderHom.id : EndP L) ≤ f)
@@ -8213,11 +8063,14 @@ section Phase3aStep4PsiInvMonotone
 
 variable {P : Type u} [DecidableEq P] [PartialOrder P] [BoundedOrder P]
 
--- Fintype/Lattice-free copies of iotaA/iotaB/iotaC, over canonGen.
+-- [D-0578] iotaAGen
 abbrev iotaAGen (_m : P) (x : P) : GlueBaseGen P := Sum.inl x
+-- [D-0579] iotaBGen
 abbrev iotaBGen (m : P) (x : P) : GlueBaseGen P := canonGen m (Sum.inr (Sum.inl x))
+-- [D-0580] iotaCGen
 abbrev iotaCGen (m : P) (x : P) : GlueBaseGen P := canonGen m (Sum.inr (Sum.inr x))
 
+-- [D-0581] self_mem_occsGen
 theorem self_mem_occsGen (m : P) (x : GlueBaseGen P) : x ∈ occsGen m x := by
   cases x with
   | inl x => simp only [occsGen]; split_ifs <;> simp
@@ -8225,6 +8078,7 @@ theorem self_mem_occsGen (m : P) (x : GlueBaseGen P) : x ∈ occsGen m x := by
     | inl x => simp only [occsGen]; split_ifs <;> simp
     | inr x => simp [occsGen]
 
+-- [D-0582] occs_inl_memGen
 theorem occs_inl_memGen (m : P) (x : P) {u : GlueBaseGen P} (hu : u ∈ occsGen m (Sum.inl x)) :
     u = Sum.inl x ∨ (x = m ∧ u = Sum.inr (Sum.inl (⊥ : P))) ∨
       (x = ⊤ ∧ u = Sum.inr (Sum.inr (⊥ : P))) := by
@@ -8239,6 +8093,7 @@ theorem occs_inl_memGen (m : P) (x : P) {u : GlueBaseGen P} (hu : u ∈ occsGen 
     · exact Or.inr (Or.inr ⟨h2, hu⟩)
   · exact Or.inl hu
 
+-- [D-0583] tagA_isoGen
 theorem tagA_isoGen (m : P) (hm : m ≠ ⊥) (x y : P) :
     leGlueGen m (iotaAGen m x) (iotaAGen m y) ↔ x ≤ y := by
   constructor
@@ -8257,10 +8112,12 @@ theorem tagA_isoGen (m : P) (hm : m ≠ ⊥) (x y : P) :
   · intro hxy
     exact ⟨iotaAGen m x, self_mem_occsGen m _, iotaAGen m y, self_mem_occsGen m _, hxy⟩
 
+-- [D-0584] iotaB_generic_eqGen
 theorem iotaB_generic_eqGen (m x : P) (hxb : x ≠ ⊥) : iotaBGen m x = Sum.inr (Sum.inl x) := by
   show canonGen m (Sum.inr (Sum.inl x)) = Sum.inr (Sum.inl x)
   simp only [canonGen]; rw [if_neg hxb]
 
+-- [D-0585] occs_iotaB_memGen
 theorem occs_iotaB_memGen (m : P) (x : P) {u : GlueBaseGen P}
     (hu : u ∈ occsGen m (iotaBGen m x)) :
     (x ≠ ⊥ ∧ x ≠ ⊤ ∧ u = Sum.inr (Sum.inl x)) ∨
@@ -8292,6 +8149,7 @@ theorem occs_iotaB_memGen (m : P) (x : P) {u : GlueBaseGen P}
       rw [hoc] at hu
       exact Or.inl ⟨hxb, hxt, by simpa using hu⟩
 
+-- [D-0586] leGlue_tagA_tagB_iffGen
 theorem leGlue_tagA_tagB_iffGen (m w y : P) (hyt : y ≠ ⊤) :
     leGlueGen m (Sum.inl w) (Sum.inr (Sum.inl y)) ↔ w ≤ m := by
   constructor
@@ -8308,6 +8166,7 @@ theorem leGlue_tagA_tagB_iffGen (m w y : P) (hyt : y ≠ ⊤) :
   · intro hwle
     exact ⟨Sum.inl w, self_mem_occsGen m _, Sum.inr (Sum.inl y), self_mem_occsGen m _, hwle⟩
 
+-- [D-0587] leGlue_tagB_tagB_iffGen
 theorem leGlue_tagB_tagB_iffGen (m w y : P) (hyt : y ≠ ⊤) (hwb : w ≠ ⊥) :
     leGlueGen m (Sum.inr (Sum.inl w)) (Sum.inr (Sum.inl y)) ↔ w ≤ y := by
   constructor
@@ -8327,14 +8186,12 @@ theorem leGlue_tagB_tagB_iffGen (m w y : P) (hyt : y ≠ ⊤) (hwb : w ≠ ⊥) 
     exact ⟨Sum.inr (Sum.inl w), self_mem_occsGen m _, Sum.inr (Sum.inl y), self_mem_occsGen m _,
       hwle⟩
 
--- `Fintype`/`Lattice`-free port of `leGlue_tagA_tagC`: copy `A` into any copy-`C`
--- point, unconditional (`rawRuleGen`'s `a→c` clause is bare `True`).
+-- [D-0588] leGlue_tagA_tagCGen
 theorem leGlue_tagA_tagCGen (m w y : P) :
     leGlueGen m (Sum.inl w) (Sum.inr (Sum.inr y)) :=
   ⟨Sum.inl w, self_mem_occsGen m _, Sum.inr (Sum.inr y), self_mem_occsGen m _, trivial⟩
 
--- `Fintype`/`Lattice`-free port of `leGlue_tagB_tagC_iff`: copy `B` into a
--- generic copy-`C` point, iff `m ≤ y` (target-only condition).
+-- [D-0589] leGlue_tagB_tagC_iffGen
 theorem leGlue_tagB_tagC_iffGen (m w y : P) :
     leGlueGen m (Sum.inr (Sum.inl w)) (Sum.inr (Sum.inr y)) ↔ m ≤ y := by
   constructor
@@ -8358,6 +8215,7 @@ theorem leGlue_tagB_tagC_iffGen (m w y : P) :
     exact ⟨Sum.inr (Sum.inl w), self_mem_occsGen m _, Sum.inr (Sum.inr y), self_mem_occsGen m _,
       hmy⟩
 
+-- [D-0590] not_leGlue_tagB_tagAGen
 theorem not_leGlue_tagB_tagAGen (m w w' : P) (hm : m ≠ ⊥) (hbt : (⊥ : P) ≠ ⊤) (hw : w ≠ ⊥) :
     ¬ leGlueGen m (Sum.inr (Sum.inl w)) (Sum.inl w') := by
   rintro ⟨u, hu, v, hv, huv⟩
@@ -8388,6 +8246,7 @@ theorem not_leGlue_tagB_tagAGen (m w w' : P) (hm : m ≠ ⊥) (hbt : (⊥ : P) �
     · subst hv'; exact hw (le_bot_iff.mp huv)
     · subst hv'; exact hm (le_bot_iff.mp huv)
 
+-- [D-0591] not_leGlue_tagC_tagAGen
 theorem not_leGlue_tagC_tagAGen (m w x : P) (hw : w ≠ ⊥) :
     ¬ leGlueGen m (Sum.inr (Sum.inr w)) (Sum.inl x) := by
   rintro ⟨u, hu, v, hv, huv⟩
@@ -8398,6 +8257,7 @@ theorem not_leGlue_tagC_tagAGen (m w x : P) (hw : w ≠ ⊥) :
   · exact huv.elim
   · exact hw (le_bot_iff.mp huv)
 
+-- [D-0592] not_leGlue_tagC_tagBGen
 theorem not_leGlue_tagC_tagBGen (m w y : P) (hyt : y ≠ ⊤) :
     ¬ leGlueGen m (Sum.inr (Sum.inr w)) (Sum.inr (Sum.inl y)) := by
   rintro ⟨u, hu, v, hv, huv⟩
@@ -8410,8 +8270,7 @@ theorem not_leGlue_tagC_tagBGen (m w y : P) (hyt : y ≠ ⊤) :
   subst hu'
   exact huv.elim
 
--- `Fintype`/`Lattice`-free port of `leGlue_tagC_tagC_iff`: same-copy `C` into `C`,
--- always trivial occs on both sides.
+-- [D-0593] leGlue_tagC_tagC_iffGen
 theorem leGlue_tagC_tagC_iffGen (m x y : P) :
     leGlueGen m (Sum.inr (Sum.inr x)) (Sum.inr (Sum.inr y)) ↔ x ≤ y := by
   constructor
@@ -8423,8 +8282,7 @@ theorem leGlue_tagC_tagC_iffGen (m x y : P) :
   · intro hxy
     exact ⟨_, self_mem_occsGen m _, _, self_mem_occsGen m _, hxy⟩
 
--- `Fintype`/`Lattice`-free port of `leGlue_tagC_tagB_top_iff`: copy `C` into `skelG3`
--- (`y = ⊤`), reachable via `skelG3`'s own alternate `tag_c(m)` representative.
+-- [D-0594] leGlue_tagC_tagB_top_iffGen
 theorem leGlue_tagC_tagB_top_iffGen (m w' : P) :
     leGlueGen m (Sum.inr (Sum.inr w')) (Sum.inr (Sum.inl (⊤ : P))) ↔ w' ≤ m := by
   constructor
@@ -8438,15 +8296,13 @@ theorem leGlue_tagC_tagB_top_iffGen (m w' : P) :
   · intro hw'm
     exact ⟨Sum.inr (Sum.inr w'), self_mem_occsGen m _, Sum.inr (Sum.inr m), by simp [occsGen], hw'm⟩
 
--- The tag-`C` "detector": `⊥` on copy A, `m` only at copy B's `skelG3`
--- boundary (`y = ⊤`) and `⊥` elsewhere on copy B, the identity on copy C.
+-- [D-0595] phiGen
 def phiGen (m : P) : GlueBaseGen P → P
   | Sum.inl _ => ⊥
   | Sum.inr (Sum.inl y) => if y = ⊤ then m else ⊥
   | Sum.inr (Sum.inr y) => y
 
--- Comparability characterization: a copy-`C` point `tag_C v` (`v ≠ ⊥`) sits
--- below `z` iff `v ≤ phiGen m z`, uniformly across all three copies of `z`.
+-- [D-0596] leGlueGen_tagC_iff_le_phiGen
 theorem leGlueGen_tagC_iff_le_phiGen (m : P) {v : P} (hv : v ≠ ⊥) (z : GlueBaseGen P) :
     leGlueGen m (Sum.inr (Sum.inr v)) z ↔ v ≤ phiGen m z := by
   cases z with
@@ -8463,22 +8319,21 @@ theorem leGlueGen_tagC_iff_le_phiGen (m : P) {v : P} (hv : v ≠ ⊥) (z : GlueB
     | inr c =>
         simpa [phiGen] using leGlue_tagC_tagC_iffGen m v c
 
+-- [D-0597] ne_bot_of_canon_tagBGen
 theorem ne_bot_of_canon_tagBGen (m f : P)
     (hwv : canonGen m (Sum.inr (Sum.inl f)) = Sum.inr (Sum.inl f)) : f ≠ ⊥ := by
   intro hfb
   rw [canonGen, if_pos hfb] at hwv
   exact (Sum.inl_ne_inr) hwv
 
+-- [D-0598] ne_bot_of_canon_tagCGen
 theorem ne_bot_of_canon_tagCGen (m f : P)
     (hwv : canonGen m (Sum.inr (Sum.inr f)) = Sum.inr (Sum.inr f)) : f ≠ ⊥ := by
   intro hfb
   rw [canonGen, if_pos hfb] at hwv
   exact (Sum.inl_ne_inr) hwv
 
--- `phiGen` is monotone on `GlueCarGen (P := P) m` — the fact the scoping doc
--- flagged as "checked by hand across every copy-pair case" but not yet
--- formalized. Needed to know a directed set's `phiGen`-image stays directed
--- (the ingredient the eventual `GlueCarGen(P)m`-dcpo theorem actually uses).
+-- [D-0599] phiGen_monotone
 theorem phiGen_monotone (m : P) (hm : m ≠ ⊥) (hbt : (⊥ : P) ≠ ⊤)
     {x y : GlueCarGen (P := P) m} (hxy : x ≤ y) :
     phiGen m x.1 ≤ phiGen m y.1 := by
@@ -8516,13 +8371,7 @@ theorem phiGen_monotone (m : P) (hm : m ≠ ⊥) (hbt : (⊥ : P) ≠ ⊤)
     · have hcc' : c ≤ c' := (leGlue_tagC_tagC_iffGen m c c').mp hle
       simpa [phiGen] using hcc'
 
--- The "free" half of "`phiGen m u.1` is the LUB of `phiGen`'s image of a
--- directed set `s` with upper bound `u`": monotonicity alone gives that it's
--- *an* upper bound of the image. The genuinely harder *least*-upper-bound
--- half is handled below, for the specific `tag_C`-compactness-transfer
--- question that actually needs it (`tagCGen_isCompactElement`) — see that
--- theorem's docstring for why the general leastness statement isn't proved
--- outright here.
+-- [D-0600] phiGen_mem_upperBounds_image
 theorem phiGen_mem_upperBounds_image (m : P) (hm : m ≠ ⊥) (hbt : (⊥ : P) ≠ ⊤)
     {s : Set (GlueCarGen (P := P) m)} {u : GlueCarGen (P := P) m} (hu : u ∈ upperBounds s) :
     phiGen m u.1 ∈ upperBounds ((fun w : GlueCarGen (P := P) m => phiGen m w.1) '' s) := by
@@ -8531,56 +8380,45 @@ theorem phiGen_mem_upperBounds_image (m : P) (hm : m ≠ ⊥) (hbt : (⊥ : P) �
 
 end Phase3aStep4PsiInvMonotone
 
--- `Fintype`/`Lattice`-free port of `leGlue_tagA_tagB_top`.
+-- [D-0601] leGlue_tagA_tagB_topGen
 theorem leGlue_tagA_tagB_topGen {P : Type u} [DecidableEq P] [PartialOrder P] [BoundedOrder P]
     (m w : P) : leGlueGen m (Sum.inl w) (Sum.inr (Sum.inl (⊤ : P))) := by
   refine ⟨Sum.inl w, self_mem_occsGen m _, Sum.inr (Sum.inr m), ?_, trivial⟩
   simp [occsGen]
 
-/- ============================================================
-   `GlueCarGen(P,m)` tag-`C` compactness transfer, from scratch. The
-   project's scoping doc (`Meta/Scoping - GlueCarGen(ScottEndP DBilimit)
-   Compactness (2026-08-25).md`) identified this as the genuine open
-   question blocking `sigmaC_succ_stage`'s existence half, and flagged the
-   obvious `Lattice`-`P` route (an explicit binary join `⊔ m`, mirroring
-   the finite `GlueCar` construction's `glueJoinRaw`) as ruled out, since
-   `ScottEndP DBilimit` is not a `Lattice`. The route that DOES work: `P`
-   being a dcpo (directed sups of *subsets*, which `ScottEndP DBilimit` has
-   via `ScottEndP.exists_isLUB_of_directedOn`) is enough on its own — no
-   binary join needed anywhere below.
-   ============================================================ -/
 section TagCCompactnessTransfer
 variable {P : Type u} [DecidableEq P] [PartialOrder P] [BoundedOrder P]
 
-/-- Bundled tag-`C` point in `GlueCarGen`, via `canonGen` so it's valid even
-    at the `c = ⊥`/`c = m` redirect boundaries. -/
+-- [D-0602] tagCGen
 noncomputable def tagCGen (m : P) (hm : m ≠ ⊥) (hbt : (⊥ : P) ≠ ⊤) (c : P) :
     GlueCarGen (P := P) m :=
   ⟨canonGen m (Sum.inr (Sum.inr c)), canonGen_idem m hm hbt _⟩
 
+-- [D-0603] tagCGen_val_of_generic
 theorem tagCGen_val_of_generic (m : P) (hm : m ≠ ⊥) (hbt : (⊥ : P) ≠ ⊤) {c : P}
     (hcb : c ≠ ⊥) (hcm : c ≠ m) :
     (tagCGen m hm hbt c).1 = Sum.inr (Sum.inr c) := by
   show canonGen m (Sum.inr (Sum.inr c)) = Sum.inr (Sum.inr c)
   simp only [canonGen]; rw [if_neg hcb, if_neg hcm]
 
-/-- Bundled `skelG3` (`tag_B(⊤)`) point. -/
+-- [D-0604] skelG3Gen
 noncomputable def skelG3Gen (m : P) (hm : m ≠ ⊥) (hbt : (⊥ : P) ≠ ⊤) : GlueCarGen (P := P) m :=
   ⟨canonGen m (Sum.inr (Sum.inl (⊤ : P))), canonGen_idem m hm hbt _⟩
 
+-- [D-0605] skelG3Gen_val
 theorem skelG3Gen_val (m : P) (hm : m ≠ ⊥) (hbt : (⊥ : P) ≠ ⊤) :
     (skelG3Gen m hm hbt).1 = Sum.inr (Sum.inl (⊤ : P)) := by
   show canonGen m (Sum.inr (Sum.inl (⊤ : P))) = Sum.inr (Sum.inl (⊤ : P))
   simp only [canonGen]; rw [if_neg (Ne.symm hbt)]
 
-/-- Bundled tag-`A` point (never redirects — `canonGen`'s `A`-branch is
-    the identity). -/
+-- [D-0606] tagAGen
 noncomputable def tagAGen (m : P) (a : P) : GlueCarGen (P := P) m :=
   ⟨Sum.inl a, rfl⟩
 
+-- [D-0607] tagAGen_val
 theorem tagAGen_val (m : P) (a : P) : (tagAGen m a).1 = Sum.inl a := rfl
 
--- `skelG3` bounds every copy-A/copy-B point unconditionally.
+-- [D-0608] skelG3Gen_mem_upperBounds_of_pureAB
 theorem skelG3Gen_mem_upperBounds_of_pureAB (m : P) (hm : m ≠ ⊥) (hbt : (⊥ : P) ≠ ⊤)
     {s : Set (GlueCarGen (P := P) m)}
     (hshape : ∀ x ∈ s, (∃ a, x.1 = Sum.inl a) ∨ (∃ b, x.1 = Sum.inr (Sum.inl b))) :
@@ -8594,7 +8432,7 @@ theorem skelG3Gen_mem_upperBounds_of_pureAB (m : P) (hm : m ≠ ⊥) (hbt : (⊥
     exact ⟨Sum.inr (Sum.inl b), self_mem_occsGen m _, Sum.inr (Sum.inl (⊤ : P)),
       self_mem_occsGen m _, le_top⟩
 
--- The `S_C = ∅, s has a copy-B element` sub-case is vacuous: forces `c = m`.
+-- [D-0609] tagC_generic_not_isLUB_of_pureAB_hasB
 theorem tagC_generic_not_isLUB_of_pureAB_hasB (m : P) (hm : m ≠ ⊥) (hbt : (⊥ : P) ≠ ⊤)
     {s : Set (GlueCarGen (P := P) m)}
     (hshape : ∀ x ∈ s, (∃ a, x.1 = Sum.inl a) ∨ (∃ b, x.1 = Sum.inr (Sum.inl b)))
@@ -8613,8 +8451,7 @@ theorem tagC_generic_not_isLUB_of_pureAB_hasB (m : P) (hm : m ≠ ⊥) (hbt : (�
     exact (leGlue_tagB_tagC_iffGen m b0 c).mp this
   exact hcm (le_antisymm hcm1 hmc1)
 
--- The "pure copy-A, no copy-B at all" sub-case is also vacuous: `P`'s own
--- directed sup of the copy-A values lifts to a smaller upper bound.
+-- [D-0610] tagC_generic_not_isLUB_of_pureA
 theorem tagC_generic_not_isLUB_of_pureA (m : P) (hm : m ≠ ⊥)
     (hPdcpo : ∀ T : Set P, T.Nonempty → DirectedOn (· ≤ ·) T → ∃ t, IsLUB T t)
     {s : Set (GlueCarGen (P := P) m)} (hne : s.Nonempty) (hdir : DirectedOn (· ≤ ·) s)
@@ -8657,9 +8494,7 @@ theorem tagC_generic_not_isLUB_of_pureA (m : P) (hm : m ≠ ⊥)
   rw [huval, tagAGen_val] at hfin
   exact not_leGlue_tagC_tagAGen m c astar hcb hfin
 
--- Directedness cofinality: given `s` directed and a known copy-C witness
--- `x1 ∈ s`, every `x ∈ s` is dominated (within `s`) by something copy-C or
--- `skelG3`-shaped — copy-A/copy-B(≠⊤) elements can never bound a copy-C point.
+-- [D-0611] exists_tagC_or_skelG3_dominating
 theorem exists_tagC_or_skelG3_dominating (m : P)
     {s : Set (GlueCarGen (P := P) m)} (hdir : DirectedOn (· ≤ ·) s)
     {c1 : P} (hc1b : c1 ≠ ⊥) {x1 : GlueCarGen (P := P) m} (hx1s : x1 ∈ s)
@@ -8679,11 +8514,7 @@ theorem exists_tagC_or_skelG3_dominating (m : P)
     · exact absurd hle (not_leGlue_tagC_tagBGen m c1 b' hb't)
   · exact Or.inl ⟨c2', rfl⟩
 
--- `tagCGen m hm hbt t0` bounds all of `s`, given a copy-C witness `x1 ∈ s`
--- and `t0` an upper bound of `phiGen`'s image of `s`. This is the payoff of
--- the cofinality lemma: copy-B(≠⊤) elements are dominated (within `s`) by a
--- copy-C-or-`skelG3` element whose `phiGen`-value already sits inside the
--- image, so they never need their own individual contribution to `t0`.
+-- [D-0612] tagCGen_t0_mem_upperBounds
 theorem tagCGen_t0_mem_upperBounds (m : P) (hm : m ≠ ⊥) (hbt : (⊥ : P) ≠ ⊤)
     {s : Set (GlueCarGen (P := P) m)} (hdir : DirectedOn (· ≤ ·) s)
     {c1 : P} (hc1b : c1 ≠ ⊥) {x1 : GlueCarGen (P := P) m} (hx1s : x1 ∈ s)
@@ -8694,7 +8525,7 @@ theorem tagCGen_t0_mem_upperBounds (m : P) (hm : m ≠ ⊥) (hbt : (⊥ : P) ≠
   show leGlueGen m x.1 (tagCGen m hm hbt t0).1
   rcases x with ⟨xv, hxv⟩
   rcases xv with a | b | c'
-  · -- copy A: unconditional, regardless of `t0`'s redirect shape
+  ·
     show leGlueGen m (Sum.inl a) (canonGen m (Sum.inr (Sum.inr t0)))
     by_cases ht0b : t0 = ⊥
     · have hval : canonGen m (Sum.inr (Sum.inr (⊥ : P))) = Sum.inl (⊤ : P) := by
@@ -8710,7 +8541,7 @@ theorem tagCGen_t0_mem_upperBounds (m : P) (hm : m ≠ ⊥) (hbt : (⊥ : P) ≠
           simp only [canonGen]; rw [if_neg ht0b, if_neg ht0m]
         rw [hval]
         exact leGlue_tagA_tagCGen m a t0
-  · -- copy B(b), b ≠ ⊥ automatically (canon-fixed); dominate via cofinality
+  ·
     have hbne : b ≠ ⊥ := ne_bot_of_canon_tagBGen m b hxv
     obtain ⟨z, hzs, hxz, hzshape⟩ :=
       exists_tagC_or_skelG3_dominating m hdir hc1b hx1s hx1val hxs
@@ -8734,7 +8565,7 @@ theorem tagCGen_t0_mem_upperBounds (m : P) (hm : m ≠ ⊥) (hbt : (⊥ : P) ≠
         simp only [canonGen]; rw [if_neg ht0b, if_neg ht0m]
       rw [hval]
       exact (leGlue_tagB_tagC_iffGen m b t0).mpr hmt0
-  · -- copy C(c')
+  ·
     have hc't0 : c' ≤ t0 := ht0ub ⟨⟨Sum.inr (Sum.inr c'), hxv⟩, hxs, rfl⟩
     show leGlueGen m (Sum.inr (Sum.inr c')) (canonGen m (Sum.inr (Sum.inr t0)))
     have hc'b : c' ≠ ⊥ := ne_bot_of_canon_tagCGen m c' hxv
@@ -8749,18 +8580,7 @@ theorem tagCGen_t0_mem_upperBounds (m : P) (hm : m ≠ ⊥) (hbt : (⊥ : P) ≠
       rw [hval]
       exact (leGlue_tagC_tagC_iffGen m c' t0).mpr hc't0
 
-/-- **The master theorem**: for `v` compact in `P` with `v ≠ ⊥` and `v ≰ m`
-    (the case the real application always satisfies: for `P := ScottEndP
-    DBilimit`, `m := scottEndPId`, and `v := constScottHom p`, `v ≤ m`
-    forces `p = ⊥`, so `v ≠ ⊥` alone already rules out `v ≤ m`), `tagCGen`
-    of `v` is compact in `GlueCarGen (P := P) m`. Needs `P` to be a dcpo
-    (`hPdcpo`) but NOT a `Lattice` — the `⊔ m`-absorption obstruction the
-    project's scoping doc flagged is sidestepped entirely by working with
-    directed sups of *subsets* of `P` (which a dcpo has) rather than binary
-    joins (which only a `Lattice` would supply and `ScottEndP DBilimit`
-    doesn't have). The `v ≤ m` boundary case (needed for full generality,
-    not needed by the real application) is not handled here — flagged, not
-    attempted, matching this project's standing rule on scope corners. -/
+-- [D-0613] tagCGen_isCompactElement
 theorem tagCGen_isCompactElement (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤)
     (hPdcpo : ∀ T : Set P, T.Nonempty → DirectedOn (· ≤ ·) T → ∃ t, IsLUB T t)
     {v : P} (hvb : v ≠ ⊥) (hvm : ¬ v ≤ m) (hvc : IsCompactElement v) :
@@ -8851,21 +8671,10 @@ theorem tagCGen_isCompactElement (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt
 
 end TagCCompactnessTransfer
 
--- `GlueCarGen(P,m)` tag-`A` compactness transfer. Unlike tag-`C`, this needs no
--- dcpo hypothesis on `P` and no `v ≤ m`/`v ≠ ⊥` boundary exclusion: copy `A` is
--- never dominated by copy `B`/`C` (`not_leGlue_tagB_tagAGen`/
--- `not_leGlue_tagC_tagAGen`), so a directed set with a copy-A `LUB` is forced to
--- be pure copy-A, and the whole question reduces uniformly to `P`'s own order
--- via `tagA_isoGen` -- no case split on `a` needed anywhere.
 section TagACompactnessTransfer
 variable {P : Type u} [DecidableEq P] [PartialOrder P] [BoundedOrder P]
 
-/-- `tagAGen m` carries `P`-level `LUB`s to `GlueCarGen(P,m)`-level `LUB`s,
-    against upper bounds drawn from any of the three copies -- copy-`B`(`⊤`)
-    and copy-`C` bound every copy-`A` point unconditionally
-    (`leGlue_tagA_tagB_topGen`/`leGlue_tagA_tagCGen`), and copy-`B`(`≠⊤`)
-    bounding the whole image forces its witness's value `≤ m`, hence (by `t`
-    being `T`'s *least* upper bound) `t ≤ m` too. -/
+-- [D-0614] tagAGen_isLUB_image
 theorem tagAGen_isLUB_image (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤)
     {T : Set P} {t : P} (hLUB : IsLUB T t) :
     letI := glueCarPartialOrderGen m hm hmt hbt
@@ -8900,17 +8709,7 @@ theorem tagAGen_isLUB_image (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (�
     · rw [tagAGen_val]
       exact leGlue_tagA_tagCGen m t c'
 
-/-- **The tag-`A` compactness-transfer theorem**: `tagAGen m a` compact in
-    `GlueCarGen(P,m)` implies `a` compact in `P`. Unlike the tag-`C` mirror
-    (`tagCGen_isCompactElement`), this holds unconditionally in `a` -- no
-    `a ≠ ⊥`, no `a ≰ m`, no dcpo hypothesis on `P` -- because copy A is never
-    dominated from outside itself, so `tagAGen_isLUB_image` above needs no
-    case split on `a`. Used (contrapositively) to settle `GLUE1`'s
-    compactness: since `scottEndPId` is not compact in `ScottEndP DBilimit`
-    (`scottEndPId_not_isCompactElement`), and `GLUE1 = PsiIso.symm
-    (tagAGen scottEndPId scottEndPId)`, `GLUE1` is not compact either -- the
-    one boundary case `sigmaB_never_compact`'s `x0 ≠ ⊥` scoping left open
-    (`sigmaB botSeq = GLUE1`). -/
+-- [D-0615] isCompactElement_of_tagAGen_isCompactElement
 theorem isCompactElement_of_tagAGen_isCompactElement (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤)
     (hbt : (⊥ : P) ≠ ⊤) {a : P}
     (hac : letI := glueCarPartialOrderGen m hm hmt hbt; IsCompactElement (tagAGen m a)) :
@@ -8929,32 +8728,36 @@ theorem isCompactElement_of_tagAGen_isCompactElement (m : P) (hm : m ≠ ⊥) (h
 
 end TagACompactnessTransfer
 
--- `GlueCarGen`'s functoriality in its parameter `P` under an order isomorphism (`canon`/`canonGen` are the same rule over the same `GlueBase`/`GlueBaseGen` abbreviation, so this is the one functoriality fact needed).
 section GlueCarGenFunctoriality
 
 variable {P Q : Type u} [DecidableEq P] [PartialOrder P] [BoundedOrder P]
   [DecidableEq Q] [PartialOrder Q] [BoundedOrder Q]
 
--- Coordinatewise action of an order isomorphism on GlueBaseGen.
+-- [D-0616] glueBaseGenEquiv
 noncomputable def glueBaseGenEquiv (e : P ≃o Q) : GlueBaseGen P ≃ GlueBaseGen Q :=
   Equiv.sumCongr e.toEquiv (Equiv.sumCongr e.toEquiv e.toEquiv)
 
+-- [D-0617] mapGlueBaseGen
 noncomputable def mapGlueBaseGen (e : P ≃o Q) : GlueBaseGen P → GlueBaseGen Q :=
   glueBaseGenEquiv e
 
+-- [D-0618] mapGlueBaseGen_inl
 @[simp] theorem mapGlueBaseGen_inl (e : P ≃o Q) (x : P) :
     mapGlueBaseGen e (Sum.inl x) = Sum.inl (e x) := rfl
 
+-- [D-0619] mapGlueBaseGen_inr_inl
 @[simp] theorem mapGlueBaseGen_inr_inl (e : P ≃o Q) (x : P) :
     mapGlueBaseGen e (Sum.inr (Sum.inl x)) = Sum.inr (Sum.inl (e x)) := rfl
 
+-- [D-0620] mapGlueBaseGen_inr_inr
 @[simp] theorem mapGlueBaseGen_inr_inr (e : P ≃o Q) (x : P) :
     mapGlueBaseGen e (Sum.inr (Sum.inr x)) = Sum.inr (Sum.inr (e x)) := rfl
 
+-- [D-0621] mapGlueBaseGen_injective
 theorem mapGlueBaseGen_injective (e : P ≃o Q) : Function.Injective (mapGlueBaseGen e) :=
   (glueBaseGenEquiv e).injective
 
--- mapGlueBaseGen e intertwines canonGen m and canonGen (e m).
+-- [D-0622] canonGen_map
 theorem canonGen_map (e : P ≃o Q) (m : P) (x : GlueBaseGen P) :
     canonGen (e m) (mapGlueBaseGen e x) = mapGlueBaseGen e (canonGen m x) := by
   have hbotIff : ∀ x : P, x = ⊥ ↔ e x = ⊥ :=
@@ -8981,12 +8784,14 @@ theorem canonGen_map (e : P ≃o Q) (m : P) (x : GlueBaseGen P) :
         simp_all [mapGlueBaseGen_inl, mapGlueBaseGen_inr_inl, mapGlueBaseGen_inr_inr,
           hbotIff, hmIff, e.map_top]
 
+-- [D-0623] rawRuleGen_map
 theorem rawRuleGen_map (e : P ≃o Q) (m : P) (u v : GlueBaseGen P) :
     rawRuleGen (e m) (mapGlueBaseGen e u) (mapGlueBaseGen e v) ↔ rawRuleGen m u v := by
   rcases u with x | x | x <;> rcases v with y | y | y <;>
     simp only [mapGlueBaseGen_inl, mapGlueBaseGen_inr_inl, mapGlueBaseGen_inr_inr,
       rawRuleGen, e.le_iff_le]
 
+-- [D-0624] occsGen_map
 theorem occsGen_map (e : P ≃o Q) (m : P) (x : GlueBaseGen P) :
     occsGen (e m) (mapGlueBaseGen e x) = (occsGen m x).map (mapGlueBaseGen e) := by
   have htopIff : ∀ x : P, x = ⊤ ↔ e x = ⊤ :=
@@ -9025,6 +8830,7 @@ theorem occsGen_map (e : P ≃o Q) (m : P) (x : GlueBaseGen P) :
       unfold occsGen
       simp [mapGlueBaseGen_inl, mapGlueBaseGen_inr_inl, mapGlueBaseGen_inr_inr]
 
+-- [D-0625] leGlueGen_map_iff
 theorem leGlueGen_map_iff (e : P ≃o Q) (m : P) (x y : GlueBaseGen P) :
     leGlueGen (e m) (mapGlueBaseGen e x) (mapGlueBaseGen e y) ↔ leGlueGen m x y := by
   unfold leGlueGen
@@ -9039,7 +8845,7 @@ theorem leGlueGen_map_iff (e : P ≃o Q) (m : P) (x y : GlueBaseGen P) :
     exact ⟨mapGlueBaseGen e u, List.mem_map_of_mem hu,
       mapGlueBaseGen e v, List.mem_map_of_mem hv, (rawRuleGen_map e m u v).mpr huv⟩
 
--- The induced Equiv on GlueCarGen carriers.
+-- [D-0626] glueCarGenEquiv
 noncomputable def glueCarGenEquiv (e : P ≃o Q) (m : P) :
     GlueCarGen (P := P) m ≃ GlueCarGen (P := Q) (e m) :=
   (glueBaseGenEquiv e).subtypeEquiv (fun x => by
@@ -9052,7 +8858,7 @@ noncomputable def glueCarGenEquiv (e : P ≃o Q) (m : P) :
         rw [← canonGen_map]; exact hx
       exact mapGlueBaseGen_injective e h2)
 
--- The induced order isomorphism: an order isomorphism e : P ≃o Q with e m = m' lifts to GlueCarGen (P:=P) m ≃o GlueCarGen (P:=Q) m'.
+-- [D-0627] glueCarGenOrderIso
 noncomputable def glueCarGenOrderIso (e : P ≃o Q) (m : P) :
     GlueCarGen (P := P) m ≃o GlueCarGen (P := Q) (e m) where
   toEquiv := glueCarGenEquiv e m
@@ -9063,7 +8869,7 @@ noncomputable def glueCarGenOrderIso (e : P ≃o Q) (m : P) :
 
 end GlueCarGenFunctoriality
 
--- IsCompactElement is invariant under any order isomorphism.
+-- [D-0628] _root_.IsCompactElement.orderIso
 theorem _root_.IsCompactElement.orderIso {α β : Type*} [PartialOrder α] [PartialOrder β]
     (f : α ≃o β) {a : α} (ha : IsCompactElement a) : IsCompactElement (f a) := by
   intro s u hs hdir hlub hle
@@ -9080,47 +8886,20 @@ theorem _root_.IsCompactElement.orderIso {α β : Type*} [PartialOrder α] [Part
   have h2 := f.le_iff_le.mpr hax
   rwa [f.apply_symm_apply] at h2
 
-/- ============================================================
-   `Θ`-exclusion, copy `A`/`B`/`C` comparability with `skelG3`
-   (session 2026-08-20, formalizing the `v≰m` exclusion regime
-   found for `colimit_compat`'s `Θ(D_2)` investigation).
-
-   Companion vault: `Open Questions.md`, `colimit_compat` section,
-   2026-08-20 addenda ("the v≰m regime worked out" /
-   "full write-up"). This section formalizes the comparability
-   core of that finding: copies `A` and `B` are ALWAYS comparable
-   (`≤`) to `skelG3`, so `skelG3`'s incomparable set lives entirely
-   in copy `C`, and matches `inc_Q(m)` there exactly — the fact
-   that forces `i_D(skelG3)` to always be tag-`C`-shaped (never
-   tag-`A`), which is what excludes `tag_A(v) ∈ Θ(D)` for every
-   `v` on the "generic" (non-`≤m`) side. Needs NO unique-atom or
-   unique-coatom hypothesis on `P` — a strictly general fact about
-   `GlueCar`, independent of the tower-specific `UniqueAtomCoatom`
-   apparatus used elsewhere in this file.
-   ============================================================ -/
-
 section ThetaSkelG3
 variable {P : Type u} [Fintype P] [DecidableEq P] [Lattice P] [BoundedOrder P]
 
-/-- Copy `A` is always `≤ skelG3` — via `skelG3`'s second occurrence
-    `Sum.inr (Sum.inr m)`, using the unconditional `a→c` bridge
-    (`rawRule`'s `Sum.inl _, Sum.inr (Sum.inr _) => True` clause). -/
+-- [D-0629] leGlue_tagA_skelG3
 theorem leGlue_tagA_skelG3 (m w : P) : leGlue m (Sum.inl w) (skelG3 m) :=
   ⟨Sum.inl w, self_mem_occs m _, Sum.inr (Sum.inr m), by simp [occs, skelG3], trivial⟩
 
-/-- Copy `B` is always `≤ skelG3` — `skelG3 = Sum.inr (Sum.inl ⊤)` is
-    copy `B`'s own top under the same-copy `b→b` order, so every
-    `Sum.inr (Sum.inl x)` reaches it via `x ≤ ⊤`. -/
+-- [D-0630] leGlue_tagB_skelG3
 theorem leGlue_tagB_skelG3 (m x : P) : leGlue m (Sum.inr (Sum.inl x)) (skelG3 m) := by
   rcases eq_or_ne x ⊤ with hxt | hxt
   · subst hxt; exact leGlue_refl m (skelG3 m)
   · exact ⟨Sum.inr (Sum.inl x), self_mem_occs m _, skelG3 m, self_mem_occs m _, le_top⟩
 
-/-- Copy `C` into `skelG3` (the `y = ⊤` boundary case `not_leGlue_tagC_tagB`
-    excludes): `skelG3`'s second occurrence `Sum.inr (Sum.inr m)` gives a
-    same-copy `c→c` witness `w ≤ m`; no other witness exists (the direct
-    `Sum.inr (Sum.inl ⊤)` occurrence gives the unconditionally-`False`
-    `c→b` clause). -/
+-- [D-0631] leGlue_tagC_skelG3_iff
 theorem leGlue_tagC_skelG3_iff (m w : P) :
     leGlue m (Sum.inr (Sum.inr w)) (skelG3 m) ↔ w ≤ m := by
   constructor
@@ -9136,14 +8915,7 @@ theorem leGlue_tagC_skelG3_iff (m w : P) :
   · intro hwm
     exact ⟨Sum.inr (Sum.inr w), self_mem_occs m _, Sum.inr (Sum.inr m), by simp [occs, skelG3], hwm⟩
 
-/-- **Main comparability theorem**: a canonical `z` is incomparable to
-    `skelG3` if and only if `z` is copy-`C`-shaped at a `w` incomparable
-    to `m` in `P`. Copies `A` and `B` never contribute — they are always
-    `≤ skelG3` (the two lemmas above). This is the general (no
-    `UniqueAtomCoatom` hypothesis needed) content behind
-    `i_D(skelG3) = tag_C(i_Q(m))` in the companion write-up: `skelG3`'s
-    whole incomparable set lives in copy `C` and matches `P`'s own
-    `m`-incomparable set exactly, tag for tag. -/
+-- [D-0632] incGlue_skelG3_iff
 theorem incGlue_skelG3_iff (m : P) (z : GlueBase P) :
     (¬ leGlue m z (skelG3 m) ∧ ¬ leGlue m (skelG3 m) z) ↔
       ∃ w, z = Sum.inr (Sum.inr w) ∧ ¬ w ≤ m ∧ ¬ m ≤ w := by
@@ -9168,29 +8940,11 @@ theorem incGlue_skelG3_iff (m : P) (z : GlueBase P) :
 
 end ThetaSkelG3
 
--- ============================================================
--- **`J(GlueCar(EndP P, id_P))` characterization** (general `P`, generalizes
--- the tower's `D_n -> D_{n+1}` step): the three-copy breakdown established
--- earlier (`joinIrred_glueA_iff`/`joinIrred_glueB_iff`/`joinIrred_glueC_iff`)
--- combines cleanly for the SUCCESSOR gluing `GlueCar(EndP P, id_P)`
--- specifically: copy `A` is full, copy `C` is ALSO effectively full
--- (`id_P` is never `stepMap`-shaped once `|P| ≥ 3`, so `x ≠ m` never
--- excludes anything already `JoinIrred`), and copy `B` loses EXACTLY the
--- one point `x = ⊤_Q` (`⊤_Q` is always `JoinIrred` under `UniqueAtomCoatom`,
--- but `glueB(⊤)` provably has ≥2 down-covers, so is never itself
--- `JoinIrred`). Net formula: `|J(GlueCar(EndP P,id_P))| = 3·|J(P)|·|P| − 1`.
--- ============================================================
-
 section GlueCarSuccJoinIrred
 
 variable {P : Type u} [Fintype P] [DecidableEq P] [Lattice P] [BoundedOrder P]
 
-/-- Every canonical point of `GlueCar m` is exactly a copy-`A`, copy-`B`,
-    or copy-`C` point (with each copy's own domain restriction) — the
-    case-split underlying the `J(GlueCar m)` cardinality count below.
-    (`canon_inr_inl_ne_bot`/`canon_inr_inr_ne` already extract the
-    domain restrictions from canon-fixedness; this just packages the
-    3-way `GlueBase` case split around them.) -/
+-- [D-0633] glueCar_cases
 theorem glueCar_cases (m : P) (f : GlueCar (P := P) m) :
     (∃ v : P, f = glueA m v) ∨
     (∃ (x : P) (hx : x ≠ ⊥), f = glueB m x hx) ∨
@@ -9203,9 +8957,7 @@ theorem glueCar_cases (m : P) (f : GlueCar (P := P) m) :
   · have hw := canon_inr_inr_ne m w hval
     exact Or.inr (Or.inr ⟨w, hw.1, hw.2, Subtype.ext rfl⟩)
 
-/-- Two distinct genuine down-covers refute `HasUniqueDownCover` — the
-    generic finite-poset fact used below to show `glueB m ⊤` is never
-    join-irreducible. -/
+-- [D-0634] not_hasUniqueDownCover_of_two_covers
 theorem not_hasUniqueDownCover_of_two_covers {α : Type u} [Preorder α] {a w1 w2 : α}
     (h1 : Covers w1 a) (h2 : Covers w2 a) (hne : w1 ≠ w2) : ¬ HasUniqueDownCover a := by
   rintro ⟨w, -, huniq⟩
@@ -9216,9 +8968,7 @@ end GlueCarSuccJoinIrred
 section JoinIrredTop
 variable {P : Type u} [Lattice P] [BoundedOrder P] [UniqueAtomCoatom P]
 
-/-- Under `UniqueAtomCoatom`, the top element is always join-irreducible:
-    if `⊤ = b ⊔ c` with `b, c ≠ ⊤`, both are `≤ coatomOf P`, so their join
-    can't reach `⊤`, contradicting `coatomOf_ne_top`. -/
+-- [D-0635] joinIrred_top
 theorem joinIrred_top (hbt : (⊥ : P) ≠ ⊤) : JoinIrred P (⊤ : P) := by
   refine ⟨hbt.symm, fun b c heq => ?_⟩
   by_contra hcon
@@ -9236,9 +8986,7 @@ end JoinIrredTop
 section EndPIdNotJoinIrred
 variable {P : Type u} [Fintype P] [DecidableEq P] [Lattice P] [BoundedOrder P]
 
-/-- Once `P` has at least 3 elements, the identity map on `P` is never of
-    `stepMap` shape: `stepMap` only ever takes the two values `x` and `⊥`,
-    while `id` is injective, forcing `Fintype.card P ≤ 2`. -/
+-- [D-0636] endPId_ne_stepMap
 theorem endPId_ne_stepMap (hcard : 3 ≤ Fintype.card P) (x q : P) :
     (OrderHom.id : EndP P) ≠ stepMap x q := by
   intro heq
@@ -9258,10 +9006,7 @@ theorem endPId_ne_stepMap (hcard : 3 ≤ Fintype.card P) (x q : P) :
       _ ≤ 2 := (Finset.card_insert_le _ _).trans (by simp)
   omega
 
-/-- Corollary via `joinIrred_endP_iff_exists_stepMap`: the identity map is
-    never join-irreducible in `EndP P` once `Fintype.card P ≥ 3` — the
-    fact making copy `C` of `GlueCar(EndP P, id_P)` effectively full
-    (`x ≠ id_P` never excludes an already-`JoinIrred` point). -/
+-- [D-0637] endPId_not_joinIrred
 theorem endPId_not_joinIrred (hcard : 3 ≤ Fintype.card P) :
     ¬ JoinIrred (EndP P) (OrderHom.id : EndP P) := by
   intro hji
@@ -9273,8 +9018,7 @@ end EndPIdNotJoinIrred
 section GlueBTopNotJoinIrred
 variable {P : Type u} [Fintype P] [DecidableEq P] [Lattice P] [BoundedOrder P] [UniqueAtomCoatom P]
 
-/-- `coatomOf P ≠ ⊥` once `Fintype.card P ≥ 3` (`coatomOf P = ⊥` would
-    force every element other than `⊤` to equal `⊥`, i.e. `P = {⊥, ⊤}`). -/
+-- [D-0638] coatomOf_ne_bot
 theorem coatomOf_ne_bot (hbt : (⊥ : P) ≠ ⊤) (hcard : 3 ≤ Fintype.card P) :
     coatomOf P ≠ (⊥ : P) := by
   intro hc
@@ -9296,13 +9040,7 @@ theorem coatomOf_ne_bot (hbt : (⊥ : P) ≠ ⊤) (hcard : 3 ≤ Fintype.card P)
 
 variable (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤)
 
-/-- `glueB m (coatomOf P)` is a genuine down-cover of `glueB m ⊤`
-    (`skelG3`): it's below (`leGlue_tagB_skelG3`, monotone in `P`'s own
-    coatom bound), and nothing else — copy `A` never relates into copy
-    `B` (`not_leGlue_tagB_tagA`), a strictly-larger copy-`B` point would
-    force `w' = coatomOf P` by antisymmetry (contradicting strictness),
-    and a copy-`C` point between them would force `w' = m`, contradicting
-    `glueC`'s own `x ≠ m` restriction. -/
+-- [D-0639] covers_glueB_coatomOf_glueB_top
 theorem covers_glueB_coatomOf_glueB_top (hcard : 3 ≤ Fintype.card P) :
     letI := glueCarPartialOrder m hm hmt hbt
     Covers (glueB m (coatomOf P) (coatomOf_ne_bot hbt hcard))
@@ -9331,13 +9069,7 @@ theorem covers_glueB_coatomOf_glueB_top (hcard : 3 ≤ Fintype.card P) :
       have h2 : w' ≤ m := (leGlue_tagC_skelG3_iff m w').mp hc2.le
       exact hw'm (le_antisymm h1 h2).symm
 
-/-- **Copy `B` loses exactly the point `x = ⊤`**: `glueB m ⊤` always has a
-    second down-cover distinct from `glueB m (coatomOf P)` (extracted from
-    `glueA m ⊤ < glueB m ⊤` via `exists_covBy_ge`, and shown distinct
-    since `glueA m ⊤ ≤ glueB m (coatomOf P)` would force `⊤ ≤ m`), so
-    `glueB m ⊤` is never `HasUniqueDownCover`/`JoinIrred` — matching why
-    `joinIrred_glueB_iff` needs `x ≠ ⊤` as a genuine hypothesis, not just
-    a proof artifact. -/
+-- [D-0640] not_hasUniqueDownCover_glueB_top
 theorem not_hasUniqueDownCover_glueB_top (hcard : 3 ≤ Fintype.card P) :
     letI := glueCarPartialOrder m hm hmt hbt
     ¬ HasUniqueDownCover (glueB m (⊤ : P) (hbt ∘ Eq.symm)) := by
@@ -9361,8 +9093,7 @@ end GlueBTopNotJoinIrred
 section SplitCard
 variable {Q0 : Type u} [Fintype Q0] [DecidableEq Q0] [Lattice Q0] [BoundedOrder Q0]
 
-/-- Removing a single known-join-irreducible top element from `J(Q0)`
-    drops the count by exactly 1. -/
+-- [D-0641] card_joinIrred_eq_succ_of_ne_top
 theorem card_joinIrred_eq_succ_of_ne_top (ht : JoinIrred Q0 (⊤ : Q0)) :
     Fintype.card {x : Q0 // JoinIrred Q0 x} =
       Fintype.card {x : Q0 // JoinIrred Q0 x ∧ x ≠ (⊤ : Q0)} + 1 := by
@@ -9379,8 +9110,7 @@ theorem card_joinIrred_eq_succ_of_ne_top (ht : JoinIrred Q0 (⊤ : Q0)) :
       · simp
   rw [Fintype.card_congr e, Fintype.card_sum, Fintype.card_unit]
 
-/-- When `m` itself is never join-irreducible, the `x ≠ m` domain
-    restriction on `J(Q0)` is vacuous. -/
+-- [D-0642] card_joinIrred_and_ne_eq_of_not_joinIrred
 theorem card_joinIrred_and_ne_eq_of_not_joinIrred {m : Q0} (hnm : ¬ JoinIrred Q0 m) :
     Fintype.card {x : Q0 // JoinIrred Q0 x ∧ x ≠ m} = Fintype.card {x : Q0 // JoinIrred Q0 x} := by
   have e : {x : Q0 // JoinIrred Q0 x ∧ x ≠ m} ≃ {x : Q0 // JoinIrred Q0 x} :=
@@ -9394,15 +9124,7 @@ section GlueCarSuccCard
 variable {Q0 : Type u} [Fintype Q0] [DecidableEq Q0] [Lattice Q0] [BoundedOrder Q0]
   [UniqueAtomCoatom Q0]
 
-/-- **The three-copy bijection for `J(GlueCar m)`**, general `Q0`/`m`:
-    copy `A` contributes all of `J(Q0)` (`joinIrred_glueA_iff`,
-    unconditional), copy `B` contributes `J(Q0) \ {⊤}`
-    (`joinIrred_glueB_iff` needs `x ≠ ⊤`, and `not_hasUniqueDownCover_glueB_top`
-    confirms `x = ⊤` is genuinely excluded, not a proof artifact), and
-    copy `C` contributes `J(Q0) \ {m}` (`joinIrred_glueC_iff`, `glueC`'s
-    own domain restriction). Surjectivity uses `glueCar_cases`; injectivity
-    uses `glueA_injective`/`glueB_injective`/`glueC_injective` plus the
-    fact the three copies are disjoint `GlueBase` shapes. -/
+-- [D-0643] jiGlueCarSuccEquiv
 noncomputable def jiGlueCarSuccEquiv (m : Q0) (hm : m ≠ ⊥) (hmt : m ≠ ⊤)
     (hbt : (⊥ : Q0) ≠ ⊤) (hcard : 3 ≤ Fintype.card Q0) :
     letI := glueLattice m hm hmt hbt
@@ -9422,7 +9144,7 @@ noncomputable def jiGlueCarSuccEquiv (m : Q0) (hm : m ≠ ⊥) (hmt : m ≠ ⊤)
         (fun x => ⟨glueC m x.1 x.2.1.1 x.2.2,
           (joinIrred_glueC_iff m hm hmt hbt x.1 x.2.1.1 x.2.2).mpr x.2.1⟩)))
     ⟨?_, ?_⟩
-  · -- injective
+  ·
     rintro (v1 | x1 | x1) (v2 | x2 | x2) heq <;>
       simp only [Sum.elim_inl, Sum.elim_inr, Subtype.mk.injEq] at heq
     · exact congrArg Sum.inl (Subtype.ext (glueA_injective m heq))
@@ -9436,7 +9158,7 @@ noncomputable def jiGlueCarSuccEquiv (m : Q0) (hm : m ≠ ⊥) (hmt : m ≠ ⊤)
     · exact absurd (congrArg Subtype.val heq) (by simp [glueB, glueC])
     · exact congrArg Sum.inr (congrArg Sum.inr
         (Subtype.ext (glueC_injective m x1.2.1.1 x1.2.2 x2.2.1.1 x2.2.2 heq)))
-  · -- surjective
+  ·
     rintro ⟨f, hf⟩
     rcases glueCar_cases m f with ⟨v, hfeq⟩ | ⟨x, hx, hfeq⟩ | ⟨x, hx, hxm, hfeq⟩
     · refine ⟨Sum.inl ⟨v, ?_⟩, ?_⟩
@@ -9456,12 +9178,7 @@ noncomputable def jiGlueCarSuccEquiv (m : Q0) (hm : m ≠ ⊥) (hmt : m ≠ ⊤)
       · exact (joinIrred_glueC_iff m hm hmt hbt x hx hxm).mp (hfeq ▸ hf)
       · exact Subtype.ext hfeq.symm
 
-/-- **Headline cardinality theorem, general `Q0`/`m`**:
-    `|J(GlueCar m)| = 3·|J(Q0)| − 1`, given `UniqueAtomCoatom Q0`,
-    `Fintype.card Q0 ≥ 3`, and that `m` itself is never join-irreducible
-    (all three side conditions hold at the tower's successor step,
-    `Q0 := EndP P`, `m := id_P` — see `card_joinIrred_glueCar_endP_id`
-    below). -/
+-- [D-0644] card_joinIrred_glueCar_gen
 theorem card_joinIrred_glueCar_gen (m : Q0) (hm : m ≠ ⊥) (hmt : m ≠ ⊤)
     (hbt : (⊥ : Q0) ≠ ⊤) (hcard : 3 ≤ Fintype.card Q0) (hnm : ¬ JoinIrred Q0 m) :
     letI := glueLattice m hm hmt hbt
@@ -9486,16 +9203,7 @@ section GlueCarSuccCardHeadline
 variable {P : Type u} [Fintype P] [DecidableEq P] [Lattice P] [BoundedOrder P]
   [UniqueAtomCoatom P]
 
-/-- **Headline theorem**: for an arbitrary finite lattice `P` with a unique
-    atom/coatom, `⊥ ≠ ⊤`, and `Fintype.card P ≥ 3`, the join-irreducibles
-    of the SUCCESSOR gluing `GlueCar(EndP P, id_P)` (the tower's own
-    `D_n -> D_{n+1}` step, instantiated at `P := D k` below) are
-    characterized purely in terms of `J(P)` and `P`, with no enumeration
-    of `EndP P` or the successor object itself:
-    `|J(GlueCar(EndP P, id_P))| = 3·|J(P)|·|P| − 1`.
-    Sanity check at `P := D_0 = Fin 3` (`|J(D_0)| = 2`, `|D_0| = 3`):
-    `3·2·3 − 1 = 17`, split `6` (copy `A`) `/ 5` (copy `B`) `/ 6` (copy `C`)
-    — matching the previously hand-verified real `D_1` data exactly. -/
+-- [D-0645] card_joinIrred_glueCar_endP_id
 theorem card_joinIrred_glueCar_endP_id (hbt : (⊥ : P) ≠ ⊤) (hcard : 3 ≤ Fintype.card P) :
     letI hm := endPId_ne_bot hbt
     letI hmt := endPId_ne_top hbt
@@ -9524,24 +9232,10 @@ theorem card_joinIrred_glueCar_endP_id (hbt : (⊥ : P) ≠ ⊤) (hcard : 3 ≤ 
 
 end GlueCarSuccCardHeadline
 
-
-/- ============================================================
-   Dual of the `skelG3` characterization above: comparability with
-   `skelG1`, needed for the mirror-image exclusion
-   (`tag_C(v) ∉ Θ(D)` for `v` on the generic/non-`≥m` side).
-   Same session, same companion-vault write-up. Fully general, no
-   `UniqueAtomCoatom` hypothesis needed, matching the `skelG3` side.
-   ============================================================ -/
-
 section ThetaSkelG1
 variable {P : Type u} [Fintype P] [DecidableEq P] [Lattice P] [BoundedOrder P]
 
-/-- Copy `A` into `skelG1` (`= Sum.inl m`): same-copy `a→a` gives
-    `w ≤ m` directly, the `a→b` bridge via `skelG1`'s second occurrence
-    `Sum.inr (Sum.inl ⊥)` gives the same condition again, and the
-    `w = m` / `w = ⊤` boundary cases (via `occs_inl_mem`) resolve to
-    `w ≤ m` (reflexivity) resp. `False` (`c→a`/`c→b` both always
-    `False`), matching. -/
+-- [D-0646] leGlue_tagA_skelG1_iff
 theorem leGlue_tagA_skelG1_iff (m w : P) :
     leGlue m (Sum.inl w) (skelG1 m) ↔ w ≤ m := by
   constructor
@@ -9557,7 +9251,7 @@ theorem leGlue_tagA_skelG1_iff (m w : P) :
   · intro hwle
     exact ⟨Sum.inl w, self_mem_occs m _, skelG1 m, self_mem_occs m _, hwle⟩
 
-/-- `skelG1` into copy `A`, dual of the above. -/
+-- [D-0647] leGlue_skelG1_tagA_iff
 theorem leGlue_skelG1_tagA_iff (m w : P) :
     leGlue m (skelG1 m) (Sum.inl w) ↔ m ≤ w := by
   constructor
@@ -9573,25 +9267,17 @@ theorem leGlue_skelG1_tagA_iff (m w : P) :
   · intro hmw
     exact ⟨skelG1 m, self_mem_occs m _, Sum.inl w, self_mem_occs m _, hmw⟩
 
-/-- Copy `B` is always `≥ skelG1` — `x = ⊤` (i.e. `skelG3` itself)
-    via `leGlue_tagA_skelG3`, every other `x` via the trivial `a→b`
-    witness `m ≤ m`. -/
+-- [D-0648] leGlue_skelG1_tagB
 theorem leGlue_skelG1_tagB (m x : P) : leGlue m (skelG1 m) (Sum.inr (Sum.inl x)) := by
   rcases eq_or_ne x ⊤ with hxt | hxt
   · subst hxt; exact leGlue_tagA_skelG3 m m
   · exact (leGlue_tagA_tagB_iff m m x hxt).mpr le_rfl
 
-/-- Copy `C` is always `≥ skelG1` — the unconditional `a→c` bridge,
-    already proven in full generality. -/
+-- [D-0649] leGlue_skelG1_tagC
 theorem leGlue_skelG1_tagC (m y : P) : leGlue m (skelG1 m) (Sum.inr (Sum.inr y)) :=
   leGlue_tagA_tagC m m y
 
-/-- **Dual main theorem**: `z` is incomparable to `skelG1` iff `z` is
-    copy-`A`-shaped at a `w` incomparable to `m`. Copies `B` and `C`
-    never contribute — always `≥ skelG1`. Mirrors `incGlue_skelG3_iff`
-    exactly (`i ↔ s`, `skelG1 ↔ skelG3`, `A ↔ C`), and is the general
-    content behind `s_D(skelG1) = tag_A(s_Q(m))` in the companion
-    write-up. -/
+-- [D-0650] incGlue_skelG1_iff
 theorem incGlue_skelG1_iff (m : P) (z : GlueBase P) :
     (¬ leGlue m z (skelG1 m) ∧ ¬ leGlue m (skelG1 m) z) ↔
       ∃ w, z = Sum.inl w ∧ ¬ w ≤ m ∧ ¬ m ≤ w := by
@@ -9616,26 +9302,10 @@ theorem incGlue_skelG1_iff (m : P) (z : GlueBase P) :
 
 end ThetaSkelG1
 
-/- ============================================================
-   Generalizing `incGlue_skelG1_iff`/`incGlue_skelG3_iff` from the two
-   single named points (`skelG1 = tag_A(m)`, and dually `tag_C`'s own
-   analogue) to EVERY `v ≤ m` (copy `A`) / `v ≥ m` (copy `C`) — the
-   "`v ≤ m` gated regime" from the companion write-up: for such `v`,
-   `tag_A(v)`/`tag_C(v)` has NO cross-copy incomparability at all,
-   `inc_D(tag_A(v)) = tag_A(inc_Q(v))` exactly (dually for `tag_C`).
-   Previously only Python-verified (`prove_vlm_gated_regime.py`); now
-   an actual Lean theorem. `v ≠ m` is excluded because `Sum.inl m`
-   (resp. `Sum.inr (Sum.inr m)`) has a second `occs` representative,
-   already the separately-proven `skelG1`/`skelG3` case above.
-   ============================================================ -/
-
 section ThetaGenericGated
 variable {P : Type u} [Fintype P] [DecidableEq P] [Lattice P] [BoundedOrder P]
 
-/-- **`v ≤ m` gated regime, copy `A`.** For `v ≤ m`, `v ≠ m`: `z` is
-    incomparable to `tag_A(v)` iff `z` is copy-`A`-shaped at a `w`
-    incomparable to `v` in `P`. Copies `B` (via `v ≤ m`) and `C`
-    (unconditionally) are always comparable to `tag_A(v)`. -/
+-- [D-0651] incGlue_tagA_of_le
 theorem incGlue_tagA_of_le (m : P) (hm : m ≠ ⊥) {v : P} (hvm : v ≤ m) (hvne : v ≠ m)
     (z : GlueBase P) :
     (¬ leGlue m z (Sum.inl v) ∧ ¬ leGlue m (Sum.inl v) z) ↔
@@ -9660,11 +9330,7 @@ theorem incGlue_tagA_of_le (m : P) (hm : m ≠ ⊥) {v : P} (hvm : v ≤ m) (hvn
     · rintro ⟨_, h2⟩; exact absurd (leGlue_tagA_tagC m v w) h2
     · rintro ⟨w', hcon, _, _⟩; cases hcon
 
-/-- **`v ≥ m` gated regime, copy `C`, dual.** For `m ≤ v`, `v ≠ m`: `z`
-    is incomparable to `tag_C(v)` iff `z` is copy-`C`-shaped at a `w`
-    incomparable to `v` in `P`. Copies `A`, `B` are always comparable
-    to `tag_C(v)`, both unconditionally in `m`/`v` (needs neither
-    `hm` nor `hbt`, a cleaner scope than the copy-`A` side). -/
+-- [D-0652] incGlue_tagC_of_ge
 theorem incGlue_tagC_of_ge (m : P) {v : P} (hvm : m ≤ v) (hvne : v ≠ m)
     (z : GlueBase P) :
     (¬ leGlue m z (Sum.inr (Sum.inr v)) ∧ ¬ leGlue m (Sum.inr (Sum.inr v)) z) ↔
@@ -9688,32 +9354,10 @@ theorem incGlue_tagC_of_ge (m : P) {v : P} (hvm : m ≤ v) (hvne : v ≠ m)
 
 end ThetaGenericGated
 
-
-/- ============================================================
-   The Finset/meet-level headline theorem: `i_D(skelG3) = tag_C(i_Q(m))`,
-   stated via `IsGLB` (so it needs no bespoke `Finset.inf'`-based `i`/`s`
-   operator — `IsGLB` pins the meet uniquely whenever it exists, matching
-   what the informal `i(x) := meet(inc(x))` always meant). Builds
-   directly on `incGlue_skelG3_iff` above (the hard, already-proven
-   comparability fact).
-
-   `hqb`/`hqm` (`q ≠ ⊥`, `q ≠ m`) formalize the companion write-up's
-   flagged "canon edge case": when `i_Q(m) = ⊥_Q`, `tag_C(⊥_Q)` is not
-   canonical and the conclusion needs restating — deliberately out of
-   scope here, matching the informal write-up (confirmed not to arise
-   on either real-tower instance checked). `hne` (the incomparable set
-   is nonempty) is what actually rules out `q = ⊥` in real use, but is
-   supplied directly rather than threading that derivation through here.
-   ============================================================ -/
-
 section ThetaMeetSkelG3
 variable {P : Type u} [Fintype P] [DecidableEq P] [Lattice P] [BoundedOrder P]
 
-/-- **Headline theorem.** If `q` is the meet (`IsGLB`) of `m`'s own
-    incomparable set in `P` (itself generic, `q ≠ ⊥`, `q ≠ m`), then
-    `glueCt m hm hbt q` is the meet of `skelG3`'s incomparable set in
-    `D = GlueCar m` — i.e. `i_D(skelG3) = tag_C(i_Q(m))`, now as an
-    actual Lean theorem rather than a Python-verified formula. -/
+-- [D-0653] isGLB_inc_skelG3
 theorem isGLB_inc_skelG3 (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤)
     (hne : {w : P | ¬ w ≤ m ∧ ¬ m ≤ w}.Nonempty)
     {q : P} (hqb : q ≠ ⊥) (hqm : q ≠ m)
@@ -9734,8 +9378,6 @@ theorem isGLB_inc_skelG3 (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ 
     have hwm : w ≠ m := by
       intro heq; rw [heq] at hw2; exact hw2 (le_refl m)
     exact iotaC_generic_eq m w hwb hwm
-  -- membership helper: `glueCt m hm hbt w` is always in skelG3's incomparable set,
-  -- for any `w` incomparable to `m`.
   have hmem : ∀ w : P, ¬ w ≤ m → ¬ m ≤ w → glueCt m hm hbt w ∈
       {z : GlueCar (P := P) m | ¬ z ≤ glueBt m hm hbt (⊤ : P) ∧
         ¬ glueBt m hm hbt (⊤ : P) ≤ z} := by
@@ -9745,7 +9387,7 @@ theorem isGLB_inc_skelG3 (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ 
     · rw [GlueCar.le_def, hgBval]; exact hincpair.1
     · rw [GlueCar.le_def, hgBval]; exact hincpair.2
   constructor
-  · -- `glueCt m hm hbt q` is a lower bound of skelG3's incomparable set
+  ·
     rintro z ⟨hz1, hz2⟩
     have hz1' : ¬ leGlue m z.1 (skelG3 m) := by
       intro hcon; rw [← hgBval] at hcon
@@ -9762,20 +9404,20 @@ theorem isGLB_inc_skelG3 (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ 
     rw [hzeq2]
     exact (glueCt_le_iff m hm hmt hbt q w).mpr
       (hq.1 (show w ∈ {w : P | ¬ w ≤ m ∧ ¬ m ≤ w} from ⟨hw1, hw2⟩))
-  · -- `glueCt m hm hbt q` dominates every other lower bound
+  ·
     intro z' hz'
     obtain ⟨zv, hzc⟩ := z'
     rcases zv with w' | w' | w'
-    · -- copy A: always comparable, unconditional
+    ·
       rw [GlueCar.le_def, hgCval]
       exact leGlue_tagA_tagC m w' q
-    · -- copy B: vacuous -- would force `m ≤ w` for a `w` incomparable to `m`
+    ·
       exfalso
       obtain ⟨w, hw1, hw2⟩ := hne
       have hzle := hz' (hmem w hw1 hw2)
       rw [GlueCar.le_def, hgCwval w hw1 hw2] at hzle
       exact hw2 ((leGlue_tagB_tagC_iff m w' w).mp hzle)
-    · -- copy C: relate `w'` to `q` via `hq`'s greatest-lower-bound property
+    ·
       have hbound : ∀ w ∈ {w : P | ¬ w ≤ m ∧ ¬ m ≤ w}, w' ≤ w := by
         intro w hw
         have hzle := hz' (hmem w hw.1 hw.2)
@@ -9785,46 +9427,35 @@ theorem isGLB_inc_skelG3 (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ 
       rw [GlueCar.le_def, hgCval]
       exact (leGlue_tagC_tagC_iff m w' q).mpr hw'q
 
-/-- **Dual headline theorem.** If `q` is the join (`IsLUB`) of `m`'s own
-    incomparable set in `P`, then `glueA m q` is the join of `skelG1`'s
-    incomparable set in `D = GlueCar m` — i.e. `s_D(skelG1) = tag_A(s_Q(m))`,
-    the mirror image of `isGLB_inc_skelG3` above (`i ↔ s`, `skelG1 ↔ skelG3`,
-    `A ↔ C`). Unlike the `skelG3`/`glueCt` side, copy `A` never redirects
-    under `canon` (`canon m (Sum.inl x) = Sum.inl x` unconditionally), so
-    no `q ≠ ⊥`/`q ≠ m` edge-case hypotheses are needed here — a genuinely
-    cleaner scope than the `skelG3` side, not just a mechanical mirror. -/
+-- [D-0654] isLUB_inc_skelG1
 theorem isLUB_inc_skelG1 (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤)
     (hne : {w : P | ¬ w ≤ m ∧ ¬ m ≤ w}.Nonempty)
     {q : P} (hq : IsLUB {w : P | ¬ w ≤ m ∧ ¬ m ≤ w} q) :
     letI := glueCarPartialOrder m hm hmt hbt
     IsLUB {z : GlueCar (P := P) m | ¬ z ≤ glueA m m ∧ ¬ glueA m m ≤ z} (glueA m q) := by
   letI := glueCarPartialOrder m hm hmt hbt
-  -- membership helper: `glueA m w` is always in `skelG1`'s incomparable set,
-  -- for any `w` incomparable to `m`.
   have hmem : ∀ w : P, ¬ w ≤ m → ¬ m ≤ w → glueA m w ∈
       {z : GlueCar (P := P) m | ¬ z ≤ glueA m m ∧ ¬ glueA m m ≤ z} := by
     intro w hw1 hw2
     have hincpair := (incGlue_skelG1_iff m (glueA m w).1).mpr ⟨w, rfl, hw1, hw2⟩
     exact hincpair
   constructor
-  · -- `glueA m q` is an upper bound of `skelG1`'s incomparable set
+  ·
     rintro z ⟨hz1, hz2⟩
     obtain ⟨w, hzeq, hw1, hw2⟩ := (incGlue_skelG1_iff m z.1).mp ⟨hz1, hz2⟩
     have hzeq2 : z = glueA m w := Subtype.ext hzeq
     rw [hzeq2]
     exact (glueA_le_iff m hm w q).mpr (hq.1 ⟨hw1, hw2⟩)
-  · -- `glueA m q` is the LEAST upper bound
+  ·
     intro z' hz'
     obtain ⟨zv, hzc⟩ := z'
     rcases zv with w' | w' | w'
-    · -- copy A: relate `w'` to `q` via `hq`'s least-upper-bound property
+    ·
       have hbound : ∀ w ∈ {w : P | ¬ w ≤ m ∧ ¬ m ≤ w}, w ≤ w' := by
         intro w hw
         exact (glueA_le_iff m hm w w').mp (hz' (hmem w hw.1 hw.2))
       exact (glueA_le_iff m hm q w').mpr (hq.2 hbound)
-    · -- copy B: `w' = ⊤` (i.e. `skelG3` itself) is always `≥` copy `A`,
-      -- unconditionally; every other `w'` is vacuous, forcing `w ≤ m`
-      -- for a `w` incomparable to `m`.
+    ·
       rcases eq_or_ne w' ⊤ with hwt | hwt
       · subst hwt
         rw [GlueCar.le_def]
@@ -9834,18 +9465,17 @@ theorem isLUB_inc_skelG1 (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ 
         have hzle := hz' (hmem w hw1 hw2)
         rw [GlueCar.le_def] at hzle
         exact hw1 ((leGlue_tagA_tagB_iff m w w' hwt).mp hzle)
-    · -- copy C: always `≥` copy `A`, unconditional
+    ·
       rw [GlueCar.le_def]
       exact leGlue_tagA_tagC m q w'
 
 section BranchingWitnesses
 
-/-- Two monotone self-maps of `P` agreeing at `⊥` (both equal to `v`), used to build
-    an infinite-branching sequence into a gluing-tower colimit: `branchF1` is constant
-    at `v`; `branchF2` is `v` at `⊥` and `⊤` everywhere else. Distinct whenever `v ≠ ⊤`. -/
+-- [D-0655] branchF1
 noncomputable def branchF1 {P : Type*} [PartialOrder P] [BoundedOrder P] (v : P) : EndP P :=
   OrderHom.const P v
 
+-- [D-0656] branchF2
 noncomputable def branchF2 {P : Type*} [PartialOrder P] [BoundedOrder P] (v : P) : EndP P where
   toFun := fun x => if x = ⊥ then v else ⊤
   monotone' := by
@@ -9861,14 +9491,17 @@ noncomputable def branchF2 {P : Type*} [PartialOrder P] [BoundedOrder P] (v : P)
       simp only [if_neg hx, if_neg hy]
       exact le_refl _
 
+-- [D-0657] branchF1_apply_bot
 theorem branchF1_apply_bot {P : Type*} [PartialOrder P] [BoundedOrder P] (v : P) :
     (branchF1 v : P → P) (⊥ : P) = v := rfl
 
+-- [D-0658] branchF2_apply_bot
 theorem branchF2_apply_bot {P : Type*} [PartialOrder P] [BoundedOrder P] (v : P) :
     (branchF2 v : P → P) (⊥ : P) = v := by
   show (if (⊥ : P) = ⊥ then v else ⊤) = v
   simp
 
+-- [D-0659] branchF1_ne_branchF2
 theorem branchF1_ne_branchF2 {P : Type*} [PartialOrder P] [BoundedOrder P] (v : P)
     (hv : v ≠ (⊤ : P)) (hbt : (⊥ : P) ≠ ⊤) : branchF1 v ≠ branchF2 v := by
   intro h
@@ -9884,24 +9517,10 @@ end BranchingWitnesses
 
 end ThetaMeetSkelG3
 
-/- ============================================================
-   The `v ≰ m` regime — the one claim from the companion write-up that
-   was deliberately left unformalized as "not yet brought to full rigor
-   even informally." Attempting it directly, working from the target
-   (`s_D(tag_A(v)) = join(tag_B(coatomOf Q), tag_A(s_Q(v)))`) backwards
-   to what it needs, rather than re-deriving the informal write-up's own
-   case-by-case path: turns out every piece is already in the library
-   (`not_leGlue_tagB_tagA`, `leGlue_tagA_tagB_iff`, `coatomOf_le`,
-   `glueJoin`'s universal property, `canon_inr_inl_ne_bot`) — genuinely
-   "for free" once assembled, no new machinery needed.
-   ============================================================ -/
-
 section ThetaGenericNotLe
 variable {P : Type u} [Fintype P] [DecidableEq P] [Lattice P] [BoundedOrder P]
 
-/-- `P`'s own "middle" set (`≠⊥`, `≠⊤`) has LUB `coatomOf P` — general,
-    including the degenerate 2-chain case (`coatomOf P = ⊥`, set empty,
-    and `coatomOf P = ⊥` is then vacuously the least element overall). -/
+-- [D-0660] isLUB_ne_bot_ne_top_coatomOf
 theorem isLUB_ne_bot_ne_top_coatomOf (P : Type u) [Lattice P] [BoundedOrder P]
     [UniqueAtomCoatom P] : IsLUB {x : P | x ≠ ⊥ ∧ x ≠ ⊤} (coatomOf P) := by
   constructor
@@ -9911,16 +9530,7 @@ theorem isLUB_ne_bot_ne_top_coatomOf (P : Type u) [Lattice P] [BoundedOrder P]
     · rw [hcb]; exact bot_le
     · exact hc ⟨hcb, coatomOf_ne_top P⟩
 
-/-- **`v ≰ m` regime, comparability, copy `A`.** For `v ≰ m`, `v ≠ ⊤`, and
-    `z` genuinely canonical (`canon m z = z`) — unlike the `v ≤ m` sibling
-    `incGlue_tagA_of_le`, this can't be relaxed to raw `GlueBase`: the raw
-    representative `Sum.inr (Sum.inl ⊥)` is `leGlue`-incomparable to
-    `tag_A(v)` too whenever `v ≰ m`, but its canonical form is
-    `skelG1 = tag_A(m)`, a different point entirely — restricting to
-    canonical `z` is what makes the two-disjunct answer correct: `z` is
-    incomparable to `tag_A(v)` iff `z` is copy-`A`-shaped at a `w`
-    incomparable to `v`, OR `z` is copy-`B`-shaped at an `x ∉ {⊥,⊤}`
-    (i.e. `z ≠ skelG3`). Copy `C` never contributes (unconditional). -/
+-- [D-0661] incGlue_tagA_of_not_le
 theorem incGlue_tagA_of_not_le (m : P) (hm : m ≠ ⊥) (hbt : (⊥ : P) ≠ ⊤)
     {v : P} (hvm : ¬ v ≤ m) (hvt : v ≠ ⊤) (z : GlueBase P) (hz : canon m z = z) :
     (¬ leGlue m z (Sum.inl v) ∧ ¬ leGlue m (Sum.inl v) z) ↔
@@ -9955,16 +9565,7 @@ theorem incGlue_tagA_of_not_le (m : P) (hm : m ≠ ⊥) (hbt : (⊥ : P) ≠ ⊤
 
 variable [UniqueAtomCoatom P]
 
-/-- **The exact closed-form headline theorem, `v ≰ m` regime.** If `s` is
-    the join (`IsLUB`) of `v`'s own incomparable set in `P`, and `P` has a
-    "middle" element (`x ≠ ⊥, ⊤` — true at every level of this tower,
-    never a 2-chain past `D_0`), then `tag_A(v)`'s whole incomparable set
-    in `D` has join `join(tag_A(s), tag_B(coatomOf P))` — i.e.
-    `s_D(tag_A(v)) = join(tag_B(coatomOf P), tag_A(s_Q(v)))`, the
-    companion write-up's headline formula, now an actual Lean theorem
-    (and its exclusion corollary `tag_A(v) ∉ Θ(D)` for such `v` follows
-    immediately, since this value is never of the form `tag_A(anything)`
-    unless the `tag_B(coatomOf P)` contribution vanishes into it). -/
+-- [D-0662] isLUB_inc_tagA_of_not_le
 theorem isLUB_inc_tagA_of_not_le (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤)
     {v : P} (hvm : ¬ v ≤ m) (hvt : v ≠ ⊤) (hne3 : ∃ x : P, x ≠ ⊥ ∧ x ≠ ⊤)
     {s : P} (hs : IsLUB {w : P | ¬ w ≤ v ∧ ¬ v ≤ w} s) :
@@ -9988,7 +9589,7 @@ theorem isLUB_inc_tagA_of_not_le (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt
     · rw [GlueCar.le_def, hval]; exact hincpair.1
     · rw [GlueCar.le_def, hval]; exact hincpair.2
   constructor
-  · -- upper bound
+  ·
     rintro z ⟨hz1, hz2⟩
     obtain ⟨w, hzeq, hw1, hw2⟩ | ⟨x, hzeq, hxb, hxt⟩ :=
       (incGlue_tagA_of_not_le m hm hbt hvm hvt z.1 z.2).mp ⟨hz1, hz2⟩
@@ -10003,12 +9604,7 @@ theorem isLUB_inc_tagA_of_not_le (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt
       rw [hzeq2]
       exact le_trans ((glueBt_le_iff m hm hmt hbt x (coatomOf P)).mpr (coatomOf_le hxt))
         (glueJoin_le_right m hm hmt hbt (glueA m s) (glueBt m hm hbt (coatomOf P)))
-  · -- least upper bound
-    -- `(glueBt m hm hbt y).1` doesn't unfold under plain `rw` (`glueBt` is an
-    -- opaque `def`); route every such rewrite through this named fact
-    -- instead of citing `iotaB_generic_eq` directly against a `≤`-derived
-    -- hypothesis, matching the file's own `PsiIso`-era lesson about never
-    -- re-ascribing/re-projecting reconstructed `GlueCar` elements by hand.
+  ·
     have hvalB : ∀ y : P, y ≠ ⊥ → (glueBt m hm hbt y).1 = Sum.inr (Sum.inl y) :=
       fun y hy => iotaB_generic_eq m y hy
     have hcob : coatomOf P ≠ ⊥ := by
@@ -10018,13 +9614,13 @@ theorem isLUB_inc_tagA_of_not_le (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt
     intro z' hz'
     obtain ⟨zv, hzc⟩ := z'
     rcases zv with w' | w' | w'
-    · -- copy A: vacuous, ruled out via `hne3`
+    ·
       exfalso
       obtain ⟨x, hxb, hxt⟩ := hne3
       have hzle := hz' (hmemB x hxb hxt)
       rw [GlueCar.le_def, hvalB x hxb] at hzle
       exact not_leGlue_tagB_tagA m x w' hm hbt hxb hzle
-    · -- copy B
+    ·
       rcases eq_or_ne w' ⊤ with hw't | hw't
       · subst hw't
         apply le_glueJoin m hm hmt hbt
@@ -10046,7 +9642,7 @@ theorem isLUB_inc_tagA_of_not_le (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt
           rw [GlueCar.le_def, hvalB (coatomOf P) hcob]
           exact (leGlue_tagB_tagB_iff m (coatomOf P) w' hw't hcob).mpr
             ((isLUB_ne_bot_ne_top_coatomOf P).2 hbound)
-    · -- copy C
+    ·
       apply le_glueJoin m hm hmt hbt
       · rw [GlueCar.le_def]; exact leGlue_tagA_tagC m s w'
       · obtain ⟨x, hxb, hxt⟩ := hne3
@@ -10056,15 +9652,7 @@ theorem isLUB_inc_tagA_of_not_le (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt
         rw [GlueCar.le_def, hvalB (coatomOf P) hcob]
         exact (leGlue_tagB_tagC_iff m (coatomOf P) w').mpr hmw'
 
-/-- **The exclusion corollary.** `tag_A(v)` is never equal to the join of
-    its own incomparable set: the join always dominates the genuine copy-`B`
-    point `tag_B(coatomOf P)` (`glueJoin_le_right`), and no copy-`B` point
-    is ever `≤` a copy-`A` point (`not_leGlue_tagB_tagA`) — so the join can
-    never be copy-`A`-shaped at all, let alone equal `tag_A(v)` itself.
-    This is the companion write-up's `tag_A(v) ∉ Θ(D)` conclusion for
-    `v ≰ m` (`v ≠ ⊤`), stated directly rather than through a separate `Θ`
-    predicate (which was never formalized as its own definition in this
-    file — see the `ThetaMeetSkelG3` header comment). -/
+-- [D-0663] glueA_ne_isLUB_inc_tagA_of_not_le
 theorem glueA_ne_isLUB_inc_tagA_of_not_le (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤)
     {v : P} (hvm : ¬ v ≤ m) (hvt : v ≠ ⊤) (hne3 : ∃ x : P, x ≠ ⊥ ∧ x ≠ ⊤)
     {s : P} (hs : IsLUB {w : P | ¬ w ≤ v ∧ ¬ v ≤ w} s) :
@@ -10087,25 +9675,10 @@ theorem glueA_ne_isLUB_inc_tagA_of_not_le (m : P) (hm : m ≠ ⊥) (hmt : m ≠ 
 
 end ThetaGenericNotLe
 
-/- ============================================================
-   The copy-`C` dual of the `v ≰ m` regime above: `v ≱ m` (`¬ m ≤ v`).
-   NOT a mechanical mirror — genuine asymmetry found and handled:
-   copy `A`'s special point (`skelG1 = tag_A(m)`) is a MIDDLE point of
-   copy `A` glued in via copy `B`'s bottom, so `w ≤ m`'s "generic vs `m`"
-   split for copy `A` never touched copy `B`'s own boundary; but here,
-   `skelG3`'s membership in `tag_C(v)`'s incomparable set genuinely
-   DEPENDS on whether `v ≤ m` or `v` is incomparable to `m` (both live
-   inside `¬ m ≤ v`) — resolved by folding it as a conditional
-   (`x = ⊤ → ¬ v ≤ m`) into the copy-`B` disjunct rather than forcing a
-   clean unconditional split. Uses `glueLattice`'s genuine `⊓` (`inf_le_left/
-   right`, `le_inf` — all bog-standard `Lattice` API, no bespoke `glueMeet`
-   needed) in place of `glueJoin`'s hand-built one.
-   ============================================================ -/
-
 section ThetaGenericNotGe
 variable {P : Type u} [Fintype P] [DecidableEq P] [Lattice P] [BoundedOrder P]
 
-/-- `P`'s "middle" set has GLB `atomOf P`, dual of `isLUB_ne_bot_ne_top_coatomOf`. -/
+-- [D-0664] isGLB_ne_bot_ne_top_atomOf
 theorem isGLB_ne_bot_ne_top_atomOf (P : Type u) [Lattice P] [BoundedOrder P]
     [UniqueAtomCoatom P] : IsGLB {x : P | x ≠ ⊥ ∧ x ≠ ⊤} (atomOf P) := by
   constructor
@@ -10115,13 +9688,7 @@ theorem isGLB_ne_bot_ne_top_atomOf (P : Type u) [Lattice P] [BoundedOrder P]
     · rw [hat]; exact le_top
     · exact hc ⟨atomOf_ne_bot P, hat⟩
 
-/-- **`v ≱ m` regime, comparability, copy `C`.** For `¬ m ≤ v`, `v ≠ ⊥`,
-    and `z` genuinely canonical: `z` is incomparable to `tag_C(v)` iff
-    `z` is copy-`C`-shaped at a `w ≠ m` incomparable to `v`, OR `z` is
-    copy-`B`-shaped at an `x ≠ ⊥` — with `x = ⊤` (`skelG3`) allowed only
-    when `v` is genuinely incomparable to `m` (`¬ v ≤ m`), the one
-    real case split this side has that the `v ≰ m` side didn't. Copy
-    `A` never contributes (unconditional). -/
+-- [D-0665] incGlue_tagC_of_not_ge
 theorem incGlue_tagC_of_not_ge (m : P) (hm : m ≠ ⊥) (hbt : (⊥ : P) ≠ ⊤)
     {v : P} (hvm : ¬ m ≤ v) (hvb : v ≠ ⊥) (z : GlueBase P) (hz : canon m z = z) :
     (¬ leGlue m z (Sum.inr (Sum.inr v)) ∧ ¬ leGlue m (Sum.inr (Sum.inr v)) z) ↔
@@ -10162,12 +9729,7 @@ theorem incGlue_tagC_of_not_ge (m : P) (hm : m ≠ ⊥) (hbt : (⊥ : P) ≠ ⊤
 
 variable [UniqueAtomCoatom P]
 
-/-- **The exact closed-form headline theorem, `v ≱ m` regime.** If `i` is
-    the meet (`IsGLB`) of `v`'s own incomparable set in `P`, and `P` has a
-    "middle" element, then `tag_C(v)`'s whole incomparable set in `D` has
-    meet `meet(tag_C(i), tag_B(atomOf P))` — i.e.
-    `i_D(tag_C(v)) = meet(tag_B(atomOf P), tag_C(i_Q(v)))`, dual of
-    `isLUB_inc_tagA_of_not_le`. -/
+-- [D-0666] isGLB_inc_tagC_of_not_ge
 theorem isGLB_inc_tagC_of_not_ge (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤)
     {v : P} (hvm : ¬ m ≤ v) (hvb : v ≠ ⊥) (hvne : v ≠ m) (hne3 : ∃ x : P, x ≠ ⊥ ∧ x ≠ ⊤)
     {i : P} (hib : i ≠ ⊥) (him : i ≠ m)
@@ -10196,7 +9758,7 @@ theorem isGLB_inc_tagC_of_not_ge (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt
     · rw [GlueCar.le_def, hvalB x hxb]
       exact not_leGlue_tagC_tagB m v x hxt
   constructor
-  · -- meet is a lower bound
+  ·
     rintro z ⟨hz1, hz2⟩
     obtain ⟨w, hzeq, hwm, hw1, hw2⟩ | ⟨x, hzeq, hxb, _⟩ :=
       (incGlue_tagC_of_not_ge m hm hbt hvm hvb z.1 z.2).mp ⟨hz1, hz2⟩
@@ -10211,11 +9773,11 @@ theorem isGLB_inc_tagC_of_not_ge (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt
       rw [hzeq2]
       exact le_trans inf_le_right ((glueBt_le_iff m hm hmt hbt (atomOf P) x).mpr
         (atomOf_le hxb))
-  · -- greatest lower bound
+  ·
     intro z' hz'
     obtain ⟨zv, hzc⟩ := z'
     rcases zv with w' | w' | w'
-    · -- copy A
+    ·
       apply le_inf
       · rw [GlueCar.le_def]; exact leGlue_tagA_tagC m w' i
       · obtain ⟨x, hxb, hxt⟩ := hne3
@@ -10224,9 +9786,7 @@ theorem isGLB_inc_tagC_of_not_ge (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt
         have hw'm : w' ≤ m := (leGlue_tagA_tagB_iff m w' x hxt).mp hzle
         rw [GlueCar.le_def, hvalB (atomOf P) (atomOf_ne_bot P)]
         exact (leGlue_tagA_tagB_iff m w' (atomOf P) hat).mpr hw'm
-    · -- copy B — normalize `z'` (a raw `⟨Sum.inr (Sum.inl w'), hzc⟩` reconstruction,
-      -- which only LOOKS like `glueBt m hm hbt w'` syntactically) to genuine
-      -- `glueBt` form upfront, so `hvalB` applies cleanly throughout.
+    ·
       have hw'b : w' ≠ ⊥ := canon_inr_inl_ne_bot m w' hzc
       have hzeq2 : (⟨Sum.inr (Sum.inl w'), hzc⟩ : GlueCar (P := P) m) = glueBt m hm hbt w' := by
         apply Subtype.ext
@@ -10251,20 +9811,14 @@ theorem isGLB_inc_tagC_of_not_ge (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt
           exact (leGlue_tagB_tagB_iff m w' x hx.2 hw'b).mp hzle
         exact (glueBt_le_iff m hm hmt hbt w' (atomOf P)).mpr
           ((isGLB_ne_bot_ne_top_atomOf P).2 hbound)
-    · -- copy C: vacuous, ruled out via `hne3`
+    ·
       exfalso
       obtain ⟨x, hxb, hxt⟩ := hne3
       have hzle := hz' (hmemB x hxb hxt)
       rw [GlueCar.le_def, hvalB x hxb] at hzle
       exact not_leGlue_tagC_tagB m w' x hxt hzle
 
-/-- **The exclusion corollary, copy `C`.** `tag_C(v)` is never equal to
-    the meet of its own incomparable set: the meet always is `≤` the
-    genuine copy-`B` point `tag_B(atomOf P)` (`inf_le_right`), and no
-    copy-`C` point is ever `≤` a copy-`B` point at a non-top target
-    (`not_leGlue_tagC_tagB`) — so the meet can never be copy-`C`-shaped,
-    let alone equal `tag_C(v)` itself. Dual of
-    `glueA_ne_isLUB_inc_tagA_of_not_le`. -/
+-- [D-0667] glueC_ne_isGLB_inc_tagC_of_not_ge
 theorem glueC_ne_isGLB_inc_tagC_of_not_ge (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤)
     {v : P} (hvb : v ≠ ⊥) (hvne : v ≠ m) (hne3 : ∃ x : P, x ≠ ⊥ ∧ x ≠ ⊤)
     {i : P} (hib : i ≠ ⊥) (him : i ≠ m)
@@ -10287,34 +9841,11 @@ theorem glueC_ne_isGLB_inc_tagC_of_not_ge (m : P) (hm : m ≠ ⊥) (hmt : m ≠ 
 
 end ThetaGenericNotGe
 
-/- ============================================================
-   The copy-`B` family (`tag_B(v)`, the `KEPT_B`-analogue) — the last
-   Θ-exclusion family from the companion thread, left unformalized in
-   every prior pass. NOT a mechanical extension of the `A`/`C` work
-   above: the informal write-up's claim ("cleanly excluded, zero
-   survivors, no exceptions — even cleaner than `A`/`C`") is FALSE in
-   general. Genuine counterexample found and verified (brute force,
-   real `EndP(4-chain)` instance, exhaustive over all 33 marked points
-   and all 33 candidates): `tag_B(atomOf P)` really is a member of
-   `Θ(D)` for a range of `m`. See `isGLB_inc_tagB_of_inc_empty` /
-   `glueB_survivor_iff` below for the precise (now fully resolved) iff.
-   ============================================================ -/
-
 section ThetaGenericCopyB
 variable {P : Type u} [Fintype P] [DecidableEq P] [Lattice P] [BoundedOrder P]
 variable [UniqueAtomCoatom P]
 
-/-- **Comparability, copy `B`, fully general `v` (`v ≠ ⊥`, `v ≠ ⊤`).**
-    `z` is incomparable to `tag_B(v)` iff `z` is copy-`A`-shaped at an
-    `x ≰ m` (constant, independent of `v`), or copy-`B`-shaped at a
-    `w ≠ ⊥` incomparable to `v` in `P` (the only genuinely `v`-dependent
-    disjunct — note `w = ⊤` is automatically excluded by `¬ v ≤ w`,
-    since `v ≤ ⊤` always), or copy-`C`-shaped at a `y ≱ m` (constant,
-    independent of `v`). Assembled directly from already-proven
-    building blocks (`leGlue_tagA_tagB_iff`, `leGlue_tagB_tagB_iff`,
-    `not_leGlue_tagC_tagB`, `leGlue_tagB_tagC_iff`,
-    `not_leGlue_tagB_tagA`, `leGlue_tagB_skelG3`) — no new raw
-    comparability facts needed, unlike the copy `A`/`C` cases. -/
+-- [D-0668] incGlue_tagB_iff
 theorem incGlue_tagB_iff (m : P) (hm : m ≠ ⊥) (hbt : (⊥ : P) ≠ ⊤)
     {v : P} (hvb : v ≠ ⊥) (hvt : v ≠ ⊤) (z : GlueBase P) (hz : canon m z = z) :
     (¬ leGlue m z (Sum.inr (Sum.inl v)) ∧ ¬ leGlue m (Sum.inr (Sum.inl v)) z) ↔
@@ -10360,14 +9891,7 @@ theorem incGlue_tagB_iff (m : P) (hm : m ≠ ⊥) (hbt : (⊥ : P) ≠ ⊤)
         exact ⟨not_leGlue_tagC_tagB m y v hvt,
           fun hcon => hmy ((leGlue_tagB_tagC_iff m v y).mp hcon)⟩
 
-/-- **Case 1 (`Inc_P(v) ≠ ∅`), join.** If `v` has some incomparable
-    partner in `P`, and `κ` is the join (`IsLUB`) of `m`'s own "not
-    above" set (`{y : ¬ m ≤ y}`), and `κ ⊔ m ≠ m` (the one genuine
-    degenerate edge case — `tag_C(κ⊔m)` would otherwise redirect to
-    `skelG3` rather than being a plain copy-`C` point; flagged, not
-    resolved, matching this file's established style for such
-    canon-redirect corners), then `tag_B(v)`'s whole incomparable set
-    has join `tag_C(κ ⊔ m)` — independent of which `v` triggered it. -/
+-- [D-0669] isLUB_inc_tagB_of_ne_empty
 theorem isLUB_inc_tagB_of_ne_empty (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤)
     {v : P} (hvb : v ≠ ⊥) (hvt : v ≠ ⊤)
     (hne : {w : P | ¬ w ≤ v ∧ ¬ v ≤ w}.Nonempty)
@@ -10407,7 +9931,7 @@ theorem isLUB_inc_tagB_of_ne_empty (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (h
     · rw [GlueCar.le_def, hvalB v hvb]; exact hincpair.1
     · rw [GlueCar.le_def, hvalB v hvb]; exact hincpair.2
   constructor
-  · -- upper bound
+  ·
     rintro z ⟨hz1, hz2⟩
     have hz1' : ¬ leGlue m z.1 (Sum.inr (Sum.inl v)) := by
       intro hcon; rw [← hvalB v hvb] at hcon
@@ -10431,7 +9955,7 @@ theorem isLUB_inc_tagB_of_ne_empty (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (h
       rw [hzeq2, GlueCar.le_def]
       show leGlue m (Sum.inr (Sum.inr y)) (Sum.inr (Sum.inr (κ ⊔ m)))
       exact (leGlue_tagC_tagC_iff m y (κ ⊔ m)).mpr (le_trans (hκ.1 hmy) le_sup_left)
-  · -- least upper bound
+  ·
     have hex : ∃ y : P, ¬ m ≤ y ∧ ¬ y ≤ m := by
       by_contra hcon
       push_neg at hcon
@@ -10442,21 +9966,21 @@ theorem isLUB_inc_tagB_of_ne_empty (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (h
     intro z' hz'
     obtain ⟨zv, hzc⟩ := z'
     rcases zv with w' | w' | w'
-    · -- copy A: ruled out via the `hne` copy-B witness
+    ·
       exfalso
       obtain ⟨w, hw1, hw2⟩ := hne
       have hwb : w ≠ ⊥ := fun heq => hw1 (heq ▸ bot_le)
       have hzle := hz' (hmemB w hwb hw1 hw2)
       rw [GlueCar.le_def, hvalB w hwb] at hzle
       exact not_leGlue_tagB_tagA m w w' hm hbt hwb hzle
-    · -- copy B: ruled out via the `y0` (genuinely incomparable to `m`) witness
+    ·
       exfalso
       have hzle := hz' (hmemC y0 hy01 hy0b hy0m)
       rw [GlueCar.le_def] at hzle
       rcases eq_or_ne w' ⊤ with hw't | hw't
       · subst hw't; exact hy02 ((leGlue_tagC_tagB_top_iff m y0).mp hzle)
       · exact absurd hzle (not_leGlue_tagC_tagB m y0 w' hw't)
-    · -- copy C
+    ·
       have hbound : ∀ y ∈ {y : P | ¬ m ≤ y}, y ≤ w' := by
         intro y hy
         have hym : y ≠ m := fun heq => hy (heq ▸ le_refl m)
@@ -10474,13 +9998,7 @@ theorem isLUB_inc_tagB_of_ne_empty (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (h
       rw [GlueCar.le_def]
       exact (leGlue_tagC_tagC_iff m (κ ⊔ m) w').mpr (sup_le hkw' hmw')
 
-/-- **Case 1 (`Inc_P(v) ≠ ∅`), meet, dual of the join above.** `tag_B(v)`'s
-    whole incomparable set has meet `tag_A(μ ⊓ m)`, where `μ` is the meet
-    (`IsGLB`) of `m`'s own "not below" set (`{x : ¬ x ≤ m}`). Cleaner
-    scope than the join side: `glueA` never redirects under `canon`, so
-    no `≠ ⊥`/`≠ m` edge-case hypothesis is needed for the meet's own
-    well-formedness (mirroring the `skelG1`-vs-`skelG3` asymmetry already
-    on record for copies `A`/`C`). -/
+-- [D-0670] isGLB_inc_tagB_of_ne_empty
 theorem isGLB_inc_tagB_of_ne_empty (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤)
     {v : P} (hvb : v ≠ ⊥) (hvt : v ≠ ⊤)
     (hne : {w : P | ¬ w ≤ v ∧ ¬ v ≤ w}.Nonempty)
@@ -10509,7 +10027,7 @@ theorem isGLB_inc_tagB_of_ne_empty (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (h
     · rw [GlueCar.le_def, hvalB w hwb, hvalB v hvb]; exact hincpair.1
     · rw [GlueCar.le_def, hvalB w hwb, hvalB v hvb]; exact hincpair.2
   constructor
-  · -- lower bound
+  ·
     rintro z ⟨hz1, hz2⟩
     have hz1' : ¬ leGlue m z.1 (Sum.inr (Sum.inl v)) := by
       intro hcon; rw [← hvalB v hvb] at hcon
@@ -10533,11 +10051,11 @@ theorem isGLB_inc_tagB_of_ne_empty (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (h
       have hzeq2 : z = glueC m y hyb hym := Subtype.ext hzeq
       rw [hzeq2, GlueCar.le_def]
       exact leGlue_tagA_tagC m (μ ⊓ m) y
-  · -- greatest lower bound
+  ·
     intro z' hz'
     obtain ⟨zv, hzc⟩ := z'
     rcases zv with w' | w' | w'
-    · -- copy A: relate `w'` to `μ ⊓ m` via the two bounding facts
+    ·
       have hbound : ∀ x ∈ {x : P | ¬ x ≤ m}, w' ≤ x := by
         intro x hx
         have hzle := hz' (hmemA x hx)
@@ -10552,14 +10070,12 @@ theorem isGLB_inc_tagB_of_ne_empty (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (h
       have hw'm : w' ≤ m := (leGlue_tagA_tagB_iff m w' w hwt).mp hzle
       rw [GlueCar.le_def]
       exact (tagA_iso m hm w' (μ ⊓ m)).mpr (le_inf hwmu hw'm)
-    · -- copy B: ruled out via the copy-A witness `x = ⊤`
+    ·
       exfalso
       have hzle := hz' (hmemA ⊤ (fun h => hmt (top_le_iff.mp h)))
       rw [GlueCar.le_def] at hzle
       exact not_leGlue_tagB_tagA m w' ⊤ hm hbt (canon_inr_inl_ne_bot m w' hzc) hzle
-    · -- copy C: ruled out via the copy-A witness `x = ⊤` (`c → a` is
-      -- unconditionally `False` in `rawRule`; `w' ≠ ⊥` from canonicity
-      -- rules out the one same-copy escape `rawRule (tagC w') (tagC ⊥)`)
+    ·
       exfalso
       have hw'b : w' ≠ ⊥ := (canon_inr_inr_ne m w' hzc).1
       have hzle : leGlue m (Sum.inr (Sum.inr w')) (Sum.inl (⊤ : P)) := by
@@ -10576,21 +10092,7 @@ theorem isGLB_inc_tagB_of_ne_empty (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (h
       · subst hv''; exact huv.elim
       · subst hv''; exact hw'b (le_bot_iff.mp huv)
 
-/-- **The general exclusion lemma.** For ANY `q ∈ P` with `m ≤ q`,
-    `q ≠ m` (the "gated" regime already established for copy `C`,
-    `incGlue_tagC_of_ge`), `tag_B(v)` can never be the meet (`IsGLB`)
-    of `tag_C(q)`'s own incomparable set — regardless of what that
-    meet actually is. Direct, self-contained argument, no need for a
-    dedicated "gated meet" combinator theorem: `tag_A(⊤)` is ALWAYS a
-    lower bound of `tag_C(q)`'s incomparable set (copy `A` is `≤`
-    copy `C` unconditionally, and copy `B` is `≤ tag_C(q)` too since
-    `m ≤ q`, so neither copy `A` nor copy `B` can ever BE incomparable
-    to `tag_C(q)` — only copy `C` can), yet `tag_A(⊤) ≤ tag_B(v)` is
-    always FALSE (`⊤ ≰ m`). So if `tag_B(v)` were the greatest such
-    lower bound, `tag_A(⊤) ≤ tag_B(v)` would have to hold — contradiction.
-    Combined with `isLUB_inc_tagB_of_ne_empty` (specializing `q := κ⊔m`,
-    `hqge := le_sup_right`), this is the full Case-1 exclusion:
-    `tag_B(v) ∉ Θ(D)` whenever `v` has an incomparable partner in `P`. -/
+-- [D-0671] glueBt_ne_isGLB_of_glueC_inc
 theorem glueBt_ne_isGLB_of_glueC_inc (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤)
     {v : P} (hvb : v ≠ ⊥) (hvt : v ≠ ⊤)
     {q : P} (hqb : q ≠ ⊥) (hqm : q ≠ m) (hqge : m ≤ q) :
@@ -10615,30 +10117,7 @@ theorem glueBt_ne_isGLB_of_glueC_inc (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) 
   rw [hvalv] at hle
   exact hmt (top_le_iff.mp ((leGlue_tagA_tagB_iff m ⊤ v hvt).mp hle))
 
-/- ============================================================
-   **Case 2** (`Inc_P(v) = ∅`) — the `atomOf`/`coatomOf` exception itself.
-   Per `inc_atomOf_eq_empty`/`inc_coatomOf_eq_empty` this is the ONLY way
-   `Inc_P(v) = ∅` can happen. The write-up's exact criterion (derived,
-   exhaustively verified 33×33 on `EndP(4-chain)`, 0 mismatches):
-   `tag_B(atomOf Q) ∈ Θ(D) ⟺ κ ≱ m ∧ (Inc_Q(κ) = ∅ ∨ i_Q(κ) ≥ m)`,
-   `κ := sup_Q{y : ¬ m ≤ y}` (the SAME `κ` as Case 1). `tag_B(coatomOf Q)`
-   is NEVER a survivor — asymmetric, real, not a typo.
-   ============================================================ -/
-
-/-- **Case 2, join (unclamped).** If `v` has NO incomparable partner in
-    `P` (so ONLY the copy-`A`/copy-`C` pieces of `Inc_D(tag_B v)`
-    survive — no copy-`B` contribution at all, unlike Case 1), and `κ`
-    is the join (`IsLUB`) of `m`'s own "not above" set, with `κ ≠ ⊥`,
-    `κ ≠ m` (the genuine canon-redirect edge case, flagged as an
-    explicit hypothesis rather than resolved, matching this file's
-    established style), then `tag_B(v)`'s whole incomparable set has
-    join `tag_C(κ)` — UNCLAMPED, no `⊔ m`, unlike Case 1's `tag_C(κ⊔m)`.
-    Genuinely does NOT need any relation between `κ` and `m` (neither
-    `κ ≤ m` nor `m ≤ κ` is assumed) — the apparent risk that a tighter
-    upper bound (`skelG3`, when `κ ≤ m`) might beat `tag_C(κ)` turns out
-    not to be a risk at all: `skelG3 ≥ tag_C(κ)` in that regime, which
-    is consistent with (not a threat to) `tag_C(κ)` being the LEAST
-    upper bound. -/
+-- [D-0672] isLUB_inc_tagB_of_inc_empty
 theorem isLUB_inc_tagB_of_inc_empty (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤)
     {v : P} (hvb : v ≠ ⊥) (hvt : v ≠ ⊤)
     (hvinc : {w : P | ¬ w ≤ v ∧ ¬ v ≤ w} = ∅)
@@ -10667,7 +10146,7 @@ theorem isLUB_inc_tagB_of_inc_empty (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (
     · rw [GlueCar.le_def, hvalB v hvb]; exact hincpair.1
     · rw [GlueCar.le_def, hvalB v hvb]; exact hincpair.2
   constructor
-  · -- upper bound
+  ·
     rintro z ⟨hz1, hz2⟩
     have hz1' : ¬ leGlue m z.1 (Sum.inr (Sum.inl v)) := by
       intro hcon; rw [← hvalB v hvb] at hcon
@@ -10691,12 +10170,11 @@ theorem isLUB_inc_tagB_of_inc_empty (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (
       rw [hzeq2, GlueCar.le_def]
       show leGlue m (Sum.inr (Sum.inr y)) (Sum.inr (Sum.inr κ))
       exact (leGlue_tagC_tagC_iff m y κ).mpr (hκ.1 hmy)
-  · -- least upper bound
+  ·
     intro z' hz'
     obtain ⟨zv, hzc⟩ := z'
     rcases zv with w' | w' | w'
-    · -- copy A: ruled out via ANY y0 ∈ Yset with y0 ≠ ⊥ (guaranteed to
-      -- exist since κ ≠ ⊥: an empty-or-⊥-only Yset would force κ = ⊥)
+    ·
       exfalso
       have hex : ∃ y0 : P, ¬ m ≤ y0 ∧ y0 ≠ ⊥ := by
         by_contra hcon
@@ -10708,11 +10186,7 @@ theorem isLUB_inc_tagB_of_inc_empty (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (
       have hzle := hz' (hmemC y0 hy01 hy0b hy0m)
       rw [GlueCar.le_def] at hzle
       exact not_leGlue_tagC_tagA m y0 w' hy0b hzle
-    · -- copy B: `w' ≠ ⊤` is ruled out unconditionally (via the copy-`A`
-      -- witness `x = ⊤`, always valid since `m ≠ ⊤`); `w' = ⊤` (`skelG3`)
-      -- genuinely CAN be an upper bound when `κ ≤ m` (harmless — it's
-      -- then `≥ tag_C(κ)`, not a competing least bound) and is ruled out
-      -- when `κ ≰ m` via a genuinely `m`-incomparable witness `y1`.
+    ·
       rcases eq_or_ne w' ⊤ with hw't | hw't
       · subst hw't
         by_cases hkm : κ ≤ m
@@ -10733,7 +10207,7 @@ theorem isLUB_inc_tagB_of_inc_empty (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (
         have hzle := hz' (hmemA ⊤ (fun h => hmt (top_le_iff.mp h)))
         rw [GlueCar.le_def] at hzle
         exact hmt (top_le_iff.mp ((leGlue_tagA_tagB_iff m ⊤ w' hw't).mp hzle))
-    · -- copy C
+    ·
       have hbound : ∀ y ∈ {y : P | ¬ m ≤ y}, y ≤ w' := by
         intro y hy
         have hym : y ≠ m := fun heq => hy (heq ▸ le_refl m)
@@ -10746,14 +10220,7 @@ theorem isLUB_inc_tagB_of_inc_empty (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (
       rw [GlueCar.le_def]
       exact (leGlue_tagC_tagC_iff m κ w').mpr hkw'
 
-/-- **The `⊓`-collapse lemma.** `tag_C(i) ⊓ tag_B(atomOf P)` (the value
-    `isGLB_inc_tagC_of_not_ge` pins as `i_D(tag_C(v))` in the ungated
-    regime) equals `tag_B(atomOf P)` itself iff `m ≤ i` — the standard
-    lattice fact `inf_eq_right` (`a ⊓ b = b ↔ b ≤ a`) composed with the
-    already-proven `leGlue_tagB_tagC_iff` via `GlueCar.le_def` and
-    `iotaB_generic_eq` (`glueBt` is opaque; its `.1` is a real theorem,
-    not `rfl` — routed through a named `have` before `rw`, per this
-    file's established lesson). -/
+-- [D-0673] glueC_inf_glueBt_atomOf_eq_iff
 theorem glueC_inf_glueBt_atomOf_eq_iff (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤)
     {i : P} (hib : i ≠ ⊥) (him : i ≠ m) :
     letI := glueLattice m hm hmt hbt
@@ -10764,16 +10231,7 @@ theorem glueC_inf_glueBt_atomOf_eq_iff (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤
   rw [inf_eq_right, GlueCar.le_def, hval]
   exact leGlue_tagB_tagC_iff m (atomOf P) i
 
-/-- **Case 2 survivor condition, `κ ≱ m` branch.** Given `κ ≱ m` (so
-    `tag_C(κ)` is in the already-established *ungated* copy-`C` regime,
-    `isGLB_inc_tagC_of_not_ge`) and `i` the `IsGLB` of `κ`'s own
-    incomparable set in `P`, `tag_C(κ)`'s incomparable set in `D` has
-    `IsGLB` exactly `tag_B(atomOf P)` iff `m ≤ i`. Note this single
-    condition uniformly subsumes BOTH disjuncts of the write-up's
-    criterion `Inc_Q(κ) = ∅ ∨ i_Q(κ) ≥ m`: when `Inc_Q(κ) = ∅`,
-    `IsGLB ∅ i` forces `i = ⊤` (by uniqueness against Mathlib's
-    `isGLB_empty`), making `m ≤ i` trivial — no separate case split
-    needed in the Lean statement. -/
+-- [D-0674] isGLB_inc_glueC_kappa_eq_glueBt_atomOf_iff
 theorem isGLB_inc_glueC_kappa_eq_glueBt_atomOf_iff
     (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤)
     (hne3 : ∃ x : P, x ≠ ⊥ ∧ x ≠ ⊤)
@@ -10793,15 +10251,7 @@ theorem isGLB_inc_glueC_kappa_eq_glueBt_atomOf_iff
     have heq := (glueC_inf_glueBt_atomOf_eq_iff m hm hmt hbt hib him).mpr hmi
     exact heq ▸ hglb
 
-/-- **Case 2 headline, `κ ≱ m` branch: the full round-trip criterion.**
-    Assembles `isLUB_inc_tagB_of_inc_empty` (Step 1, specialized to
-    `v := atomOf P` via `inc_atomOf_eq_empty`) with
-    `isGLB_inc_glueC_kappa_eq_glueBt_atomOf_iff` (Steps 2–3): `s_D(tag_B
-    (atomOf P)) = tag_C(κ)`, and `i_D` of THAT equals `tag_B(atomOf P)`
-    again — i.e. `tag_B(atomOf P)` genuinely round-trips — iff `m ≤ i`,
-    `i := i_Q(κ)`. This is the write-up's criterion
-    `tag_B(atomOf Q) ∈ Θ(D) ⟺ κ ≱ m ∧ (Inc_Q(κ)=∅ ∨ i_Q(κ)≥m)`
-    restricted to the `κ ≱ m` case. -/
+-- [D-0675] glueB_atomOf_roundtrip_iff_of_not_ge
 theorem glueB_atomOf_roundtrip_iff_of_not_ge
     (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤)
     (hne3 : ∃ x : P, x ≠ ⊥ ∧ x ≠ ⊤)
@@ -10822,16 +10272,7 @@ theorem glueB_atomOf_roundtrip_iff_of_not_ge
       (inc_atomOf_eq_empty P) hκ hκb hκm,
     isGLB_inc_glueC_kappa_eq_glueBt_atomOf_iff m hm hmt hbt hne3 hκb hκm hκnge hib him hi⟩
 
-/-- **Case 2 headline, `κ ≥ m` branch: NEVER a survivor.** For
-    completeness of the write-up's criterion's other conjunct
-    (`κ ≱ m` is REQUIRED): if `m ≤ κ` (and `κ ≠ m`, already threaded
-    throughout as the canon-redirect hypothesis), `tag_B(atomOf P)`'s
-    incomparable set still has `IsLUB` `tag_C(κ)` (Step 1 doesn't care
-    about `κ` vs `m`), but `tag_C(κ)`'s own incomparable set can NEVER
-    have `IsGLB` `tag_B(atomOf P)` — this branch needs no new proof at
-    all, it's the already-general `glueBt_ne_isGLB_of_glueC_inc`
-    (proved for the *gated* copy-`C` regime, ANY `v`, applied here with
-    `v := atomOf P`, `q := κ`). -/
+-- [D-0676] glueB_atomOf_not_roundtrip_of_ge
 theorem glueB_atomOf_not_roundtrip_of_ge
     (m : P) (hm : m ≠ ⊥) (hmt : m ≠ ⊤) (hbt : (⊥ : P) ≠ ⊤)
     (hne3 : ∃ x : P, x ≠ ⊥ ∧ x ≠ ⊤)
@@ -10852,32 +10293,12 @@ theorem glueB_atomOf_not_roundtrip_of_ge
 
 end ThetaGenericCopyB
 
-/- ============================================================
-   §NORM-CARD.  Counting `J(GlueCar(Q0, m))` when the marked point IS
-   join-irreducible.
-
-   `card_joinIrred_glueCar_gen` above assumes `¬ JoinIrred Q0 m`.  That
-   holds for the old marked point `m = id` (`endPId_not_joinIrred`) and
-   FAILS for the normalized marked point `m = constHom mid` whenever `mid`
-   is join-irreducible — which it is at every level of the normalized
-   tower (`1 : Fin 3` at the base, `tag_B` of the previous marked point at
-   each successor, and `HasUniqueDownCover` transfers exactly across both
-   `constHom` and `glueL`).
-
-   The count then loses one further element: `3·|J(Q0)| − 2`, not
-   `3·|J(Q0)| − 1`.  This is the one arithmetic consequence of the
-   normalization; everything else in the counting layer is parametric in
-   the marked point already.
-   ============================================================ -/
-
 section GlueCarSuccCardJoinIrredMarked
 
 variable {Q0 : Type u} [Fintype Q0] [DecidableEq Q0] [Lattice Q0] [BoundedOrder Q0]
   [UniqueAtomCoatom Q0]
 
-/-- `card_joinIrred_eq_succ_of_ne_top` with `⊤` replaced by an arbitrary
-join-irreducible point: removing one known join-irreducible from `J(Q0)`
-drops the count by exactly one. -/
+-- [D-0677] card_joinIrred_eq_succ_of_joinIrred
 theorem card_joinIrred_eq_succ_of_joinIrred {m : Q0} (hm : JoinIrred Q0 m) :
     Fintype.card {x : Q0 // JoinIrred Q0 x} =
       Fintype.card {x : Q0 // JoinIrred Q0 x ∧ x ≠ m} + 1 := by
@@ -10894,10 +10315,7 @@ theorem card_joinIrred_eq_succ_of_joinIrred {m : Q0} (hm : JoinIrred Q0 m) :
       · simp
   rw [Fintype.card_congr e, Fintype.card_sum, Fintype.card_unit]
 
-/-- **Headline cardinality theorem, join-irreducible marked point**:
-`|J(GlueCar m)| = 3·|J(Q0)| − 2`.  Same equivalence
-(`jiGlueCarSuccEquiv`) as `card_joinIrred_glueCar_gen`; only the copy-`C`
-summand changes, because `m` is now itself removed from `J(Q0)`. -/
+-- [D-0678] card_joinIrred_glueCar_gen_of_joinIrred
 theorem card_joinIrred_glueCar_gen_of_joinIrred (m : Q0) (hm : m ≠ ⊥) (hmt : m ≠ ⊤)
     (hbt : (⊥ : Q0) ≠ ⊤) (hcard : 3 ≤ Fintype.card Q0) (hjm : JoinIrred Q0 m) :
     letI := glueLattice m hm hmt hbt
@@ -10923,21 +10341,14 @@ section ConstHomJoinIrred
 variable {P : Type u} [Fintype P] [DecidableEq P] [Lattice P] [BoundedOrder P]
   [UniqueAtomCoatom P]
 
-/-- Join-irreducibility transfers exactly across `constHom` — the
-`JoinIrred` face of `hasUniqueDownCover_constHom_iff`. -/
+-- [D-0679] joinIrred_constHom_iff
 theorem joinIrred_constHom_iff (v : P) :
     JoinIrred (EndP P) (constHom v) ↔ JoinIrred P v := by
   letI := endPUniqueAtomCoatom (P := P)
   rw [← hasUniqueDownCover_iff_joinIrred, ← hasUniqueDownCover_iff_joinIrred,
     hasUniqueDownCover_constHom_iff]
 
-/-- **Headline theorem, normalized marked point**: the successor gluing at
-a *constant* marked point `constHom mid`, with `mid` join-irreducible, has
-`|J(GlueCar(EndP P, constHom mid))| = 3·|J(P)|·|P| − 2`.
-
-The `id` version (`card_joinIrred_glueCar_endP_id`) gives `− 1`; the
-difference is exactly that `id` is never join-irreducible while a constant
-at a join-irreducible point always is. -/
+-- [D-0680] card_joinIrred_glueCar_endP_constHom
 theorem card_joinIrred_glueCar_endP_constHom (mid : P) (hmb : mid ≠ ⊥) (hmt : mid ≠ ⊤)
     (hbt : (⊥ : P) ≠ ⊤) (hcard : 3 ≤ Fintype.card P) (hji : JoinIrred P mid) :
     letI hm : (constHom mid : EndP P) ≠ ⊥ := fun h =>

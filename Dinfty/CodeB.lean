@@ -2,52 +2,7 @@ import Dinfty.GasketObstruction
 
 open GluingTowerLibrary SierpinskiApplication
 
-/-!
-# The address map into `B`
-
-`GasketCoding` built `π : {A,B,C}^ℕ → Γ`.  This module builds the other leg,
-
-```lean
-codeB : (ℕ → Fin 3) → B
-```
-
-with the same equivariance, `codeB (cons j w) = σ_j (codeB w)`, for the rebuilt
-IFS `SigmaRebuild.ifsS`.  With both legs on the *same* source, the missing link
-of Theorem A becomes a single question about which addresses they identify.
-
-## How it is built
-
-The domain-theoretic analogue of "iterate the contraction from a basepoint" is
-"iterate the copy inclusions from `⊥`":
-
-```
-chainB n w  =  σ_{w 0} ∘ ⋯ ∘ σ_{w (n-1)} (⊥)
-```
-
-This is an increasing chain, because `⊥` is least and the `σ_j` are monotone, so
-it has a supremum (`PhiChainSup.exists_chain_lub`).  `codeB w` is that supremum.
-No metric and no completion: the order does the work the contraction did on `Γ`.
-
-## Where the work is
-
-Monotonicity and supremum-preservation of `σ_j` both come down to `tagPt`, and
-`tagPt_isLUB` supplies them — but only under `CanonFixed.Fixed`, i.e. only for
-payloads `≠ ⊥` (tag `B`) and `≠ ⊥, ≠ m` (tag `C`).  The payload here is
-`strictConst x`, and `strictConst x = ⊥ ↔ x = ⊥` while `strictConst x ≠ markedB`
-always (evaluate at `⊥`: the strict constant gives `⊥`, the marked point gives
-`midB`).  So the side conditions reduce to `x ≠ ⊥`.
-
-`x = ⊥` is therefore the only case needing separate treatment, and there
-`canonGen` moves the point into copy `A`: tag `B` at `⊥` is tag `A` at `m`, and
-tag `C` at `⊥` is tag `A` at `⊤`.  Both land below the copy they came from, by
-the two seam inequalities — which is exactly what monotonicity needs.
-
-The supremum step needs the same split plus a tail: the chain *starts* at `⊥`,
-so `tagPt_isLUB` never applies to all of it.  If the chain is constantly `⊥` the
-supremum is `σ_j ⊥` outright; otherwise it is eventually `≠ ⊥`, and
-`PhiSurjective.isLUB_of_tail` puts the tail's supremum back.
--/
-
+-- [D-2805] §The-address-map-into-B
 open Set
 
 namespace CodeB
@@ -56,23 +11,29 @@ open PhiIterateTower PhiBilimit GlueTag InternalIFSInstance SigmaRebuild GenCont
 
 attribute [-instance] OrderHom.instDecidableEqOfForall
 
-/-! ## 1.  The three maps, indexed -/
-
+-- [D-2806] §1-The-three-maps-indexed
+-- [D-2807] sig
 noncomputable def sig (j : Fin 3) (x : B) : B :=
   sec (tagPt (j : ℕ) markedB markedB_ne_bot endPB_bot_ne_top (strictConst x))
 
+-- [D-2808] sig_zero
 theorem sig_zero (x : B) : sig 0 x = ifsS.sigmaA x := rfl
+-- [D-2809] sig_one
 theorem sig_one (x : B) : sig 1 x = ifsS.sigmaB x := rfl
+-- [D-2810] sig_two
 theorem sig_two (x : B) : sig 2 x = ifsS.sigmaC x := rfl
 
+-- [D-2811] fin3_cases
 theorem fin3_cases : ∀ j : Fin 3, j = 0 ∨ j = 1 ∨ j = 2 := by decide
 
+-- [D-2812] tag_le_two
 theorem tag_le_two (j : Fin 3) : (j : ℕ) ≤ 2 := Nat.lt_succ_iff.mp j.isLt
 
-/-! ## 2.  The payload -/
-
+-- [D-2813] §2-The-payload
+-- [D-2814] scottEndP_le_iff
 theorem scottEndP_le_iff {F G : ScottEndP B} : F ≤ G ↔ ∀ z, F.1 z ≤ G.1 z := Iff.rfl
 
+-- [D-2815] strictConst_mono
 theorem strictConst_mono : Monotone (strictConst : B → ScottEndP B) := by
   intro x y h
   refine scottEndP_le_iff.mpr (fun z => ?_)
@@ -82,6 +43,7 @@ theorem strictConst_mono : Monotone (strictConst : B → ScottEndP B) := by
   · rw [strictFun_ne_case hz, strictFun_ne_case hz]
     exact h
 
+-- [D-2816] strictConst_eq_bot_iff
 theorem strictConst_eq_bot_iff (x : B) : strictConst x = ⊥ ↔ x = ⊥ := by
   constructor
   · intro h
@@ -90,9 +52,11 @@ theorem strictConst_eq_bot_iff (x : B) : strictConst x = ⊥ ↔ x = ⊥ := by
     rw [h]
     exact strictConst_bot
 
+-- [D-2817] strictConst_ne_bot
 theorem strictConst_ne_bot {x : B} (hx : x ≠ ⊥) : strictConst x ≠ ⊥ :=
   fun hc => hx ((strictConst_eq_bot_iff x).mp hc)
 
+-- [D-2818] strictConst_ne_marked
 theorem strictConst_ne_marked (x : B) : strictConst x ≠ markedB := by
   intro h
   have h1 : strictFun x (⊥ : B) = (markedB : ScottEndP B).1 (⊥ : B) :=
@@ -100,6 +64,7 @@ theorem strictConst_ne_marked (x : B) : strictConst x ≠ markedB := by
   rw [strictFun_bot_case rfl] at h1
   exact midB_ne_botB h1.symm
 
+-- [D-2819] strictConst_isLUB
 theorem strictConst_isLUB {S : Set B} {c : B} (hc : IsLUB S c) :
     IsLUB (strictConst '' S) (strictConst c) := by
   constructor
@@ -117,14 +82,14 @@ theorem strictConst_isLUB {S : Set B} {c : B} (hc : IsLUB S c) :
       rwa [show (strictConst s).1 z = strictFun s z from rfl,
         strictFun_ne_case hz] at h2
 
-/-! ## 3.  The seam inequality for tag `B` -/
-
+-- [D-2820] §3-The-seam-inequality-for-tag-B
+-- [D-2821] leGlueGen_tagA_tagB_of_le
 theorem leGlueGen_tagA_tagB_of_le (m x y : ScottEndP B) (hxm : x ≤ m) :
     leGlueGen m (Sum.inl x) (Sum.inr (Sum.inl y)) :=
   ⟨Sum.inl x, self_mem_occsGen _ _, Sum.inr (Sum.inl y), self_mem_occsGen _ _, hxm⟩
 
-/-! ## 4.  Canon-fixedness of the payloads -/
-
+-- [D-2822] §4-Canon-fixedness-of-the-payloads
+-- [D-2823] fixed_of_ne_bot
 theorem fixed_of_ne_bot {t : ℕ} (ht : t ≤ 2) {s : ScottEndP B}
     (hs : s ≠ ⊥) (hsm : s ≠ markedB) :
     canonGen markedB (tagInj t s) = tagInj t s := by
@@ -134,6 +99,7 @@ theorem fixed_of_ne_bot {t : ℕ} (ht : t ≤ 2) {s : ScottEndP B}
   · exact hs
   · exact ⟨hs, hsm⟩
 
+-- [D-2824] isLUB_pair_of_le
 theorem isLUB_pair_of_le {α : Type*} [PartialOrder α] {a b : α} (h : a ≤ b) :
     IsLUB ({a, b} : Set α) b := by
   constructor
@@ -143,8 +109,8 @@ theorem isLUB_pair_of_le {α : Type*} [PartialOrder α] {a b : α} (h : a ≤ b)
   · intro u hu
     exact hu (by simp)
 
-/-! ## 5.  Supremum preservation, away from `⊥` -/
-
+-- [D-2825] §5-Supremum-preservation-away-from
+-- [D-2826] sig_isLUB_of_ne_bot
 theorem sig_isLUB_of_ne_bot (j : Fin 3) {S : Set B} {c : B} (hne : S.Nonempty)
     (hS : ∀ s ∈ S, s ≠ ⊥) (hc : IsLUB S c) : IsLUB (sig j '' S) (sig j c) := by
   have hsc := strictConst_isLUB hc
@@ -161,8 +127,8 @@ theorem sig_isLUB_of_ne_bot (j : Fin 3) {S : Set B} {c : B} (hne : S.Nonempty)
     rfl
   rwa [himg] at h2
 
-/-! ## 6.  The `⊥` payload lands in copy `A`, below the copy it came from -/
-
+-- [D-2827] §6-The-payload-lands-in-copy-A-below-the-copy
+-- [D-2828] tagPt_bot_le
 theorem tagPt_bot_le (t : ℕ) (ht : t ≤ 2) {y : B} (hy : y ≠ ⊥) :
     tagPt t markedB markedB_ne_bot endPB_bot_ne_top (strictConst (⊥ : B))
       ≤ tagPt t markedB markedB_ne_bot endPB_bot_ne_top (strictConst y) := by
@@ -208,8 +174,8 @@ theorem tagPt_bot_le (t : ℕ) (ht : t ≤ 2) {y : B} (hy : y ≠ ⊥) :
     rw [hL, hR]
     exact leGlueGen_tagA_tagC markedB (⊤ : ScottEndP B) (strictConst y)
 
-/-! ## 7.  Monotonicity -/
-
+-- [D-2829] §7-Monotonicity
+-- [D-2830] sig_mono
 theorem sig_mono (j : Fin 3) : Monotone (sig j) := by
   intro x y hxy
   by_cases hx : x = ⊥
@@ -223,8 +189,8 @@ theorem sig_mono (j : Fin 3) : Monotone (sig j) := by
       (by rintro s hs; rcases hs with rfl | rfl <;> assumption) (isLUB_pair_of_le hxy)
     exact h.1 ⟨x, by simp, rfl⟩
 
-/-! ## 8.  Supremum preservation, in full -/
-
+-- [D-2831] §8-Supremum-preservation-in-full
+-- [D-2832] sig_isLUB
 theorem sig_isLUB (j : Fin 3) {y : ℕ → B} (hy : Monotone y) {c : B}
     (hc : IsLUB (Set.range y) c) :
     IsLUB (Set.range fun n => sig j (y n)) (sig j c) := by
@@ -258,12 +224,13 @@ theorem sig_isLUB (j : Fin 3) {y : ℕ → B} (hy : Monotone y) {c : B}
     simp only [Function.comp_def] at htail
     exact PhiSurjective.isLUB_of_tail (fun a b h => sig_mono j (hy h)) htail
 
-/-! ## 9.  The chain, and the address map -/
-
+-- [D-2833] §9-The-chain-and-the-address-map
+-- [D-2834] chainB
 noncomputable def chainB : ℕ → (ℕ → Fin 3) → B
   | 0, _ => ⊥
   | (n + 1), w => sig (w 0) (chainB n (Gasket.tail w))
 
+-- [D-2835] chainB_le_succ
 theorem chainB_le_succ (n : ℕ) (w : ℕ → Fin 3) : chainB n w ≤ chainB (n + 1) w := by
   induction n generalizing w with
   | zero => exact bot_le
@@ -271,23 +238,25 @@ theorem chainB_le_succ (n : ℕ) (w : ℕ → Fin 3) : chainB n w ≤ chainB (n 
       show sig (w 0) (chainB n (Gasket.tail w)) ≤ sig (w 0) (chainB (n + 1) (Gasket.tail w))
       exact sig_mono _ (ih (Gasket.tail w))
 
+-- [D-2836] chainB_mono
 theorem chainB_mono (w : ℕ → Fin 3) : Monotone (fun n => chainB n w) :=
   monotone_nat_of_le_succ (fun n => chainB_le_succ n w)
 
-/-- **The address map into `B`.** -/
+-- [D-2837] codeB
 noncomputable def codeB (w : ℕ → Fin 3) : B :=
   Classical.choose (PhiChainSup.exists_chain_lub (chainB_mono w))
 
+-- [D-2838] codeB_isLUB
 theorem codeB_isLUB (w : ℕ → Fin 3) :
     IsLUB (Set.range fun n => chainB n w) (codeB w) :=
   Classical.choose_spec (PhiChainSup.exists_chain_lub (chainB_mono w))
 
-/-! ## 10.  Equivariance -/
-
+-- [D-2839] §10-Equivariance
+-- [D-2840] chainB_cons
 theorem chainB_cons (j : Fin 3) (w : ℕ → Fin 3) (n : ℕ) :
     chainB (n + 1) (Gasket.cons j w) = sig j (chainB n w) := rfl
 
-/-- **The address map is equivariant**, exactly as `π` is. -/
+-- [D-2841] codeB_cons
 theorem codeB_cons (j : Fin 3) (w : ℕ → Fin 3) :
     codeB (Gasket.cons j w) = sig j (codeB w) := by
   have hshift : IsLUB (Set.range fun k => chainB (1 + k) (Gasket.cons j w))
@@ -309,23 +278,20 @@ theorem codeB_cons (j : Fin 3) (w : ℕ → Fin 3) :
   rw [himg] at hshift
   exact IsLUB.unique hshift (sig_isLUB j (chainB_mono w) (codeB_isLUB w))
 
+-- [D-2842] codeB_cons_zero
 theorem codeB_cons_zero (w : ℕ → Fin 3) :
     codeB (Gasket.cons 0 w) = ifsS.sigmaA (codeB w) := codeB_cons 0 w
 
+-- [D-2843] codeB_cons_one
 theorem codeB_cons_one (w : ℕ → Fin 3) :
     codeB (Gasket.cons 1 w) = ifsS.sigmaB (codeB w) := codeB_cons 1 w
 
+-- [D-2844] codeB_cons_two
 theorem codeB_cons_two (w : ℕ → Fin 3) :
     codeB (Gasket.cons 2 w) = ifsS.sigmaC (codeB w) := codeB_cons 2 w
 
-/-! ## 11.  The three images are disjoint, so the address is recoverable
-
-`strictConst x` is never `markedB` and never `⊤` — evaluate at `⊥`, where the
-strict constant gives `⊥` while both of those give something else.  That is what
-keeps the three copies apart even at `x = ⊥`, where `canonGen` moves tags `B`
-and `C` into copy `A`: they land on `markedB` and `⊤`, and copy `A`'s own
-payloads are strict constants, which are neither. -/
-
+-- [D-2845] §11-The-three-images-are-disjoint-so-the-address
+-- [D-2846] strictConst_ne_top
 theorem strictConst_ne_top (x : B) : strictConst x ≠ (⊤ : ScottEndP B) := by
   intro h
   have h1 : strictFun x (⊥ : B) = (⊤ : ScottEndP B).1 (⊥ : B) :=
@@ -333,10 +299,12 @@ theorem strictConst_ne_top (x : B) : strictConst x ≠ (⊤ : ScottEndP B) := by
   rw [strictFun_bot_case rfl] at h1
   exact botB_ne_topB h1
 
+-- [D-2847] tagVal_zero
 theorem tagVal_zero (x : B) :
     (tagPt 0 markedB markedB_ne_bot endPB_bot_ne_top (strictConst x)).1
       = Sum.inl (strictConst x) := rfl
 
+-- [D-2848] tagVal_one_bot
 theorem tagVal_one_bot :
     (tagPt 1 markedB markedB_ne_bot endPB_bot_ne_top (strictConst (⊥ : B))).1
       = Sum.inl markedB := by
@@ -345,6 +313,7 @@ theorem tagVal_one_bot :
         else Sum.inr (Sum.inl (⊥ : ScottEndP B))) = Sum.inl markedB
   rw [if_pos rfl]
 
+-- [D-2849] tagVal_one_ne
 theorem tagVal_one_ne {x : B} (hx : x ≠ ⊥) :
     (tagPt 1 markedB markedB_ne_bot endPB_bot_ne_top (strictConst x)).1
       = Sum.inr (Sum.inl (strictConst x)) := by
@@ -352,6 +321,7 @@ theorem tagVal_one_ne {x : B} (hx : x ≠ ⊥) :
         else Sum.inr (Sum.inl (strictConst x))) = _
   rw [if_neg (strictConst_ne_bot hx)]
 
+-- [D-2850] tagVal_two_bot
 theorem tagVal_two_bot :
     (tagPt 2 markedB markedB_ne_bot endPB_bot_ne_top (strictConst (⊥ : B))).1
       = Sum.inl (⊤ : ScottEndP B) := by
@@ -361,6 +331,7 @@ theorem tagVal_two_bot :
         else Sum.inr (Sum.inr (⊥ : ScottEndP B))) = Sum.inl ⊤
   rw [if_pos rfl]
 
+-- [D-2851] tagVal_two_ne
 theorem tagVal_two_ne {x : B} (hx : x ≠ ⊥) :
     (tagPt 2 markedB markedB_ne_bot endPB_bot_ne_top (strictConst x)).1
       = Sum.inr (Sum.inr (strictConst x)) := by
@@ -369,7 +340,7 @@ theorem tagVal_two_ne {x : B} (hx : x ≠ ⊥) :
         else Sum.inr (Sum.inr (strictConst x))) = _
   rw [if_neg (strictConst_ne_bot hx), if_neg (strictConst_ne_marked x)]
 
-/-- Copy `A` never meets copy `B`. -/
+-- [D-2852] tagVal_zero_ne_one
 theorem tagVal_zero_ne_one (x y : B) :
     (tagPt 0 markedB markedB_ne_bot endPB_bot_ne_top (strictConst x)).1
       ≠ (tagPt 1 markedB markedB_ne_bot endPB_bot_ne_top (strictConst y)).1 := by
@@ -382,7 +353,7 @@ theorem tagVal_zero_ne_one (x y : B) :
   · rw [tagVal_one_ne hy] at hval
     simp at hval
 
-/-- Copy `A` never meets copy `C`. -/
+-- [D-2853] tagVal_zero_ne_two
 theorem tagVal_zero_ne_two (x y : B) :
     (tagPt 0 markedB markedB_ne_bot endPB_bot_ne_top (strictConst x)).1
       ≠ (tagPt 2 markedB markedB_ne_bot endPB_bot_ne_top (strictConst y)).1 := by
@@ -395,7 +366,7 @@ theorem tagVal_zero_ne_two (x y : B) :
   · rw [tagVal_two_ne hy] at hval
     simp at hval
 
-/-- Copy `B` never meets copy `C`. -/
+-- [D-2854] tagVal_one_ne_two
 theorem tagVal_one_ne_two (x y : B) :
     (tagPt 1 markedB markedB_ne_bot endPB_bot_ne_top (strictConst x)).1
       ≠ (tagPt 2 markedB markedB_ne_bot endPB_bot_ne_top (strictConst y)).1 := by
@@ -413,6 +384,7 @@ theorem tagVal_one_ne_two (x y : B) :
   · rw [tagVal_one_ne hx, tagVal_two_ne hy] at hval
     simp at hval
 
+-- [D-2855] sig_ne_of_ne
 theorem sig_ne_of_ne (j j' : Fin 3) (hjj : j ≠ j') (x y : B) : sig j x ≠ sig j' y := by
   intro h
   have hval : (tagPt (j : ℕ) markedB markedB_ne_bot endPB_bot_ne_top (strictConst x)).1
@@ -429,17 +401,19 @@ theorem sig_ne_of_ne (j j' : Fin 3) (hjj : j ≠ j') (x y : B) : sig j x ≠ sig
   · exact tagVal_one_ne_two y x hval.symm
   · exact hjj rfl
 
+-- [D-2856] sig_injective
 theorem sig_injective (j : Fin 3) : Function.Injective (sig j) := by
   intro x y h
   exact strictConst_injective
     (tagPt_injective (j : ℕ) markedB markedB_ne_bot endPB_bot_ne_top (sec_injective h))
 
-/-! ## 12.  `codeB` is injective -/
-
+-- [D-2857] §12-codeB-is-injective
+-- [D-2858] codeB_head
 theorem codeB_head (w : ℕ → Fin 3) : codeB w = sig (w 0) (codeB (Gasket.tail w)) := by
   conv_lhs => rw [← Gasket.cons_head_tail w]
   exact codeB_cons (w 0) (Gasket.tail w)
 
+-- [D-2859] codeB_agree
 theorem codeB_agree : ∀ (n : ℕ) (w w' : ℕ → Fin 3), codeB w = codeB w' → w n = w' n := by
   intro n
   induction n with
@@ -460,37 +434,35 @@ theorem codeB_agree : ∀ (n : ℕ) (w w' : ℕ → Fin 3), codeB w = codeB w' �
         exact sig_injective (w' 0) h1
       exact ih (Gasket.tail w) (Gasket.tail w') htail
 
+-- [D-2860] codeB_injective
 theorem codeB_injective : Function.Injective codeB :=
   fun w w' h => funext (fun n => codeB_agree n w w' h)
 
-/-! ## 13.  …so `ρ` exists
-
-`codeB` is an equivariant injection of the address space into `B`.  Its image is
-the attractor `𝒦`, and `ρ` is `π` transported along it.  This is the map the
-framework calls `rho`; what is *not* settled here is its continuity, which
-depends on the topology `CoreIFS.topCore` puts on `𝒦`. -/
-
-/-- The attractor: the image of the address space in `B`. -/
+-- [D-2861] §13-so-exists
+-- [D-2862] Attractor
 def Attractor : Set B := Set.range codeB
 
+-- [D-2863] codeB_mem_attractor
 theorem codeB_mem_attractor (w : ℕ → Fin 3) : codeB w ∈ Attractor := ⟨w, rfl⟩
 
-/-- **`ρ`.**  Well-defined because `codeB` is injective. -/
+-- [D-2864] rho
 noncomputable def rho (b : Attractor) : Gasket.Gamma :=
   Gasket.codeGamma (Classical.choose b.2)
 
+-- [D-2865] rho_codeB
 theorem rho_codeB (w : ℕ → Fin 3) :
     rho ⟨codeB w, codeB_mem_attractor w⟩ = Gasket.codeGamma w := by
   have h := Classical.choose_spec (codeB_mem_attractor w)
   show Gasket.codeGamma (Classical.choose (codeB_mem_attractor w)) = _
   rw [codeB_injective h]
 
+-- [D-2866] rho_surjective
 theorem rho_surjective : Function.Surjective rho := by
   intro g
   obtain ⟨w, hw⟩ := Gasket.codeGamma_surjective g
   exact ⟨⟨codeB w, codeB_mem_attractor w⟩, (rho_codeB w).trans hw⟩
 
-/-- **`ρ` intertwines `σ_A` with `f_A`** — and likewise for `B` and `C`. -/
+-- [D-2867] rho_sigmaA
 theorem rho_sigmaA (w : ℕ → Fin 3) :
     rho ⟨ifsS.sigmaA (codeB w), (codeB_cons_zero w) ▸ codeB_mem_attractor (Gasket.cons 0 w)⟩
       = Gasket.fA (rho ⟨codeB w, codeB_mem_attractor w⟩) := by
@@ -499,30 +471,27 @@ theorem rho_sigmaA (w : ℕ → Fin 3) :
   simp only [h]
   exact rho_codeB (Gasket.cons 0 w)
 
-/-! ## 14.  The attractor is closed under the three maps
-
-`σ_j` sends `codeB w` to `codeB (cons j w)`, so `Attractor` is invariant — it is
-the attractor of `ifsS` in the usual sense, and `codeB` is an equivariant
-bijection from the address space onto it.  That is the link the `Γ`/`ρ` side was
-missing: `GasketCoreIFS.addressCoreIFS` uses the address space as `Core`, and
-this says the address space *is* `𝒦 ⊆ B`. -/
-
+-- [D-2868] §14-The-attractor-is-closed-under-the-three-maps
+-- [D-2869] mapsTo_sig
 theorem mapsTo_sig (j : Fin 3) : Set.MapsTo (sig j) Attractor Attractor := by
   rintro _ ⟨w, rfl⟩
   exact ⟨Gasket.cons j w, codeB_cons j w⟩
 
+-- [D-2870] mapsTo_sigmaA
 theorem mapsTo_sigmaA : Set.MapsTo ifsS.sigmaA Attractor Attractor := mapsTo_sig 0
+-- [D-2871] mapsTo_sigmaB
 theorem mapsTo_sigmaB : Set.MapsTo ifsS.sigmaB Attractor Attractor := mapsTo_sig 1
+-- [D-2872] mapsTo_sigmaC
 theorem mapsTo_sigmaC : Set.MapsTo ifsS.sigmaC Attractor Attractor := mapsTo_sig 2
 
-/-- **`𝒦` is a copy of the address space inside `B`.** -/
+-- [D-2873] attractorEquiv
 noncomputable def attractorEquiv : (ℕ → Fin 3) ≃ Attractor where
   toFun w := ⟨codeB w, codeB_mem_attractor w⟩
   invFun b := Classical.choose b.2
   left_inv w := codeB_injective (Classical.choose_spec (codeB_mem_attractor w))
   right_inv b := Subtype.ext (Classical.choose_spec b.2)
 
-/-- The all-A address codes ⊥, because σ_A is strict. -/
+-- [D-2874] codeB_constA
 theorem codeB_constA : codeB (fun _ => 0) = (⊥ : B) := by
   refine le_antisymm ((codeB_isLUB _).2 ?_) bot_le
   rintro _ ⟨n, rfl⟩
@@ -536,16 +505,11 @@ theorem codeB_constA : codeB (fun _ => 0) = (⊥ : B) := by
       rw [h2, sig_zero]
       exact le_of_eq SigmaRebuild.sigmaA_bot
 
+-- [D-2875] bot_mem_attractor
 theorem bot_mem_attractor : (⊥ : B) ∈ Attractor := ⟨fun _ => 0, codeB_constA⟩
 
-/-! ## 15.  Each `σ_j` is an order embedding
-
-The recursion step any analysis of the order on `𝒦` needs: `σ_j` not only
-preserves `≤` but reflects it.  Same-tag comparisons reduce to the payload by
-the library's `iff` lemmas; the one asymmetric case is `y = ⊥`, where the target
-moves into copy `A` and `not_leGlue_tagB_tagAGen` / `not_leGlue_tagC_tagAGen`
-say nothing from copies `B` or `C` can get there. -/
-
+-- [D-2876] §15-Each-j-is-an-order-embedding
+-- [D-2877] strictConst_reflects
 theorem strictConst_reflects {x y : B} (h : strictConst x ≤ strictConst y) : x ≤ y := by
   have h1 := scottEndP_le_iff.mp h topB
   rw [show (strictConst x).1 topB = strictFun x topB from rfl,
@@ -553,6 +517,7 @@ theorem strictConst_reflects {x y : B} (h : strictConst x ≤ strictConst y) : x
     strictFun_ne_case topB_ne_bot, strictFun_ne_case topB_ne_bot] at h1
   exact h1
 
+-- [D-2878] sig_reflects
 theorem sig_reflects (j : Fin 3) {x y : B} (h : sig j x ≤ sig j y) : x ≤ y := by
   by_cases hx : x = ⊥
   · rw [hx]
@@ -583,11 +548,11 @@ theorem sig_reflects (j : Fin 3) {x y : B} (h : sig j x ≤ sig j y) : x ≤ y :
         exact (leGlue_tagC_tagC_iffGen markedB _ _).mp hraw
   exact key (j : ℕ) (tag_le_two j) (sec.le_iff_le.mp h)
 
+-- [D-2879] sig_le_iff
 theorem sig_le_iff (j : Fin 3) (x y : B) : sig j x ≤ sig j y ↔ x ≤ y :=
   ⟨sig_reflects j, fun h => sig_mono j h⟩
 
-/-- **The recursion step for the order on `𝒦`.**  Once the heads agree, the
-comparison passes to the tails. -/
+-- [D-2880] codeB_tail_le
 theorem codeB_tail_le {u v : ℕ → Fin 3} (h : codeB u ≤ codeB v) (hhead : u 0 = v 0) :
     codeB (Gasket.tail u) ≤ codeB (Gasket.tail v) := by
   rw [codeB_head u, codeB_head v, hhead] at h

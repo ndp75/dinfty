@@ -1,33 +1,7 @@
 import Dinfty.Height
 import Dinfty.Truncation
 
-/-!
-# The seed comparison, replumbed
-
-The route through §61–§64 supersedes the invariant battery of §56–§58.  The
-battery existed because the shared infinite tail could not be removed, so every
-criterion had to be an invariant that survived it.  `Truncation.smallPart`
-**deletes** the tail, and what is left is the exact finite equation
-
-```
-S  ≅  weakBelow D N × T        (in the tower: D n × … × D k × T)
-```
-
-after which the criteria are ordinary finite-poset arithmetic.  This file is the
-front door: the three quantities a direct product forces, each packaged as a
-necessary equation on the competitor, and each contrapositive as a refutation.
-
-| quantity | behaviour on `P × Q` | here |
-|---|---|---|
-| `Nat.card` | multiplicative | `Truncation.card_eq_prod` |
-| number of atoms | additive | `card_atoms_eq` |
-| height `htP` | additive | `htP_eq` |
-
-Measured at `n = k = 1` over 13,616 candidate pairs, these leave 30, then 16,
-then **0** — where the whole battery reached 569 of 797 competitors and only for
-the exceptional pieces.
--/
-
+-- [D-3050] §The-seed-comparison-replumbed
 open scoped Classical
 
 universe u
@@ -36,14 +10,13 @@ namespace SeedComparison
 
 open WeakProductAbsorption AtomFactorGeneration Height Truncation
 
-/-! ## Atoms of a product -/
-
+-- [D-3051] §Atoms-of-a-product
 section Atoms
 
 variable {A : Type u} {B : Type u}
 variable [PartialOrder A] [OrderBot A] [PartialOrder B] [OrderBot B]
 
-/-- The atoms of a product are the atoms of either factor, padded with `⊥`. -/
+-- [D-3052] atomsProdEquiv
 noncomputable def atomsProdEquiv :
     {p : A × B // IsAtom p} ≃ ({a : A // IsAtom a} ⊕ {b : B // IsAtom b}) where
   toFun p :=
@@ -75,6 +48,7 @@ noncomputable def atomsProdEquiv :
     · have hb' : ¬ ((⊥ : A), b).2 = ⊥ := hb.1
       simp only [Sum.elim_inr, dif_neg hb']
 
+-- [D-3053] card_atoms_prod
 theorem card_atoms_prod [Finite A] [Finite B] :
     Nat.card {p : A × B // IsAtom p}
       = Nat.card {a : A // IsAtom a} + Nat.card {b : B // IsAtom b} := by
@@ -82,14 +56,13 @@ theorem card_atoms_prod [Finite A] [Finite B] :
 
 end Atoms
 
-/-! ## Transporting atoms -/
-
+-- [D-3054] §Transporting-atoms
 section AtomsIso
 
 variable {L : Type u} {L' : Type u} [PartialOrder L] [OrderBot L]
 variable [PartialOrder L'] [OrderBot L']
 
-/-- Atoms correspond under an isomorphism. -/
+-- [D-3055] atomsIso
 def atomsIso (f : L ≃o L') : {a : L // IsAtom a} ≃ {b : L' // IsAtom b} where
   toFun a := ⟨f a.1, orderIso_isAtom f a.2⟩
   invFun b := ⟨f.symm b.1, orderIso_isAtom f.symm b.2⟩
@@ -98,13 +71,7 @@ def atomsIso (f : L ≃o L') : {a : L // IsAtom a} ≃ {b : L' // IsAtom b} wher
 
 end AtomsIso
 
-/-! ## The three necessary equations
-
-Each is `seed_iso_prod` composed with one multiplicative-or-additive law.  The
-`weakBelow` factor is finite in every intended use (`Truncation.weakBelowPi`
-exhibits it as a finite product), so its `Fintype`/`Finite` instances are taken
-as hypotheses rather than re-derived here. -/
-
+-- [D-3056] §The-three-necessary-equations
 section Package
 
 variable {D : ℕ → Type u} {E : ℕ → Type u} {T : Type u} {S : Type u}
@@ -116,8 +83,8 @@ variable (lamD : ∀ j, D j) (lamE : ∀ i, E i)
 variable (hD_ne : ∀ j, lamD j ≠ ⊥) (hD_le : ∀ j (z : D j), z ≠ ⊥ → lamD j ≤ z)
 variable (hE_ne : ∀ i, lamE i ≠ ⊥) (hE_le : ∀ i (z : E i), z ≠ ⊥ → lamE i ≤ z)
 
+-- [D-3057] card_atoms_eq
 include hD_ne hD_le hE_ne hE_le in
-/-- **Atom counts add.** -/
 theorem card_atoms_eq [Finite T] [Finite S] (N : ℕ)
     [Finite ↥(weakBelow D N)]
     (e : (WeakProd D × T) ≃o (WeakProd E × S))
@@ -129,8 +96,8 @@ theorem card_atoms_eq [Finite T] [Finite S] (N : ℕ)
   have f := (seed_iso_prod lamD lamE hD_ne hD_le hE_ne hE_le e N hbig hS hT).some
   rw [← Nat.card_congr (atomsIso f), card_atoms_prod]
 
+-- [D-3058] htP_eq
 include hD_ne hD_le hE_ne hE_le in
-/-- **Heights add.** -/
 theorem htP_eq [Fintype T] [Fintype S] [Nonempty T] (N : ℕ)
     [Fintype ↥(weakBelow D N)] [Nonempty ↥(weakBelow D N)]
     (e : (WeakProd D × T) ≃o (WeakProd E × S))
@@ -141,11 +108,8 @@ theorem htP_eq [Fintype T] [Fintype S] [Nonempty T] (N : ℕ)
   have f := (seed_iso_prod lamD lamE hD_ne hD_le hE_ne hE_le e N hbig hS hT).some
   rw [← htP_orderIso f, htP_prod]
 
-/-! ### The refutations
-
-Contrapositives.  Any one mismatch rules the competitor out, uniformly in the
-level: nothing in these statements mentions `k` beyond the threshold `N`. -/
-
+-- [D-3059] §The-refutations
+-- [D-3060] no_iso_of_card_ne
 include hD_ne hD_le hE_ne hE_le in
 theorem no_iso_of_card_ne [Finite T] [Finite S] (N : ℕ) (I : Finset ℕ)
     (hI : ∀ j, Nat.card (D j) ≤ N ↔ j ∈ I)
@@ -156,6 +120,7 @@ theorem no_iso_of_card_ne [Finite T] [Finite S] (N : ℕ) (I : Finset ℕ)
     IsEmpty ((WeakProd D × T) ≃o (WeakProd E × S)) :=
   ⟨fun e => hne (card_eq_prod lamD lamE hD_ne hD_le hE_ne hE_le e N hbig hS hT I hI)⟩
 
+-- [D-3061] no_iso_of_atoms_ne
 include hD_ne hD_le hE_ne hE_le in
 theorem no_iso_of_atoms_ne [Finite T] [Finite S] (N : ℕ)
     [Finite ↥(weakBelow D N)]
@@ -167,6 +132,7 @@ theorem no_iso_of_atoms_ne [Finite T] [Finite S] (N : ℕ)
     IsEmpty ((WeakProd D × T) ≃o (WeakProd E × S)) :=
   ⟨fun e => hne (card_atoms_eq lamD lamE hD_ne hD_le hE_ne hE_le N e hbig hS hT)⟩
 
+-- [D-3062] no_iso_of_htP_ne
 include hD_ne hD_le hE_ne hE_le in
 theorem no_iso_of_htP_ne [Fintype T] [Fintype S] [Nonempty T] (N : ℕ)
     [Fintype ↥(weakBelow D N)] [Nonempty ↥(weakBelow D N)]

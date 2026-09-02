@@ -4,61 +4,20 @@ import Dinfty.CanonFixed
 
 open GluingTowerLibrary SierpinskiApplication
 
-/-!
-# `Φ` of the colimit cocone — rebuilt on values
-
-§85 wrote this module through `phiFun` and lost ten build cycles to competing
-`DecidableEq` instances.  §86 diagnosed it: the carrier is cut out by a
-condition that needs no decidability at all (`CanonFixed.Fixed`), so the
-instance is an implementation detail of `canonGen`'s `if`s — and `phiFun` takes
-*its own* copy of that instance, separately from the one inside its `TriHom`
-argument's type, which is what could never be made to agree.
-
-**So do not go through `phiFun`.**  `GlueBaseGen P = P ⊕ P ⊕ P` is instance-free,
-and `baseMapGen` between such types is instance-free.  Build the legs as
-subtype elements directly — value by `canonGen` at the *target*, proof by
-`canonGen_idem` — and every instance in sight is the one the target type
-already fixed.  Two `letI`s pin the tower side; dropping `open scoped Classical`
-pins the `EndP B` side to the instance `phiB` was defined with.
-
-Everything below is the same mathematics as §85; only the spelling changed.
-
-* `eLeg k = Φ (ins k)` and `pLeg k = Φ (proj k)`, on values.
-* `cocone_retraction` / `cocone_deflation` / `cocone_compat` — the three
-  algebraic `IsColimitCocone` fields, each from `canonGen_baseMapGen_canon`
-  (the descent lemma) plus `baseMapGen_comp` and the corresponding composite
-  identity, exactly as in §84's `phiStep`.
-* `PhiCoconeIsLUB` / `PhiSupExists` / `PhiProjContinuous` — the analysis, named.
-* `theoremA_orderIso` — the assembly.
--/
-
+-- [D-2433] §of-the-colimit-cocone-rebuilt-on-values
 namespace PhiCocone
 
--- One candidate per base: `endPDecidableEq` at `EndP (D k)` (which is what
--- `towerLevelSucc` baked into `D (k+1)`), and `PhiBilimit.decEqEndPB` at
--- `EndP B` (which is what `phiB` was defined with).  Erasing Mathlib's
--- competitor leaves no choice to get wrong, and no `Classical` is opened.
--- MERGE THE TWO SPELLINGS.  `D` is a regular `def`, so instance matching does
--- not unfold it, and `endPDecidableEq` — stated for `D k` — fails against a goal
--- presented as `EndP (towerLevel (k+1)).carrier`.  Now that D is reducible at the spine, the two
--- spellings are one; erasing Mathlib's competitor then leaves exactly one
--- candidate per base.  Neither attribute escapes this file, so the spine is
--- untouched.
 attribute [-instance] OrderHom.instDecidableEqOfForall
 
 open PhiIterateTower PhiBilimit EpPairTower PhiTriFunctor GenContinuity
 
+-- [D-2434] hmk
 private theorem hmk (k : ℕ) : (markedPt k) ≠ ⊥ := (D_marked_point_nondegenerate k).1
+-- [D-2435] hbtk
 private theorem hbtk (k : ℕ) : (⊥ : EndP (D k)) ≠ ⊤ := (D_marked_point_nondegenerate k).2.2
 
-/-! ## The tower's cocone, as tripointed morphisms of glue bases
-
-`TriHom` itself mentions no `DecidableEq` — it is `toFun` plus three equations —
-so these two are instance-clean. -/
-
-/-- `h ↦ ins k ∘ h ∘ proj k`.  The value is Scott-continuous: `ins k` is (its
-domain is a finite level), `h` is (finite domain), and reading off level `k` is
-(`phiTowerEP` is a dcpo). -/
+-- [D-2436] §The-tower-s-cocone-as-tripointed-morphisms
+-- [D-2437] insEndUp
 noncomputable def insEndUp (k : ℕ) : TriHom (markedPt (k + 1)) markedB where
   toFun :=
     ⟨fun h => ⟨⟨fun y => phiTowerEP.ins k (h (y.1 k)),
@@ -69,8 +28,6 @@ noncomputable def insEndUp (k : ℕ) : TriHom (markedPt (k + 1)) markedB where
             monotone_scottContinuous_of_finite_dom h.monotone
           have h3 : ScottContinuous (fun w : D (k + 1) => phiTowerEP.ins k w) :=
             ins_scottContinuous k
-          -- ScottContinuous.comp (hf) (hg) : ScottContinuous (g . f) -- the
-          -- RECEIVER is the INNER map.  Inner to outer: proj, then h, then ins.
           have hc := (h1.comp h2).comp h3
           simpa [Function.comp_def] using hc⟩,
       fun _ _ hh => by
@@ -93,8 +50,7 @@ noncomputable def insEndUp (k : ℕ) : TriHom (markedPt (k + 1)) markedB where
     rw [endPTop_apply]
     exact ins_top k
 
-/-- `H ↦ proj k ∘ H ∘ ins k`.  No continuity obligation: the target level is
-finite. -/
+-- [D-2438] projEndDown
 noncomputable def projEndDown (k : ℕ) : TriHom markedB (markedPt (k + 1)) where
   toFun :=
     ⟨fun H => ⟨fun x => (H.1 (phiTowerEP.ins k x)).1 k,
@@ -116,11 +72,8 @@ noncomputable def projEndDown (k : ℕ) : TriHom markedB (markedPt (k + 1)) wher
     show ((⊤ : ScottEndP B).1 (phiTowerEP.ins k x)).1 k = (⊤ : EndP (D (k + 1))) x
     rfl
 
-/-! ## The two composites, before `Φ`
-
-Stated on the underlying `OrderHom`s, in the `f.toFun.comp g.toFun` spelling
-that `baseMapGen_comp` produces. -/
-
+-- [D-2439] §The-two-composites-before
+-- [D-2440] projEndDown_insEndUp
 theorem projEndDown_insEndUp (k : ℕ) :
     (projEndDown k).toFun.comp (insEndUp k).toFun
       = (OrderHom.id : EndP (D (k + 1)) →o EndP (D (k + 1))) := by
@@ -129,6 +82,7 @@ theorem projEndDown_insEndUp (k : ℕ) :
   show ((phiTowerEP.ins k (h ((phiTowerEP.ins k x).1 k))) : B).1 k = h x
   simp only [EpPairTower.ins_self]
 
+-- [D-2441] insEndUp_projEndDown_le
 theorem insEndUp_projEndDown_le (k : ℕ) :
     (insEndUp k).toFun.comp (projEndDown k).toFun
       ≤ (OrderHom.id : ScottEndP B →o ScottEndP B) := by
@@ -139,6 +93,7 @@ theorem insEndUp_projEndDown_le (k : ℕ) :
   refine le_trans (ins_monotone k ?_) (ins_le_self (H.1 y) k)
   exact H.1.monotone (ins_le_self y k) k
 
+-- [D-2442] insEndUp_comp_emb
 theorem insEndUp_comp_emb (k : ℕ) :
     (insEndUp (k + 1)).toFun.comp ((iter k).endUp).toFun = (insEndUp k).toFun := by
   refine OrderHom.ext _ _ (funext (fun h => ?_))
@@ -150,30 +105,25 @@ theorem insEndUp_comp_emb (k : ℕ) :
       = phiTowerEP.ins k (h (y.1 k)) := ins_emb (T := phiTowerEP) k (h (y.1 k))
   rw [hy, he]
 
-/-! ## The legs, built on values
-
-`GlueBaseGen P = P ⊕ P ⊕ P` carries no instance, and neither does `baseMapGen`
-between such types.  So the legs are built as subtype elements directly — value
-by `canonGen` at the target, proof by `canonGen_idem` — and every instance in
-sight is the one the target type already fixed.  That is what going through
-`phiFun`, which takes its own copy of the instance, could not do (§85/§86). -/
-
-/-- `Φ (ins k)`. -/
+-- [D-2443] §The-legs-built-on-values
+-- [D-2444] eLeg
 noncomputable def eLeg (k : ℕ) (x : D (k + 2)) : phiB :=
   ⟨canonGen markedB (baseMapGen (insEndUp k).toFun x.1),
     canonGen_idem markedB markedB_ne_bot endPB_bot_ne_top _⟩
 
-/-- `Φ (proj k)`. -/
+-- [D-2445] pLeg
 noncomputable def pLeg (k : ℕ) (z : phiB) : D (k + 2) :=
   ⟨canonGen (markedPt (k + 1)) (baseMapGen (projEndDown k).toFun z.1),
     canonGen_idem (markedPt (k + 1)) (hmk (k + 1)) (hbtk (k + 1)) _⟩
 
+-- [D-2446] eLeg_monotone
 theorem eLeg_monotone (k : ℕ) {x y : D (k + 2)} (h : x ≤ y) : eLeg k x ≤ eLeg k y := by
   show leGlueGen markedB (canonGen markedB (baseMapGen (insEndUp k).toFun x.1))
     (canonGen markedB (baseMapGen (insEndUp k).toFun y.1))
   exact leGlueGen_canon markedB markedB_ne_bot markedB_ne_top endPB_bot_ne_top
     (leGlueGen_map (insEndUp k) markedB_ne_top h)
 
+-- [D-2447] pLeg_monotone
 theorem pLeg_monotone (k : ℕ) {x y : phiB} (h : x ≤ y) : pLeg k x ≤ pLeg k y := by
   show leGlueGen (markedPt (k + 1))
     (canonGen (markedPt (k + 1)) (baseMapGen (projEndDown k).toFun x.1))
@@ -182,8 +132,8 @@ theorem pLeg_monotone (k : ℕ) {x y : phiB} (h : x ≤ y) : pLeg k x ≤ pLeg k
     ((D_marked_point_nondegenerate (k + 1)).2.1) (hbtk (k + 1))
     (leGlueGen_map (projEndDown k) ((D_marked_point_nondegenerate (k + 1)).2.1) h)
 
-/-! ## Three of the four `IsColimitCocone` fields -/
-
+-- [D-2448] §Three-of-the-four-IsColimitCocone-fields
+-- [D-2449] cocone_retraction
 set_option maxHeartbeats 1000000 in
 theorem cocone_retraction (k : ℕ) (x : D (k + 2)) : pLeg k (eLeg k x) = x := by
   refine Subtype.ext ?_
@@ -194,6 +144,7 @@ theorem cocone_retraction (k : ℕ) (x : D (k + 2)) : pLeg k (eLeg k x) = x := b
     ← baseMapGen_comp, projEndDown_insEndUp k, baseMapGen_id]
   exact x.2
 
+-- [D-2450] cocone_deflation
 set_option maxHeartbeats 1000000 in
 theorem cocone_deflation (k : ℕ) (z : phiB) : eLeg k (pLeg k z) ≤ z := by
   have hle : (insEndUp k).toFun.comp (projEndDown k).toFun
@@ -211,6 +162,7 @@ theorem cocone_deflation (k : ℕ) (z : phiB) : eLeg k (pLeg k z) ≤ z := by
     ← baseMapGen_comp]
   exact h2
 
+-- [D-2451] cocone_compat
 set_option maxHeartbeats 1000000 in
 theorem cocone_compat (k : ℕ) (w : D (k + 2)) :
     eLeg (k + 1) (phiTowerEP.emb (k + 1) w) = eLeg k w := by
@@ -225,23 +177,22 @@ theorem cocone_compat (k : ℕ) (w : D (k + 2)) :
       endPB_bot_ne_top,
     ← baseMapGen_comp, insEndUp_comp_emb k]
 
-/-! ## The remaining obligations, named -/
-
-/-- **The analysis.**  `eLeg k ∘ pLeg k` is `Φ` of the `k`-th deflation of `B`,
-so this asks for `⨆ₖ Φ(Δ k) = Φ(id) = id`. -/
+-- [D-2452] §The-remaining-obligations-named
+-- [D-2453] PhiCoconeIsLUB
 def PhiCoconeIsLUB : Prop :=
   ∀ z : phiB, IsLUB (Set.range fun k => eLeg k (pLeg k z)) z
 
-/-- Chains staged into `Φ(D∞^Φ)` have suprema there. -/
+-- [D-2454] PhiSupExists
 def PhiSupExists : Prop :=
   ∀ d : phiTowerEP.shift.Bilim, ∃ x : phiB, IsLUB (Set.range fun k => eLeg k (d.1 k)) x
 
-/-- …and the legs read them off levelwise. -/
+-- [D-2455] PhiProjContinuous
 def PhiProjContinuous : Prop :=
   ∀ (d : phiTowerEP.shift.Bilim) (x : phiB),
     IsLUB (Set.range fun k => eLeg k (d.1 k)) x →
     ∀ j, IsLUB (Set.range fun k => pLeg j (eLeg k (d.1 k))) (pLeg j x)
 
+-- [D-2456] isColimitCocone
 theorem isColimitCocone (h : PhiCoconeIsLUB) :
     phiTowerEP.shift.IsColimitCocone eLeg pLeg where
   retraction := cocone_retraction
@@ -249,8 +200,7 @@ theorem isColimitCocone (h : PhiCoconeIsLUB) :
   compat := cocone_compat
   isLUB := h
 
-/-- **Theorem A's order-theoretic half, assembled.**  Everything algebraic is
-discharged; the three hypotheses are the analysis. -/
+-- [D-2457] theoremA_orderIso
 noncomputable def theoremA_orderIso (h : PhiCoconeIsLUB) (hsup : PhiSupExists)
     (hcont : PhiProjContinuous) : phiB ≃o phiTowerEP.Bilim :=
   EpPairTower.orderIsoBilim_shift phiTowerEP (isColimitCocone h)

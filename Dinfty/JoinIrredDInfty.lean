@@ -2,92 +2,30 @@ import Dinfty.ColimitCompatPipe
 
 open GluingTowerLibrary SierpinskiApplication
 
-/-!
-# The `DInfty`-level half of clause (3b), and the residue with no join-irreducibility left in it
-
-`Dinfty/AssemblyChain.lean` names, as missing, "`sig3`'s components shown
-order-invariant *as computed in `DInfty`*, which is where `JoinIrredLevelStable`
-and the missing `DInfty`-level half of clause (3b) enter."
-
-This module supplies that half:
-
-    joinIrred_toD_iff :  JoinIrred DInfty (toD k x)  ↔  JoinIrred (D k) x
-
-It needed one thing that did not exist: an `OrderBot` on `DInfty`, so that
-`JoinIrred DInfty` is even a statement. `ColimitCompatPipe.toD_bot_le` supplies
-it — `DInfty` has a least element, it simply carried no instance.
-
-## What it buys
-
-Join-irreducibility is an order-theoretic property, so any `θ : DInfty ≃o DInfty`
-preserves it (`joinIrred_orderIso`). Combined with `joinIrred_toD_iff`, the
-`JoinIrred (D k) y` half of `JoinIrredStagePreserved` becomes **automatic**: if
-`θ (toD k x) = toD k y` and `x` is join-irreducible, then so is `y`.
-
-So the residue drops to `StageFixed` below, which says only
-
-    θ does not move a stage-`k` join-irreducible off stage `k`
-
-with no join-irreducibility left in its conclusion. `colimit_compat` follows
-from that alone (`colimit_compat_of_stageFixed`).
-
-**This does not close pillar B.** `StageFixed` is a pure *level* statement and
-it is still open. What changed is that the remaining question no longer has two
-things tangled in it: the join-irreducibility bookkeeping is discharged, and
-what is left is exactly "can an automorphism raise a join-irreducible's level".
-
-## Why the obvious attacks on `StageFixed` do not apply, recorded so they are not retried
-
-* **Rank / down-set counting is unavailable.** `DInfty` down-sets are not
-  locally finite (handoff; and `iotaD` does not preserve atoms — `iotaD k a` is
-  `glueA m (constHom a)`, while `EndP (D k)`'s atom is the spike at `⊤`, which
-  is strictly smaller — so `DInfty` has no atoms at all to induct from).
-* **Counting join-irreducibles below a point does not help either**, for the
-  same reason: `{w ∈ J∞ : w ≤ toD k x}` picks up new join-irreducibles at every
-  level, since `joinIrred_iotaLe_iff` only classifies those *in the image* of
-  `iotaLe`.
-* **Cross-level embedding rigidity is false** — 1248 three-chains in the real
-  `D_1` against one canonical (`_archive/check_normalized_pillarB_numerics.py`),
-  so a monotone injection `D k → D N` need not be `iotaLe`.
--/
-
+-- [D-1630] §The-DInfty-level-half-of-clause-3b
 open scoped Classical
 
 namespace JoinIrredDInfty
 
 open ColimitCompatPipe Assembly AssemblyChain JoinIrredLevelStable
 
-/-- **`DInfty` has a least element.**  It carried no instance; `toD_bot_le`
-proves the content, so the instance is just packaging.  There is no competing
-`Bot DInfty`, so this introduces no diamond. -/
+-- [D-1631] inst-OrderBot
 noncomputable instance : OrderBot DInfty where
   bot := toD 0 (⊥ : D 0)
   bot_le := toD_bot_le 0
 
+-- [D-1632] bot_eq_toD
 theorem bot_eq_toD (k : ℕ) : (⊥ : DInfty) = toD k (⊥ : D k) :=
   le_antisymm (bot_le) (toD_bot_le k _)
 
+-- [D-1633] toD_eq_bot_iff
 theorem toD_eq_bot_iff (k : ℕ) (x : D k) : toD k x = (⊥ : DInfty) ↔ x = (⊥ : D k) := by
   rw [bot_eq_toD k]
   exact ⟨fun h => toD_inj k h, fun h => by rw [h]⟩
 
-/-! ## Order isomorphisms preserve join-irreducibility
-
-`joinIrred_orderIso` was **already in the library** (`GluingTowerLibrary.lean:6526`,
-general `L ≃o M`).  A version was briefly re-proved here before that was noticed;
-it has been removed and the library lemma is used instead.  Tenth instance in
-this project of a result that already existed — and the first where the
-duplication was mine. -/
-
-/-! ## The `DInfty`-level characterization -/
-
-/-- **The missing half of clause (3b).**  Join-irreducibility in the colimit is
-join-irreducibility at the stage — in both directions, at every level.
-
-Forward: a stage-level factorization transports up by `toD_sup'`.  Backward: any
-`DInfty` factorization chases to a common level `N`, where `joinIrred_iotaLe_iff`
-(`JoinIrredLevelStable.lean`) says `iotaLe x` is join-irreducible exactly when
-`x` is. -/
+-- [D-1634] §Order-isomorphisms-preserve-join-irreducibility
+-- [D-1635] §The-DInfty-level-characterization
+-- [D-1636] joinIrred_toD_iff
 theorem joinIrred_toD_iff (k : ℕ) (x : D k) :
     JoinIrred DInfty (toD k x) ↔ JoinIrred (D k) x := by
   constructor
@@ -128,18 +66,13 @@ theorem joinIrred_toD_iff (k : ℕ) (x : D k) :
           show toD k x = toD q v
           rw [hx, hv, hh]
 
-/-! ## The residue, with the join-irreducibility bookkeeping removed -/
-
-/-- **What is actually left of pillar B.**  An automorphism of `DInfty` does not
-move a stage-`k` join-irreducible off stage `k`.
-
-Compare `AssemblyChain.JoinIrredStagePreserved`, which also demanded the image
-be join-irreducible *in that stage*; `joinIrred_toD_iff` makes that automatic,
-so this is the whole of the remaining content. -/
+-- [D-1637] §The-residue-with-the-join-irreducibility
+-- [D-1638] StageFixed
 def StageFixed : Prop :=
   ∀ (θ : DInfty ≃o DInfty) (k : ℕ) (x : D k), JoinIrred (D k) x →
     ∃ y : D k, θ (toD k x) = toD k y
 
+-- [D-1639] joinIrredStagePreserved_of_stageFixed
 theorem joinIrredStagePreserved_of_stageFixed (h : StageFixed) :
     JoinIrredStagePreserved := by
   intro θ k x hx
@@ -150,16 +83,18 @@ theorem joinIrredStagePreserved_of_stageFixed (h : StageFixed) :
     rw [← hy]; exact GluingTowerLibrary.joinIrred_orderIso θ h1
   exact (joinIrred_toD_iff k y).mp h2
 
-/-! ## `colimit_compat` from the tightened residue -/
-
+-- [D-1640] §colimit-compat-from-the-tightened-residue
+-- [D-1641] colimit_rigid_of_stageFixed
 theorem colimit_rigid_of_stageFixed (h : StageFixed) :
     Subsingleton (DInfty ≃o DInfty) :=
   colimit_rigid_of_joinIrredStagePreserved (joinIrredStagePreserved_of_stageFixed h)
 
+-- [D-1642] colimit_compat_of_stageFixed
 theorem colimit_compat_of_stageFixed (h : StageFixed) :
     Subsingleton (DInfty ≃o DInfty) ↔ ∀ k, Subsingleton (D k ≃o D k) :=
   colimit_compat_of_joinIrredStagePreserved (joinIrredStagePreserved_of_stageFixed h)
 
+-- [D-1643] DBilimit_rigid_of_stageFixed
 theorem DBilimit_rigid_of_stageFixed (h : StageFixed) :
     Subsingleton (DBilimit ≃o DBilimit) :=
   DBilimit_rigid_of_joinIrredStagePreserved' (joinIrredStagePreserved_of_stageFixed h)

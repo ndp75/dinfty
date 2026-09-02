@@ -1,53 +1,6 @@
 import Dinfty.WeakProdFactorization
 
-/-!
-# The definable finite truncation
-
-§60 concluded that the shared infinite tail cannot be **cancelled**, and named
-cancellation as the missing statement.  This file supplies a substitute that is
-strictly weaker as an algebraic principle but does the same work here: the tail
-does not have to be cancelled, because it can be **cut off order-theoretically**.
-
-For a threshold `N` put
-
-```lean
-smallPart L N = {p | ∀ β, IsAtom β → β ≤ p → Nat.card (atomFactor L β) ≤ N}
-```
-
-— the elements all of whose atoms have small atom-factors.  It is defined purely
-from the order, so every isomorphism preserves it (`smallPartIso`).
-
-In `WeakProd E × S` an axis atom sits below `(w, a)` exactly when `w i ≠ ⊥`, and
-its atom-factor is `E i`.  So if **every** tail factor is bigger than `N`, the
-truncation kills the whole product:
-
-```lean
-smallPart (WeakProd E × S) N  ≃o  S
-```
-
-That is the point.  §49 recorded the shape `Base 2 y ≅ D 1 × Base 1 x` as merely
-*sufficient*, on the ground that "the shared `WeakProd (Fam 2)` can absorb, so
-the seeds could still be isomorphic without the finite pieces being".  Absorption
-is irrelevant: `smallPart` never cancels the tail, it deletes it, and deletion is
-an isomorphism invariant.
-
-## What it gives in the tower
-
-Take `N = card S`.  On the right `card (D (k+1)) > card S` (`card_levelSeed_lt`),
-so no axis survives and the truncation is `S` itself.  On the left
-`card (D k) < card S` (`card_D_lt_card_seed_notA`), so the axes `n … k` all
-survive.  Both truncations are isomorphic, giving the **finite, necessary**
-equation
-
-```
-D n × D (n+1) × … × D k × T  ≅  S.
-```
-
-Consistency check: at threshold `⊥` the genuine copy-`A` embedding satisfies it
-exactly — `copyASeedDualIso` gives `S ≅ D n × T` when `p = ⊥`, since
-`UpSet n ⊥ = D n`.  So the equation is tight, not merely necessary.
--/
-
+-- [D-3024] §The-definable-finite-truncation
 open scoped Classical
 
 universe u v
@@ -57,17 +10,17 @@ namespace Truncation
 open WeakProductAbsorption AtomFactorGeneration
 open WeakProdFactorization
 
-/-! ## The truncation and its invariance -/
-
+-- [D-3025] §The-truncation-and-its-invariance
 section Def
 
 variable {L : Type u} {L' : Type v} [PartialOrder L] [OrderBot L]
 variable [PartialOrder L'] [OrderBot L']
 
-/-- The elements all of whose atoms have atom-factor of size at most `N`. -/
+-- [D-3026] smallPart
 def smallPart (L : Type u) [PartialOrder L] [OrderBot L] (N : ℕ) : Set L :=
   {p | ∀ β : L, IsAtom β → β ≤ p → Nat.card ↥(atomFactor L β) ≤ N}
 
+-- [D-3027] mem_smallPart_map
 theorem mem_smallPart_map (e : L ≃o L') (N : ℕ) {p : L} :
     p ∈ smallPart L N ↔ e p ∈ smallPart L' N := by
   constructor
@@ -85,7 +38,7 @@ theorem mem_smallPart_map (e : L ≃o L') (N : ℕ) {p : L} :
     have hcard := Nat.card_congr (atomFactorIso e β).toEquiv
     exact hcard ▸ h _ (orderIso_isAtom e hβ) (e.monotone hβp)
 
-/-- **The truncation is an isomorphism invariant.** -/
+-- [D-3028] smallPartIso
 def smallPartIso (e : L ≃o L') (N : ℕ) :
     ↥(smallPart L N) ≃o ↥(smallPart L' N) where
   toFun p := ⟨e p.1, (mem_smallPart_map e N).mp p.2⟩
@@ -98,8 +51,7 @@ def smallPartIso (e : L ≃o L') (N : ℕ) :
 
 end Def
 
-/-! ## The collapse: a tail entirely above the threshold is deleted -/
-
+-- [D-3029] §The-collapse-a-tail-entirely-above-the-threshold
 section Collapse
 
 variable {E : ℕ → Type u} {S : Type u}
@@ -108,9 +60,8 @@ variable [PartialOrder S] [OrderBot S] [IsAtomic S]
 variable (lamE : ∀ i, E i)
 variable (hE_ne : ∀ i, lamE i ≠ ⊥) (hE_le : ∀ i (z : E i), z ≠ ⊥ → lamE i ≤ z)
 
+-- [D-3030] mem_smallPart_prod_right
 include hE_ne hE_le in
-/-- If every tail factor is bigger than the threshold, the truncation keeps
-exactly the elements with trivial product coordinate. -/
 theorem mem_smallPart_prod_right (N : ℕ) (hbig : ∀ i, N < Nat.card (E i))
     (hS : ∀ β : S, IsAtom β → Nat.card ↥(atomFactor S β) ≤ N)
     {p : WeakProd E × S} :
@@ -147,9 +98,8 @@ theorem mem_smallPart_prod_right (N : ℕ) (hbig : ∀ i, N < Nat.card (E i))
     rw [hcard]
     exact hS _ hb2
 
+-- [D-3031] smallPartRightIso
 include hE_ne hE_le in
-/-- **The tail is deleted, not cancelled.**  When every tail factor exceeds the
-threshold, the truncation of `WeakProd E × S` is `S`. -/
 def smallPartRightIso (N : ℕ) (hbig : ∀ i, N < Nat.card (E i))
     (hS : ∀ β : S, IsAtom β → Nat.card ↥(atomFactor S β) ≤ N) :
     ↥(smallPart (WeakProd E × S) N) ≃o S where
@@ -173,8 +123,7 @@ def smallPartRightIso (N : ℕ) (hbig : ∀ i, N < Nat.card (E i))
 
 end Collapse
 
-/-! ## The necessary condition -/
-
+-- [D-3032] §The-necessary-condition
 section Necessary
 
 variable {D : ℕ → Type u} {E : ℕ → Type u} {T : Type u} {S : Type u}
@@ -185,17 +134,9 @@ variable [PartialOrder S] [OrderBot S] [IsAtomic S]
 variable (lamE : ∀ i, E i)
 variable (hE_ne : ∀ i, lamE i ≠ ⊥) (hE_le : ∀ i (z : E i), z ≠ ⊥ → lamE i ≤ z)
 
+-- [D-3033] seed_iso_smallPart
 include hE_ne hE_le in
-/-- **The competitor's piece is a definable sub-poset of the original.**
 
-No cancellation is used.  The truncation is an isomorphism invariant, and on the
-right-hand side it deletes the entire tail because every tail factor exceeds the
-threshold.  So whatever `S` is, it must appear inside `WeakProd D × T` as the
-order-theoretically defined `smallPart`.
-
-In the tower, with `N = card S`: `card_levelSeed_lt` supplies `hbig`, and the
-surviving left-hand axes are exactly `D n … D k` by `card_D_lt_card_seed_notA`,
-so this reads `D n × … × D k × T ≅ S`. -/
 theorem seed_iso_smallPart (e : (WeakProd D × T) ≃o (WeakProd E × S)) (N : ℕ)
     (hbig : ∀ i, N < Nat.card (E i))
     (hS : ∀ β : S, IsAtom β → Nat.card ↥(atomFactor S β) ≤ N) :
@@ -204,12 +145,7 @@ theorem seed_iso_smallPart (e : (WeakProd D × T) ≃o (WeakProd E × S)) (N : �
 
 end Necessary
 
-/-! ## Identifying the surviving side
-
-The truncation on the left keeps exactly the elements whose product coordinate is
-supported on the *small* factors.  That subset is the finite product of those
-factors, so the necessary condition becomes an explicit finite equation. -/
-
+-- [D-3034] §Identifying-the-surviving-side
 section Left
 
 variable {D : ℕ → Type u} {T : Type u}
@@ -218,19 +154,19 @@ variable [PartialOrder T] [OrderBot T] [IsAtomic T]
 variable (lamD : ∀ j, D j)
 variable (hD_ne : ∀ j, lamD j ≠ ⊥) (hD_le : ∀ j (z : D j), z ≠ ⊥ → lamD j ≤ z)
 
-/-- The part of the restricted product supported on the factors of size `≤ N`. -/
+-- [D-3035] weakBelow
 def weakBelow (D : ℕ → Type u) [∀ j, PartialOrder (D j)] [∀ j, OrderBot (D j)]
     (N : ℕ) : Set (WeakProd D) :=
   {w | ∀ j, w.1 j ≠ ⊥ → Nat.card (D j) ≤ N}
 
-/-- `⊥` is in `weakBelow` vacuously, so the surviving side is a piece with a
-bottom like any other. -/
+-- [D-3036] weakBelowOrderBot
 instance weakBelowOrderBot (N : ℕ) : OrderBot ↥(weakBelow D N) where
   bot := ⟨⊥, fun j hj => absurd rfl hj⟩
   bot_le x := by
     change (⊥ : WeakProd D) ≤ x.1
     exact bot_le
 
+-- [D-3037] mem_smallPart_prod_left
 include hD_ne hD_le in
 theorem mem_smallPart_prod_left (N : ℕ)
     (hT : ∀ τ : T, IsAtom τ → Nat.card ↥(atomFactor T τ) ≤ N)
@@ -269,8 +205,8 @@ theorem mem_smallPart_prod_left (N : ℕ)
       rw [hcard]
       exact hT _ h2
 
+-- [D-3038] smallPartLeftIso
 include hD_ne hD_le in
-/-- The truncation of `WeakProd D × T` is `weakBelow D N × T`. -/
 def smallPartLeftIso (N : ℕ)
     (hT : ∀ τ : T, IsAtom τ → Nat.card ↥(atomFactor T τ) ≤ N) :
     ↥(smallPart (WeakProd D × T) N) ≃o (↥(weakBelow D N) × T) where
@@ -283,23 +219,24 @@ def smallPartLeftIso (N : ℕ)
 
 end Left
 
-/-! ## The surviving side is an explicit finite product -/
-
+-- [D-3039] §The-surviving-side-is-an-explicit-finite-product
 section Explicit
 
 variable {D : ℕ → Type u} [∀ j, PartialOrder (D j)] [∀ j, OrderBot (D j)]
 
-/-- Extend a function on the small indices by `⊥`. -/
+-- [D-3040] consF
 def consF (I : Finset ℕ) (f : (j : {x // x ∈ I}) → D j.1) : ∀ j, D j :=
   fun j => if h : j ∈ I then f ⟨j, h⟩ else ⊥
 
+-- [D-3041] consF_mem
 theorem consF_mem {I : Finset ℕ} (f : (j : {x // x ∈ I}) → D j.1) {j : ℕ} (h : j ∈ I) :
     consF I f j = f ⟨j, h⟩ := by simp [consF, h]
 
+-- [D-3042] consF_not_mem
 theorem consF_not_mem {I : Finset ℕ} (f : (j : {x // x ∈ I}) → D j.1) {j : ℕ}
     (h : j ∉ I) : consF I f j = ⊥ := by simp [consF, h]
 
-/-- Extend by `⊥`, packaged as an element of `weakBelow`. -/
+-- [D-3043] piToWeak
 def piToWeak (N : ℕ) (I : Finset ℕ) (hI : ∀ j, Nat.card (D j) ≤ N ↔ j ∈ I)
     (f : (j : {x // x ∈ I}) → D j.1) : ↥(weakBelow D N) :=
   ⟨⟨consF I f, ⟨I.sup id + 1, fun j hj =>
@@ -312,11 +249,12 @@ def piToWeak (N : ℕ) (I : Finset ℕ) (hI : ∀ j, Nat.card (D j) ≤ N ↔ j 
      · exact (hI j).mpr h
      · exact absurd (consF_not_mem f h) hj⟩
 
+-- [D-3044] piToWeak_apply
 theorem piToWeak_apply (N : ℕ) (I : Finset ℕ) (hI : ∀ j, Nat.card (D j) ≤ N ↔ j ∈ I)
     (f : (j : {x // x ∈ I}) → D j.1) (j : ℕ) :
     (piToWeak N I hI f).1.1 j = consF I f j := rfl
 
-/-- **`weakBelow` is the finite product of the small factors.** -/
+-- [D-3045] weakBelowPi
 def weakBelowPi (N : ℕ) (I : Finset ℕ) (hI : ∀ j, Nat.card (D j) ≤ N ↔ j ∈ I) :
     ↥(weakBelow D N) ≃o ((j : {x // x ∈ I}) → D j.1) where
   toFun w := fun j => w.1.1 j.1
@@ -349,8 +287,7 @@ def weakBelowPi (N : ℕ) (I : Finset ℕ) (hI : ∀ j, Nat.card (D j) ≤ N ↔
     · intro h j
       exact h j.1
 
-/-- **The cardinality criterion.**  The surviving side has exactly the product of
-the small factors' sizes. -/
+-- [D-3046] card_weakBelow
 theorem card_weakBelow (N : ℕ) (I : Finset ℕ)
     (hI : ∀ j, Nat.card (D j) ≤ N ↔ j ∈ I) :
     Nat.card ↥(weakBelow D N) = ∏ j ∈ I, Nat.card (D j) := by
@@ -359,8 +296,7 @@ theorem card_weakBelow (N : ℕ) (I : Finset ℕ)
 
 end Explicit
 
-/-! ## The finite equation -/
-
+-- [D-3047] §The-finite-equation
 section Equation
 
 variable {D : ℕ → Type u} {E : ℕ → Type u} {T : Type u} {S : Type u}
@@ -372,10 +308,8 @@ variable (lamD : ∀ j, D j) (lamE : ∀ i, E i)
 variable (hD_ne : ∀ j, lamD j ≠ ⊥) (hD_le : ∀ j (z : D j), z ≠ ⊥ → lamD j ≤ z)
 variable (hE_ne : ∀ i, lamE i ≠ ⊥) (hE_le : ∀ i (z : E i), z ≠ ⊥ → lamE i ≤ z)
 
+-- [D-3048] seed_iso_prod
 include hD_ne hD_le hE_ne hE_le in
-/-- **The necessary finite equation.**  No cancellation: the right-hand tail is
-deleted by the truncation and the left-hand one is cut down to its small
-factors. -/
 theorem seed_iso_prod (e : (WeakProd D × T) ≃o (WeakProd E × S)) (N : ℕ)
     (hbig : ∀ i, N < Nat.card (E i))
     (hS : ∀ β : S, IsAtom β → Nat.card ↥(atomFactor S β) ≤ N)
@@ -384,8 +318,8 @@ theorem seed_iso_prod (e : (WeakProd D × T) ≃o (WeakProd E × S)) (N : ℕ)
   ⟨((smallPartLeftIso lamD hD_ne hD_le N hT).symm.trans
     (smallPartIso e N)).trans (smallPartRightIso lamE hE_ne hE_le N hbig hS)⟩
 
+-- [D-3049] card_eq_prod
 include hD_ne hD_le hE_ne hE_le in
-/-- **The checkable consequence.**  A competitor's size is forced exactly. -/
 theorem card_eq_prod (e : (WeakProd D × T) ≃o (WeakProd E × S)) (N : ℕ)
     (hbig : ∀ i, N < Nat.card (E i))
     (hS : ∀ β : S, IsAtom β → Nat.card ↥(atomFactor S β) ≤ N)

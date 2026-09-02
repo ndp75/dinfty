@@ -4,40 +4,7 @@ import Dinfty.GlueTag
 
 open GluingTowerLibrary SierpinskiApplication
 
-/-!
-# Surjectivity: `PhiSupExists` and `PhiProjContinuous`
-
-The second half of Theorem A's order-theoretic statement.  `PhiCoconeLUB` gave
-the colimit property, hence an order-*embedding* `Φ(D∞^Φ) ↪ D∞^Φ`; what is left
-is that every point of the bilimit is hit, and `EpPairTower.toBilim_surjective`
-reduces that to two facts about the chain `k ↦ eLeg k (d.1 k)`.
-
-## The one structural input
-
-The chain lives in the glue, so its supremum is taken copy by copy — and the
-copy has to be *constant* for that to make sense.  It is, and the reason is not
-the glue order (where the tag is **not** monotone: `tagCGen c ≤ skelG3Gen`
-whenever `c ≤ m`).  It is the tower's own projection: `prj` is `Φ` of a
-morphism, i.e. `canonGen ∘ baseMapGen`, and
-
-* `baseMapGen` preserves the tag exactly, and
-* `canonGen` can only *lower* it (`GlueTag.tagIdx_canonGen_le`).
-
-So `k ↦ tagIdx (d.1 k)` is a monotone `ℕ → ℕ` bounded by `2`, hence eventually
-constant.  On that tail the payloads `p i` are a chain in `EndP (D _)`, their
-images `q i = insEndUp _ (p i)` a chain in `ScottEndP B` — whose supremum
-`PhiChainSup` builds — and `GlueTag.tagPt_isLUB` puts it back in the glue.
-
-## `PhiProjContinuous` is not a second analysis
-
-For `k ≥ j` the family `pLeg j (eLeg k (d.1 k))` is *constant* at `d.1 j`
-(`himg_ge`, the cocone identities alone).  Since the copy-inclusions are
-injective (`GlueTag.tagPt_injective`), the projected payloads are constant too,
-so the supremum `projEndDown j` of the chain — which exists by
-`PhiChainSup.projEndDown_isLUB` — *is* that constant.  Hence `pLeg j x = d.1 j`,
-and the required `IsLUB` follows.
--/
-
+-- [D-2507] §Surjectivity-PhiSupExists-and-PhiProjContinuous
 universe u
 
 namespace PhiSurjective
@@ -47,17 +14,21 @@ open PhiTriTower
 
 attribute [-instance] OrderHom.instDecidableEqOfForall
 
+-- [D-2508] hmk
 private theorem hmk (k : ℕ) : (markedPt k) ≠ ⊥ := (D_marked_point_nondegenerate k).1
+-- [D-2509] hbtk
 private theorem hbtk (k : ℕ) : (⊥ : EndP (D k)) ≠ ⊤ := (D_marked_point_nondegenerate k).2.2
 
+-- [D-2510] hpm
 private theorem hpm : ∀ k, Monotone (PhiCocone.pLeg k) :=
   fun k _ _ hxy => PhiCocone.pLeg_monotone k hxy
 
+-- [D-2511] hem
 private theorem hem : ∀ k, Monotone (PhiCocone.eLeg k) :=
   fun k _ _ hxy => PhiCocone.eLeg_monotone k hxy
 
-/-! ## Two small generalities -/
-
+-- [D-2512] §Two-small-generalities
+-- [D-2513] isLUB_of_tail
 theorem isLUB_of_tail {α : Type*} [PartialOrder α] {f : ℕ → α} (hmono : Monotone f)
     {c : α} {N : ℕ} (hc : IsLUB (Set.range fun i => f (N + i)) c) : IsLUB (Set.range f) c := by
   constructor
@@ -68,25 +39,26 @@ theorem isLUB_of_tail {α : Type*} [PartialOrder α] {f : ℕ → α} (hmono : M
     rintro _ ⟨i, rfl⟩
     exact hw ⟨N + i, rfl⟩
 
-/-- The `End`-level deflation: `endUp ∘ endDown ≤ id`, from `E.deflation` twice. -/
+-- [D-2514] endUp_endDown_le
 theorem endUp_endDown_le {k : ℕ} (E : TriEP k) (h : EndP (D (k + 1))) :
     E.endUp.toFun (E.endDown.toFun h) ≤ h := by
   refine OrderHom.le_def.mpr (fun x => ?_)
   show E.emb (E.prj (h (E.emb (E.prj x)))) ≤ h x
   exact le_trans (E.deflation _) (h.monotone (E.deflation x))
 
-/-! ## The tower's projection, on values -/
-
+-- [D-2515] §The-tower-s-projection-on-values
+-- [D-2516] prj_succ
 theorem prj_succ (n : ℕ) : (iter (n + 1)).prj = phiTowerD (iter n).endDown := rfl
 
+-- [D-2517] d_val
 theorem d_val (d : phiTowerEP.shift.Bilim) (k : ℕ) :
     (d.1 k).1 = canonGen (markedPt (k + 1))
       (baseMapGen ((iter k).endDown).toFun (d.1 (k + 1)).1) := by
   conv_lhs => rw [← d.2 k]
   rfl
 
-/-! ## `pLeg` on tag points -/
-
+-- [D-2518] §pLeg-on-tag-points
+-- [D-2519] pLeg_tagPt
 theorem pLeg_tagPt (j t : ℕ) (H : ScottEndP B) :
     PhiCocone.pLeg j (tagPt t markedB markedB_ne_bot endPB_bot_ne_top H)
       = tagPt t (markedPt (j + 1)) (hmk (j + 1)) (hbtk (j + 1))
@@ -98,19 +70,21 @@ theorem pLeg_tagPt (j t : ℕ) (H : ScottEndP B) :
   rw [canonGen_baseMapGen_canon (PhiCocone.projEndDown j) markedB_ne_bot (hmk (j + 1))
       (hbtk (j + 1)), baseMapGen_tagInj]
 
-/-! ## `insEndUp` is injective, and carries the canon-fixed condition -/
-
+-- [D-2520] §insEndUp-is-injective-and-carries-the-canon
+-- [D-2521] insEndUp_retract
 theorem insEndUp_retract (k : ℕ) (a : EndP (D (k + 1))) :
     (PhiCocone.projEndDown k).toFun ((PhiCocone.insEndUp k).toFun a) = a :=
   congrArg (fun F : EndP (D (k + 1)) →o EndP (D (k + 1)) => F a)
     (PhiCocone.projEndDown_insEndUp k)
 
+-- [D-2522] insEndUp_injective
 theorem insEndUp_injective (k : ℕ) :
     Function.Injective (fun a : EndP (D (k + 1)) => (PhiCocone.insEndUp k).toFun a) := by
   intro a b hab
   rw [← insEndUp_retract k a, ← insEndUp_retract k b]
   exact congrArg _ hab
 
+-- [D-2523] fix_transport
 theorem fix_transport {k t : ℕ} {p : EndP (D (k + 1))}
     (h : canonGen (markedPt (k + 1)) (tagInj t p) = tagInj t p) :
     canonGen markedB (tagInj t ((PhiCocone.insEndUp k).toFun p))
@@ -140,16 +114,16 @@ theorem fix_transport {k t : ℕ} {p : EndP (D (k + 1))}
       · intro hc
         exact hm (hinj (hc.trans (PhiCocone.insEndUp k).map_mark.symm))
 
-/-! ## The legs read the tower back -/
-
+-- [D-2524] §The-legs-read-the-tower-back
+-- [D-2525] himg_ge
 theorem himg_ge (d : phiTowerEP.shift.Bilim) {j k : ℕ} (hjk : j ≤ k) :
     PhiCocone.pLeg j (PhiCocone.eLeg k (d.1 k)) = d.1 j := by
   rw [PhiCoconeLUB.isColimitCocone.proj_prjLe hpm hem hjk (PhiCocone.eLeg k (d.1 k)),
     PhiCoconeLUB.isColimitCocone.retraction k (d.1 k)]
   exact Bilim_prjLe_eq d hjk
 
-/-! ## The chain, and its tag -/
-
+-- [D-2526] §The-chain-and-its-tag
+-- [D-2527] chain_mono
 theorem chain_mono (d : phiTowerEP.shift.Bilim) :
     Monotone fun k => PhiCocone.eLeg k (d.1 k) := by
   refine monotone_nat_of_le_succ (fun k => ?_)
@@ -161,6 +135,7 @@ theorem chain_mono (d : phiTowerEP.shift.Bilim) :
         (PhiCocone.cocone_compat k (d.1 k)).symm
     _ ≤ PhiCocone.eLeg (k + 1) (d.1 (k + 1)) := hem (k + 1) hd
 
+-- [D-2528] tag_mono
 theorem tag_mono (d : phiTowerEP.shift.Bilim) :
     Monotone fun k => tagIdx (d.1 k).1 := by
   refine monotone_nat_of_le_succ (fun k => ?_)
@@ -169,8 +144,8 @@ theorem tag_mono (d : phiTowerEP.shift.Bilim) :
   refine le_trans (tagIdx_canonGen_le _ _) ?_
   rw [tagIdx_baseMapGen]
 
-/-! ## The construction -/
-
+-- [D-2529] §The-construction
+-- [D-2530] exists_lub_with_proj
 set_option maxHeartbeats 2000000 in
 theorem exists_lub_with_proj (d : phiTowerEP.shift.Bilim) :
     ∃ x : PhiBilimit.phiB,
@@ -184,7 +159,6 @@ theorem exists_lub_with_proj (d : phiTowerEP.shift.Bilim) :
     intro i
     have h1 : tagIdx (d.1 (N + i)).1 = tagIdx (d.1 N).1 := hN (N + i) (Nat.le_add_right N i)
     rw [h1, hts]
-  -- payloads on the tail
   have hpay : ∀ i, ∃ pi : EndP (D (N + i + 1)), (d.1 (N + i)).1 = tagInj t pi := by
     intro i
     obtain ⟨pi, hpi⟩ := exists_payload (d.1 (N + i)).1
@@ -194,7 +168,6 @@ theorem exists_lub_with_proj (d : phiTowerEP.shift.Bilim) :
     intro i
     rw [← hp i]
     exact (d.1 (N + i)).2
-  -- the payload chain steps down through `endDown`
   have hstep : ∀ i, p i = ((iter (N + i)).endDown).toFun (p (i + 1)) := by
     intro i
     refine canonGen_tagInj_inj (markedPt (N + i + 1)) t ?_
@@ -206,7 +179,6 @@ theorem exists_lub_with_proj (d : phiTowerEP.shift.Bilim) :
             (d.1 (N + i + 1)).1) := d_val d (N + i)
     have e3 : (d.1 (N + i + 1)).1 = tagInj t (p (i + 1)) := hp (i + 1)
     rw [e1, e2, e3, baseMapGen_tagInj]
-  -- the image chain in `ScottEndP B`
   obtain ⟨q, hqdef⟩ : ∃ q : ℕ → ScottEndP B,
       ∀ i, q i = (PhiCocone.insEndUp (N + i)).toFun (p i) := ⟨_, fun _ => rfl⟩
   have hq : Monotone q := by
@@ -278,13 +250,14 @@ theorem exists_lub_with_proj (d : phiTowerEP.shift.Bilim) :
     rw [pLeg_tagPt j t (chainSup q hq), heq]
     exact hconst j (by omega)
 
-/-! ## The two hypotheses, and Theorem A's order-theoretic half -/
-
+-- [D-2531] §The-two-hypotheses-and-Theorem-A-s-order
+-- [D-2532] phiSupExists
 theorem phiSupExists : PhiCocone.PhiSupExists := by
   intro d
   obtain ⟨x, hx, _⟩ := exists_lub_with_proj d
   exact ⟨x, hx⟩
 
+-- [D-2533] phiProjContinuous
 theorem phiProjContinuous : PhiCocone.PhiProjContinuous := by
   intro d x hx j
   obtain ⟨x0, hx0, hproj⟩ := exists_lub_with_proj d
@@ -298,7 +271,7 @@ theorem phiProjContinuous : PhiCocone.PhiProjContinuous := by
   · intro w hw
     exact le_trans (le_of_eq (himg_ge d (le_refl j)).symm) (hw ⟨j, rfl⟩)
 
-/-- **Theorem A, order-theoretic half — unconditional: `Φ(D∞^Φ) ≃o D∞^Φ`.** -/
+-- [D-2534] theoremA_orderIso
 noncomputable def theoremA_orderIso : PhiBilimit.phiB ≃o phiTowerEP.Bilim :=
   PhiCoconeLUB.theoremA_orderIso phiSupExists phiProjContinuous
 

@@ -3,49 +3,7 @@ import Dinfty.StageAssembly
 
 open GluingTowerLibrary SierpinskiApplication
 
-/-!
-# Copy `B` and copy-`C`-low, from an arbitrary base stage
-
-With `SeedCardBound.card_D_lt_card_seed` replacing the `4 ≤ card S` count, every
-step of the copy-`B` and copy-`C`-low closures becomes base-independent:
-
-* the **multi-atom** branch is `not_genByFactors_of_two_atoms(C)`, which never
-  mentioned the base;
-* the **single-atom** branch ran `factor_in_finite_pieceL` at `j = 0` and
-  `j = k`, concluded `k = 0`, and contradicted `card (D 0) = 3` against
-  `4 ≤ card S`.  From base `n` it runs at `j = 0` and `j = k - n`, concludes
-  `n = k`, and contradicts `card (D n) = card S` against
-  `card (D n) < card (LevelSeed (n+1) y)`.
-
-So `copyB_forces_false_at` and `copyC_low_forces_false_at` hold at every base,
-and `copyBCExcludedAt_of_high` reduces `StageAssembly.CopyBCExcludedAt n z` to
-copy-`C`-high alone — exactly what `CopyCLow.twoPointFixed_of_CHigh` did at
-stage `0`.
-
-## Where the hypothesis actually goes
-
-The **single-atom** half needs nothing about the left-hand piece:
-`single_atom_absurd` uses only `factor_in_finite_pieceL`, uniqueness of the atom,
-and `card_D_lt_card_seed`.  So it is a theorem at every base and every point, and
-
-```lean
-colimit_compat_of_multiAtom :
-  (∀ k x, JoinIrred x → CopyBCMultiAtomExcludedAt k (toD k x))
-    → Subsingleton (DInfty ≃o DInfty)
-```
-
-carries **no side condition**.  `CopyBCMultiAtomExcludedAt` asks only about
-competitors whose seed has two distinct atoms.
-
-`GenByFactors T` is what the **multi-atom** half needs, and it is *not* free once
-`T` ranges over `Base n x`: it holds at both stage-`0` pieces and at **14 of the
-16** stage-`1` pieces, failing at `Base 1 (tag_B 5)` and `Base 1 (tag_C 5)`
-(`_archive/check_genByFactors_level1_pieces.py`).  So it appears only in
-`copyBCMultiAtom_of_gen`, as an implication *at a point* — never quantified over
-all points, which would be false.
-
--/
-
+-- [D-3146] §Copy-B-and-copy-C-low-from-an-arbitrary-base
 open scoped Classical
 
 namespace CopyBCAtBase
@@ -56,8 +14,8 @@ open SeedSeparation MidAnchor SeedChain TwoPointHypothesis CopyBExclusion
 open CopyBAtoms CopyCLow TowerNoAbsorption TowerCardGrowth
 open SeedCardBound StageAssembly
 
-/-! ## The single-atom contradiction, at an arbitrary base -/
-
+-- [D-3147] §The-single-atom-contradiction-at-an-arbitrary
+-- [D-3148] single_atom_absurd
 private theorem single_atom_absurd {T : Type} [PartialOrder T] [OrderBot T]
     [IsAtomic T] (n k : ℕ) (hnk : n ≤ k) {y : D (k + 1)}
     [OrderBot ((LevelSeed (k + 1) y)ᵒᵈ)] [IsAtomic ((LevelSeed (k + 1) y)ᵒᵈ)]
@@ -109,8 +67,8 @@ private theorem single_atom_absurd {T : Type} [PartialOrder T] [OrderBot T]
       = Fintype.card ↥(atomFactor ((LevelSeed (k + 1) y)ᵒᵈ) βk) := hc0
   omega
 
-/-! ## Copy `B` -/
-
+-- [D-3149] §Copy-B
+-- [D-3150] copyB_forces_false_at
 theorem copyB_forces_false_at {T : Type} [PartialOrder T] [OrderBot T] [IsAtomic T]
     (hT : GenByFactors T) (n k : ℕ) (hnk : n ≤ k) {x : EndP (D k)} (hx : x ≠ ⊥)
     (hy : JoinIrred (D (k + 1)) (glueB (markedPt k) x hx))
@@ -144,8 +102,8 @@ theorem copyB_forces_false_at {T : Type} [PartialOrder T] [OrderBot T] [IsAtomic
       (fun hnk' => hnk' ▸ card_D_lt_card_seed_B k hx hy)
       (fun α β hα hβ => hmulti α β hα hβ) e
 
-/-! ## Copy `C`, below the marked point -/
-
+-- [D-3151] §Copy-C-below-the-marked-point
+-- [D-3152] copyC_low_forces_false_at
 theorem copyC_low_forces_false_at {T : Type} [PartialOrder T] [OrderBot T]
     [IsAtomic T] (hT : GenByFactors T) (n k : ℕ) (hnk : n ≤ k) {x : EndP (D k)}
     (hx : x ≠ ⊥) (hxm : x ≠ markedPt k) (hmx : ¬ (markedPt k ≤ x))
@@ -179,15 +137,8 @@ theorem copyC_low_forces_false_at {T : Type} [PartialOrder T] [OrderBot T]
       (fun hnk' => hnk' ▸ card_D_lt_card_seed_C k hx hxm hy)
       (fun α β hα hβ => hmulti α β hα hβ) e
 
-/-! ## The single-atom half is unconditional
-
-`single_atom_absurd` uses only `factor_in_finite_pieceL`, uniqueness of the atom
-and `card_D_lt_card_seed` — **nothing about the left-hand piece**.  So the
-competitors whose seed has one atom are excluded at every base and every point,
-with no hypothesis at all.  What remains is the multi-atom half. -/
-
-/-- The remaining obligation: competitors whose seed has **two distinct
-atoms**. -/
+-- [D-3153] §The-single-atom-half-is-unconditional
+-- [D-3154] CopyBCMultiAtomExcludedAt
 def CopyBCMultiAtomExcludedAt (n : ℕ) (z : DInfty) : Prop :=
   ∀ (k : ℕ), n ≤ k → ∀ (y : D (k + 1)) (hy : JoinIrred (D (k + 1)) y),
     (¬ ∃ F : EndP (D k), y = glueA (markedPt k) F) →
@@ -196,7 +147,7 @@ def CopyBCMultiAtomExcludedAt (n : ℕ) (z : DInfty) : Prop :=
       ∧ α ≠ β) →
     ¬ Nonempty (JBelow (toD (k + 1) y) ≃o JBelow z)
 
-/-- **The reduction, with no side condition on the piece.** -/
+-- [D-3155] copyBCExcludedAt_of_multiAtom
 theorem copyBCExcludedAt_of_multiAtom (n : ℕ) (z : DInfty) {T : Type}
     [PartialOrder T] [OrderBot T] [IsAtomic T]
     (hz : (JBelow z)ᵒᵈ ≃o (WeakProd (Fam n) × T))
@@ -213,9 +164,7 @@ theorem copyBCExcludedAt_of_multiAtom (n : ℕ) (z : DInfty) {T : Type}
       (fun α β hα hβ => hmulti α β hα hβ)
       (hz.symm.trans (e0.dual.symm.trans (seedShape (k + 1) y hy)))
 
-/-- **`colimit_compat` from the multi-atom obligation alone.**  This is the
-honest form: no hypothesis on the left-hand pieces, because the single-atom half
-is now a theorem. -/
+-- [D-3156] colimit_compat_of_multiAtom
 theorem colimit_compat_of_multiAtom
     (h : ∀ (k : ℕ) (x : D k), JoinIrred (D k) x →
       CopyBCMultiAtomExcludedAt k (toD k x)) :
@@ -225,20 +174,14 @@ theorem colimit_compat_of_multiAtom
   haveI : IsAtomic (Base k x) := GluingTowerLibrary.isAtomic_of_finite
   exact copyBCExcludedAt_of_multiAtom k (toD k x) (seedShape k x hx) (h k x hx)
 
-/-! ## What `GenByFactors` buys, stated where it is true -/
-
-/-- The copy-`C`-high obligation at base stage `n`. -/
+-- [D-3157] §What-GenByFactors-buys-stated-where-it-is-true
+-- [D-3158] CopyCHighExcludedAt
 def CopyCHighExcludedAt (n : ℕ) (z : DInfty) : Prop :=
   ∀ (k : ℕ), n ≤ k → ∀ (x : EndP (D k)) (hx : x ≠ ⊥) (hxm : x ≠ markedPt k),
     markedPt k ≤ x → JoinIrred (D (k + 1)) (glueC (markedPt k) x hx hxm) →
     ¬ Nonempty (JBelow (toD (k + 1) (glueC (markedPt k) x hx hxm)) ≃o JBelow z)
 
-/-- **Generation of the piece discharges the multi-atom obligation for copy `B`
-and copy-`C`-low**, leaving copy-`C`-high.
-
-`GenByFactors T` is *not* free — it fails at `Base 1 (tag_B 5)` and
-`Base 1 (tag_C 5)`, 2 of the 16 stage-`1` pieces — so this is stated as an
-implication at a point, not quantified over all points. -/
+-- [D-3159] copyBCMultiAtom_of_gen
 theorem copyBCMultiAtom_of_gen (n : ℕ) (z : DInfty) {T : Type} [PartialOrder T]
     [OrderBot T] [IsAtomic T] (hz : (JBelow z)ᵒᵈ ≃o (WeakProd (Fam n) × T))
     (hT : GenByFactors T) (hH : CopyCHighExcludedAt n z) :
@@ -259,13 +202,8 @@ theorem copyBCMultiAtom_of_gen (n : ℕ) (z : DInfty) {T : Type} [PartialOrder T
         (hz.symm.trans (e0.dual.symm.trans
           (seedShape (k + 1) (glueC (markedPt k) x hx hxm) hy)))
 
-/-! ## The remaining obligation, split into its three cases
-
-`copyBCMultiAtom_of_gen` bundles copy `B`, copy-`C`-low and copy-`C`-high behind
-one `GenByFactors` hypothesis.  They are independent, and only the first two use
-it, so here they are separately. -/
-
-/-- Copy-`B` competitors with two distinct atoms. -/
+-- [D-3160] §The-remaining-obligation-split-into-its-three
+-- [D-3161] MultiAtomB
 def MultiAtomB (n : ℕ) (z : DInfty) : Prop :=
   ∀ (k : ℕ), n ≤ k → ∀ (x : EndP (D k)) (hx : x ≠ ⊥)
     (hy : JoinIrred (D (k + 1)) (glueB (markedPt k) x hx)),
@@ -274,7 +212,7 @@ def MultiAtomB (n : ℕ) (z : DInfty) : Prop :=
       ∧ α ≠ β) →
     ¬ Nonempty (JBelow (toD (k + 1) (glueB (markedPt k) x hx)) ≃o JBelow z)
 
-/-- Copy-`C` competitors below the marked point, with two distinct atoms. -/
+-- [D-3162] MultiAtomCLow
 def MultiAtomCLow (n : ℕ) (z : DInfty) : Prop :=
   ∀ (k : ℕ), n ≤ k → ∀ (x : EndP (D k)) (hx : x ≠ ⊥) (hxm : x ≠ markedPt k),
     ¬ (markedPt k ≤ x) →
@@ -284,6 +222,7 @@ def MultiAtomCLow (n : ℕ) (z : DInfty) : Prop :=
       ∧ α ≠ β) →
     ¬ Nonempty (JBelow (toD (k + 1) (glueC (markedPt k) x hx hxm)) ≃o JBelow z)
 
+-- [D-3163] copyBCMultiAtom_of_parts
 theorem copyBCMultiAtom_of_parts (n : ℕ) (z : DInfty)
     (hB : MultiAtomB n z) (hL : MultiAtomCLow n z) (hH : CopyCHighExcludedAt n z) :
     CopyBCMultiAtomExcludedAt n z := by
@@ -296,6 +235,7 @@ theorem copyBCMultiAtom_of_parts (n : ℕ) (z : DInfty)
     · exact hH k hnk x hx hxm hmx hy
     · exact hL k hnk x hx hxm hmx hy hmulti
 
+-- [D-3164] multiAtomB_of_gen
 theorem multiAtomB_of_gen (n : ℕ) (z : DInfty) {T : Type} [PartialOrder T]
     [OrderBot T] [IsAtomic T] (hz : (JBelow z)ᵒᵈ ≃o (WeakProd (Fam n) × T))
     (hT : GenByFactors T) : MultiAtomB n z := by
@@ -305,6 +245,7 @@ theorem multiAtomB_of_gen (n : ℕ) (z : DInfty) {T : Type} [PartialOrder T]
     (hz.symm.trans (e0.dual.symm.trans
       (seedShape (k + 1) (glueB (markedPt k) x hx) hy)))
 
+-- [D-3165] multiAtomCLow_of_gen
 theorem multiAtomCLow_of_gen (n : ℕ) (z : DInfty) {T : Type} [PartialOrder T]
     [OrderBot T] [IsAtomic T] (hz : (JBelow z)ᵒᵈ ≃o (WeakProd (Fam n) × T))
     (hT : GenByFactors T) : MultiAtomCLow n z := by
@@ -314,14 +255,8 @@ theorem multiAtomCLow_of_gen (n : ℕ) (z : DInfty) {T : Type} [PartialOrder T]
     (hz.symm.trans (e0.dual.symm.trans
       (seedShape (k + 1) (glueC (markedPt k) x hx hxm) hy)))
 
-/-! ## Which pieces fail `GenByFactors`, as a theorem
-
-The computation says generation fails at exactly two of the sixteen stage-`1`
-pieces.  It is not an accident of that level: the same lemmas that exclude a
-multi-atom competitor say, one level down, that a multi-atom copy-`B` or
-copy-`C`-low *point* has an ungenerated piece.  So the exceptional set is
-characterised, not merely enumerated. -/
-
+-- [D-3166] §Which-pieces-fail-GenByFactors-as-a-theorem
+-- [D-3167] notGen_base_of_two_atoms_B
 theorem notGen_base_of_two_atoms_B (m : ℕ) {x : EndP (D m)} (hx : x ≠ ⊥)
     (hji : JoinIrred (D (m + 1)) (glueB (markedPt m) x hx))
     {α β : (LevelSeed (m + 1) (glueB (markedPt m) x hx))ᵒᵈ}
@@ -331,6 +266,7 @@ theorem notGen_base_of_two_atoms_B (m : ℕ) {x : EndP (D m)} (hx : x ≠ ⊥)
   letI := levelSeedDualBot hji
   exact not_genByFactors_of_two_atoms (copyB_ne_top m hx hji) rfl α β hα hβ hne
 
+-- [D-3168] notGen_base_of_two_atoms_CLow
 theorem notGen_base_of_two_atoms_CLow (m : ℕ) {x : EndP (D m)} (hx : x ≠ ⊥)
     (hxm : x ≠ markedPt m) (hmx : ¬ (markedPt m ≤ x))
     (hji : JoinIrred (D (m + 1)) (glueC (markedPt m) x hx hxm))

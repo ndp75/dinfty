@@ -3,54 +3,19 @@ import Dinfty.PhiBilimit
 
 open GluingTowerLibrary SierpinskiApplication
 
-/-!
-# `B` and `DBilimit` are not the same domain
-
-Theorem A is proved about `B = phiTowerEP.Bilim` (the `Φ`-iterate bilimit);
-Theorem B is proved about `DBilimit` (the legacy `iotaD` bilimit).  Nothing in
-the development identifies them, and this module shows nothing can: **they are
-not order-isomorphic.**
-
-## The invariant
-
-The two towers differ at `⊤` — `glueAA` preserves it, `iotaD` does not
-(`FTowerTripointed.glueAA_top`, `glueAA_top_ne_iotaD_top`).  That difference is
-visible in the bilimits as compactness of the top:
-
-* In `DBilimit`, `⊤ = topSeq` is the supremum of its own approximating chain
-  `insertAtLevel n (topSeq.1 n)`, and that chain **never reaches it**
-  (`insertAtLevel_topSeq_ne`), because `iotaD n ⊤ ≠ ⊤`.  So `topSeq` is not
-  compact.
-* In `B`, `z.1 0 = ⊤` already forces `z = topB`: the deflation gives
-  `emb k ⊤ ≤ z.1 (k+1)`, and `emb k ⊤ = ⊤` because `glueAA` is tripointed, so
-  the top propagates up every level.  With levels finite, `topB` is compact.
-
-Order isomorphisms preserve the top and preserve compactness, so no
-`B ≃o DBilimit` exists.
-
-## What this costs
-
-Theorem A and Theorem B are, as they stand, statements about **different
-objects**.  `rigid_of_orderIso` below records what an identification would have
-bought — Theorem B's rigidity transferred to Theorem A's carrier — and
-`no_orderIso` says it is not available.  Whether some *other* relation between
-the two (a retraction, an embedding, agreement on a sub-domain) suffices for the
-paper's purposes is not settled here.
--/
-
+-- [D-3250] §B-and-DBilimit-are-not-the-same-domain
 open Set
 
 namespace BilimitGap
 
 open PhiIterateTower PhiBilimit EpPairTower
 
-/-! ## 1.  ω-compactness, and its invariance -/
-
-/-- Compactness against increasing `ℕ`-chains.  Enough for the argument, and it
-avoids needing a complete lattice on either side. -/
+-- [D-3251] §1-compactness-and-its-invariance
+-- [D-3252] OmegaCompact
 def OmegaCompact {α : Type*} [PartialOrder α] (x : α) : Prop :=
   ∀ c : ℕ → α, Monotone c → ∀ s, IsLUB (Set.range c) s → x ≤ s → ∃ n, x ≤ c n
 
+-- [D-3253] OmegaCompact.map
 theorem OmegaCompact.map {α β : Type*} [PartialOrder α] [PartialOrder β]
     (e : α ≃o β) {x : α} (h : OmegaCompact x) : OmegaCompact (e x) := by
   intro c hc s hs hxs
@@ -67,8 +32,8 @@ theorem OmegaCompact.map {α β : Type*} [PartialOrder α] [PartialOrder β]
   have := e.monotone hn
   rwa [e.apply_symm_apply] at this
 
-/-! ## 2.  In `DBilimit` the top is not compact -/
-
+-- [D-3254] §2-In-DBilimit-the-top-is-not-compact
+-- [D-3255] topSeq_not_omegaCompact
 theorem topSeq_not_omegaCompact : ¬ OmegaCompact topSeq := by
   intro h
   obtain ⟨n, hn⟩ := h (fun n => insertAtLevel n (topSeq.1 n))
@@ -76,10 +41,11 @@ theorem topSeq_not_omegaCompact : ¬ OmegaCompact topSeq := by
     (chainSet_isLUB topSeq) (le_refl _)
   exact insertAtLevel_topSeq_ne n (le_antisymm (le_topSeq _) hn)
 
-/-! ## 3.  In `B` the top IS compact -/
-
+-- [D-3256] §3-In-B-the-top-IS-compact
+-- [D-3257] topB_val
 theorem topB_val (k : ℕ) : (topB : B).1 k = (⊤ : D (k + 1)) := rfl
 
+-- [D-3258] level_top_succ
 theorem level_top_succ {z : B} {k : ℕ} (h : z.1 k = (⊤ : D (k + 1))) :
     z.1 (k + 1) = (⊤ : D (k + 2)) := by
   have hp : (iter k).prj (z.1 (k + 1)) = z.1 k := z.2 k
@@ -89,6 +55,7 @@ theorem level_top_succ {z : B} {k : ℕ} (h : z.1 k = (⊤ : D (k + 1))) :
   refine le_antisymm ?_ hd
   exact le_top (α := D (k + 2))
 
+-- [D-3259] eq_topB_of_zero_top
 theorem eq_topB_of_zero_top {z : B} (h : z.1 0 = (⊤ : D 1)) : z = topB := by
   refine Subtype.ext (funext fun k => ?_)
   rw [topB_val k]
@@ -96,11 +63,13 @@ theorem eq_topB_of_zero_top {z : B} (h : z.1 0 = (⊤ : D 1)) : z = topB := by
   | zero => exact h
   | succ k ih => exact level_top_succ ih
 
+-- [D-3260] le_topB
 theorem le_topB (z : B) : z ≤ topB := by
   intro k
   show z.1 k ≤ (⊤ : D (k + 1))
   exact le_top (α := D (k + 1))
 
+-- [D-3261] topB_omegaCompact
 theorem topB_omegaCompact : OmegaCompact (topB : B) := by
   intro c hc s hs hts
   have hstop : s = topB := le_antisymm (le_topB s) hts
@@ -113,7 +82,6 @@ theorem topB_omegaCompact : OmegaCompact (topB : B) := by
     rw [← Set.range_comp]
     rfl
   rw [himg, topB_val 0] at hlvl
-  -- a monotone chain in a finite poset stabilises
   obtain ⟨N, hN⟩ := WellFoundedGT.monotone_chain_condition
     (⟨fun n => (c n).1 0, fun a b hab => (hc hab) 0⟩ : ℕ →o D 1)
   have hub : ∀ b ∈ Set.range fun n => (c n).1 0, b ≤ (c N).1 0 := by
@@ -124,8 +92,8 @@ theorem topB_omegaCompact : OmegaCompact (topB : B) := by
   have htop0 : (⊤ : D 1) ≤ (c N).1 0 := hlvl.2 hub
   exact ⟨N, le_of_eq (eq_topB_of_zero_top (le_antisymm (le_top (α := D 1)) htop0)).symm⟩
 
-/-! ## 4.  So there is no order isomorphism -/
-
+-- [D-3262] §4-So-there-is-no-order-isomorphism
+-- [D-3263] no_orderIso
 theorem no_orderIso : ¬ Nonempty (B ≃o DBilimit) := by
   rintro ⟨e⟩
   have htop : e topB = topSeq := by
@@ -134,8 +102,8 @@ theorem no_orderIso : ¬ Nonempty (B ≃o DBilimit) := by
     rwa [e.apply_symm_apply] at this
   exact topSeq_not_omegaCompact (htop ▸ topB_omegaCompact.map e)
 
-/-! ## 5.  What an identification would have bought -/
-
+-- [D-3264] §5-What-an-identification-would-have-bought
+-- [D-3265] rigid_of_orderIso
 theorem rigid_of_orderIso (e : B ≃o DBilimit) : Subsingleton (B ≃o B) := by
   haveI := CopyCHigh.DBilimit_rigid
   refine ⟨fun f g => ?_⟩

@@ -4,77 +4,49 @@ import Mathlib.Data.Fin.Basic
 import Mathlib.Order.Fin.Basic
 import Mathlib.Tactic
 
-/-!
-# Running the split: `LevelImageStableJI` cannot be proved generically
-
-The stopping rule from §113 says the next commit proves `LevelImageStableJI` or
-refutes it.  This is the outcome of running that, and it is a partial answer:
-**the statement is false as a general fact about bounded lattices**, so any proof
-of it must use `D`-specific structure.  It is *not* refuted at the `D` levels.
-
-## The general pattern is false
-
-`LevelEmbUnique`-shaped statements say: a monotone, order-reflecting,
-`⊥`/`⊤`-preserving, join-preserving map between two finite bounded lattices is
-the canonical one.  For a three-chain into a four-chain there are **two** such
-maps — the middle element has two places to go, and every hypothesis is
-satisfied by both.
-
-```lean
-embChainA, embChainB : Fin 3 → Fin 4
-```
-
-Both are monotone, order-reflecting, `⊥`- and `⊤`-preserving and join-preserving,
-and they are different (`chain_not_unique`).
-
-## What that means for the residue
-
-Nothing in the derivation of `LevelImageStableJI` used any property of `D` beyond
-"finite bounded lattice with an ep-pair to the next level".  The counterexample
-above has all of that.  So:
-
-* a proof of `LevelImageStableJI` **must** consume `D`-specific structure — the
-  copy hierarchy, `D_all_rigid`, the seed classification — exactly as pillar B's
-  `FirstSliceCHigh` did;
-* an *abstract* attempt is refuted before it starts, and should not be made;
-* the domain in the real statement is `D (k+1)`, never a chain (the `Φ`-tower's
-  levels start at `D 1`), so this counterexample does **not** refute the residue.
-
-The residue is therefore **open, and open on `D`-specific grounds**.
--/
-
+-- [D-3539] §Running-the-split-LevelImageStableJI-cannot-be
 namespace LevelEmbNotGeneric
 
-/-- Two bounded join-embeddings of a three-chain into a four-chain. -/
+-- [D-3540] embChainA
 def embChainA : Fin 3 → Fin 4 := ![0, 1, 3]
 
+-- [D-3541] embChainB
 def embChainB : Fin 3 → Fin 4 := ![0, 2, 3]
 
+-- [D-3542] embChainA_mono
 theorem embChainA_mono : Monotone embChainA := by decide
 
+-- [D-3543] embChainB_mono
 theorem embChainB_mono : Monotone embChainB := by decide
 
+-- [D-3544] embChainA_reflect
 theorem embChainA_reflect : ∀ a b : Fin 3, embChainA a ≤ embChainA b → a ≤ b := by decide
 
+-- [D-3545] embChainB_reflect
 theorem embChainB_reflect : ∀ a b : Fin 3, embChainB a ≤ embChainB b → a ≤ b := by decide
 
+-- [D-3546] embChainA_bot
 theorem embChainA_bot : embChainA ⊥ = ⊥ := by decide
 
+-- [D-3547] embChainB_bot
 theorem embChainB_bot : embChainB ⊥ = ⊥ := by decide
 
+-- [D-3548] embChainA_top
 theorem embChainA_top : embChainA ⊤ = ⊤ := by decide
 
+-- [D-3549] embChainB_top
 theorem embChainB_top : embChainB ⊤ = ⊤ := by decide
 
+-- [D-3550] embChainA_sup
 theorem embChainA_sup : ∀ a b : Fin 3, embChainA (a ⊔ b) = embChainA a ⊔ embChainA b := by decide
 
+-- [D-3551] embChainB_sup
 theorem embChainB_sup : ∀ a b : Fin 3, embChainB (a ⊔ b) = embChainB a ⊔ embChainB b := by decide
 
+-- [D-3552] embChain_ne
 theorem embChain_ne : embChainA ≠ embChainB := by decide
 
-/-- **The general pattern is false.**  There are two bounded join-embeddings of a
-three-chain into a four-chain, so no argument that uses only "finite bounded
-lattices with an ep-pair" can prove `LevelImageStableJI`. -/
+-- [D-3553] chain_not_unique
 theorem chain_not_unique :
     ∃ f g : Fin 3 → Fin 4,
       (Monotone f ∧ (∀ a b, f a ≤ f b → a ≤ b) ∧ f ⊥ = ⊥ ∧ f ⊤ = ⊤

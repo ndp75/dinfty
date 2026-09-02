@@ -3,40 +3,7 @@ import Dinfty.TowerCardGrowth
 
 open GluingTowerLibrary SierpinskiApplication
 
-/-!
-# The copy-`A` classification: only the marked point survives
-
-`SeedShapeProof.seedShape` turned seed separation into a **finite** question
-about the level-`N` seed.  This module answers it for copy `A`.
-
-A join-irreducible of `D (k+1)` in copy `A` is `glueA (markedPt k) F` with `F`
-join-irreducible in `EndP (D k)`, i.e. `F = jiOrderIso (toDual p, q)` for a
-threshold `p : D k` and a join-irreducible value `q`.  Its seed is a **product**:
-
-```lean
-copyASeedIso : (LevelSeed (k+1) (glueA (markedPt k) F))ᵒᵈ
-                 ≃o (UpSet k p × (LevelSeed k q)ᵒᵈ)
-```
-
-— `UpSet k p = {a : D k // p ≤ a}`, and the tower's own embedding is the case
-`p = ⊥`, where `UpSet k ⊥` is all of `D k`.
-
-Then `WeakProdFactorization.no_iso_of_small_pieces` closes it:
-
-> **`copyA_forces_bot`** — if `p ≠ ⊥`, the seed cannot be `midInf`'s.
-
-because a **proper** up-set of `D k` is strictly smaller than `D k`
-(`TowerCardGrowth.card_upSet_lt`), the seed `(LevelSeed k q)ᵒᵈ` sits inside
-`J(D k)` and so is also strictly smaller (`card_joinIrred_lt`), and `D k` is
-smaller than every tail factor (`card_D_strictMono`) — so `D k` would have to
-reappear as an atom-factor of a product both of whose sides are too small.
-
-## Scope
-
-Copy `A` only.  Copies `B` and `C` — whose seeds are ordinal sums rather than
-products — are not treated here.
--/
-
+-- [D-1875] §The-copy-A-classification-only-the-marked-point
 open scoped Classical
 
 namespace CopyAClassification
@@ -45,17 +12,19 @@ open SeedLevelStep JSeedRecursion WeakProductAbsorption AtomFactorGeneration
 open WeakProdFactorization TowerCardGrowth TowerNoAbsorption SeedShapeProof ChainUnion
 open SeedSeparation MidAnchor SeedChain
 
+-- [D-1876] hmk
 private theorem hmk (k : ℕ) : (markedPt k) ≠ ⊥ := (D_marked_point_nondegenerate k).1
+-- [D-1877] hmtk
 private theorem hmtk (k : ℕ) : (markedPt k) ≠ ⊤ := (D_marked_point_nondegenerate k).2.1
+-- [D-1878] hbtk
 private theorem hbtk (k : ℕ) : (⊥ : EndP (D k)) ≠ ⊤ := (D_marked_point_nondegenerate k).2.2
 
-/-! ## The copy-`A` seed, for an arbitrary join-irreducible -/
-
+-- [D-1879] §The-copy-A-seed-for-an-arbitrary-join
 section CopyAGen
 
 variable (k : ℕ) (F : EndP (D k))
 
-/-- `copyAFun` for an arbitrary `F`, not just a `constHom`. -/
+-- [D-1880] copyAFunGen
 noncomputable def copyAFunGen
     (f : {f : EndP (D k) // JoinIrred (EndP (D k)) f ∧ f ≤ F}) :
     LevelSeed (k + 1) (glueA (markedPt k) F) :=
@@ -63,10 +32,12 @@ noncomputable def copyAFunGen
    (joinIrred_glueA_iff (markedPt k) (hmk k) (hmtk k) (hbtk k) f.1).mpr f.2.1,
    (glueA_le_iff (markedPt k) (hmk k) f.1 F).mpr f.2.2⟩
 
+-- [D-1881] copyAFunGen_injective
 theorem copyAFunGen_injective : Function.Injective (copyAFunGen k F) := by
   intro a b h
   exact Subtype.ext (glueA_injective (markedPt k) (congrArg Subtype.val h))
 
+-- [D-1882] copyAFunGen_surjective
 theorem copyAFunGen_surjective : Function.Surjective (copyAFunGen k F) := by
   intro w
   obtain ⟨f, hf⟩ := le_glueA_imp_glueA_shaped (markedPt k) (hmk k) (hbtk k) w.1 F w.2.2
@@ -75,7 +46,7 @@ theorem copyAFunGen_surjective : Function.Surjective (copyAFunGen k F) := by
   · exact (joinIrred_glueA_iff (markedPt k) (hmk k) (hmtk k) (hbtk k) f).mp (hw ▸ w.2.1)
   · exact (glueA_le_iff (markedPt k) (hmk k) f F).mp (hw ▸ w.2.2)
 
-/-- **Copy `A` is downward closed, for any `F`.** -/
+-- [D-1883] copyAIsoGen
 noncomputable def copyAIsoGen :
     {f : EndP (D k) // JoinIrred (EndP (D k)) f ∧ f ≤ F}
       ≃o LevelSeed (k + 1) (glueA (markedPt k) F) where
@@ -88,16 +59,15 @@ noncomputable def copyAIsoGen :
 
 end CopyAGen
 
-/-! ## …and it is a product -/
-
+-- [D-1884] §and-it-is-a-product
 section Product
 
 variable (k : ℕ)
 
-/-- The up-set of `p` in `D k`. -/
+-- [D-1885] UpSet
 abbrev UpSet (p : D k) : Type := {a : D k // p ≤ a}
 
-/-- `{a' : (D k)ᵒᵈ // a' ≤ toDual p}` **is** the up-set of `p`, dualised twice. -/
+-- [D-1886] upSetDualIso
 def upSetDualIso (p : D k) :
     ({a' : (D k)ᵒᵈ // a' ≤ OrderDual.toDual p})ᵒᵈ ≃o UpSet k p where
   toFun a := ⟨a.1, a.2⟩
@@ -106,8 +76,7 @@ def upSetDualIso (p : D k) :
   right_inv _ := rfl
   map_rel_iff' := Iff.rfl
 
-/-- **The copy-`A` seed of a join-irreducible is a product**: an up-set of the
-level below, times the seed of the value. -/
+-- [D-1887] copyASeedIso
 noncomputable def copyASeedIso (a : (D k)ᵒᵈ) (q : {x : D k // JoinIrred (D k) x}) :
     LevelSeed (k + 1) (glueA (markedPt k) (jiOrderIso (a, q)).1)
       ≃o (({a' : (D k)ᵒᵈ // a' ≤ a}) × LevelSeed k q.1) := by
@@ -119,7 +88,7 @@ noncomputable def copyASeedIso (a : (D k)ᵒᵈ) (q : {x : D k // JoinIrred (D k
         (prodCongrIso (OrderIso.refl _)
           (subtypeShuffle (fun x : D k => JoinIrred (D k) x) q).symm)))
 
-/-- The dualised form: `S_y ≅ UpSet k p × S_q`. -/
+-- [D-1888] copyASeedDualIso
 noncomputable def copyASeedDualIso (p : D k) (q : {x : D k // JoinIrred (D k) x}) :
     (LevelSeed (k + 1) (glueA (markedPt k)
         (jiOrderIso (OrderDual.toDual p, q)).1))ᵒᵈ
@@ -130,11 +99,12 @@ noncomputable def copyASeedDualIso (p : D k) (q : {x : D k // JoinIrred (D k) x}
 
 end Product
 
-/-! ## The two cardinality bounds -/
-
+-- [D-1889] §The-two-cardinality-bounds
+-- [D-1890] card_upSet_lt_D
 theorem card_upSet_lt_D (k : ℕ) {p : D k} (hp : p ≠ ⊥) :
     Fintype.card (UpSet k p) < Fintype.card (D k) := card_upSet_lt hp
 
+-- [D-1891] card_levelSeed_lt
 theorem card_levelSeed_lt (k : ℕ) (v : D k) :
     Fintype.card ((LevelSeed k v)ᵒᵈ) < Fintype.card (D k) := by
   have h1 : Fintype.card ((LevelSeed k v)ᵒᵈ)
@@ -148,10 +118,8 @@ theorem card_levelSeed_lt (k : ℕ) (v : D k) :
   letI := (towerLevel k).nontriv
   exact lt_of_le_of_lt h1 (TowerCardGrowth.card_joinIrred_lt (P := D k))
 
-/-! ## The exclusion -/
-
-/-- **Only the marked point's threshold survives.**  A copy-`A` competitor with
-threshold `p ≠ ⊥` cannot have `midInf`'s seed. -/
+-- [D-1892] §The-exclusion
+-- [D-1893] copyA_forces_bot
 theorem copyA_forces_bot (k : ℕ) {p : D k} (hp : p ≠ ⊥)
     (q : {x : D k // JoinIrred (D k) x})
     (e : WeakProd (Fam 0) ≃o (WeakProd (Fam (k + 1)) ×
@@ -186,23 +154,19 @@ theorem copyA_forces_bot (k : ℕ) {p : D k} (hp : p ≠ ⊥)
     k hsmall hA hB
   exact hempty.elim e'
 
-/-! ## The induction step for copy `A` -/
-
-/-- `midInf`'s seed, with its one-point finite piece dropped. -/
+-- [D-1894] §The-induction-step-for-copy
+-- [D-1895] midInfShape
 noncomputable def midInfShape : (JBelow midInf)ᵒᵈ ≃o WeakProd (Fam 0) :=
   (seedShape 0 (dMid 0) SeedsDiffer.joinIrred_D0_mid).trans
     (SeedsDiffer.prodUniqueIso (A := WeakProd (Fam 0)) (B := Base 0 (dMid 0)))
 
-/-- From a seed isomorphism with `midInf`, the shape comparison
-`copyA_forces_bot` consumes. -/
+-- [D-1896] shapeComparison
 noncomputable def shapeComparison (N : ℕ) (y : D N) (hy : JoinIrred (D N) y)
     (e : JBelow (toD N y) ≃o JBelow midInf) :
     WeakProd (Fam 0) ≃o (WeakProd (Fam N) × (LevelSeed N y)ᵒᵈ) :=
   (midInfShape.symm.trans (e.dual.symm.trans (seedShape N y hy)))
 
-/-- **The copy-`A` induction step.**  A copy-`A` join-irreducible whose seed is
-`midInf`'s must be the tower's own embedding of a level-`k` join-irreducible,
-and that one again has `midInf`'s seed. -/
+-- [D-1897] copyA_step
 theorem copyA_step (k : ℕ) (F : EndP (D k)) (hF : JoinIrred (EndP (D k)) F)
     (e : JBelow (toD (k + 1) (glueA (markedPt k) F)) ≃o JBelow midInf) :
     ∃ q : D k, JoinIrred (D k) q ∧ glueA (markedPt k) F = iotaD k q
@@ -235,22 +199,13 @@ theorem copyA_step (k : ℕ) (F : EndP (D k)) (hF : JoinIrred (EndP (D k)) F)
          iotaLe_self (le_refl k) aq.2.1] at h
   exact ⟨aq.2.1, aq.2.2, hiota, ⟨hstep ▸ e⟩⟩
 
-/-! ## The induction, with the copy-`B`/`C` case named
-
-Copy `A` is settled above.  What is left is a single `Prop`. -/
-
-/-- **The remaining input.**  A join-irreducible of `D (k+1)` that is *not* in
-copy `A` never has `midInf`'s seed.
-
-Copies `B` and `C` differ from copy `A` in exactly the way
-`AtomFactorGeneration` was built for: their seeds are **ordinal sums** — all of
-`J(↓ marked point)` sits above the part that carries the atom-factors — rather
-than products, so `not_genByFactors_of_strict_upper` is the tool, not
-`no_iso_of_small_pieces`.  It is stated and not proved. -/
+-- [D-1898] §The-induction-with-the-copy-B-C-case-named
+-- [D-1899] CopyBCExcluded
 def CopyBCExcluded : Prop :=
   ∀ (k : ℕ) (y : D (k + 1)), (¬ ∃ F : EndP (D k), y = glueA (markedPt k) F) →
     ¬ Nonempty (JBelow (toD (k + 1) y) ≃o JBelow midInf)
 
+-- [D-1900] D0_joinIrred_cases
 theorem D0_joinIrred_cases {y : D 0} (hy : JoinIrred (D 0) y) :
     y = dMid 0 ∨ y = (⊤ : D 0) := by
   have h1 : (y : Fin 3).val ≠ 0 := SeedsDiffer.ne_bot_val hy.1
@@ -263,8 +218,7 @@ theorem D0_joinIrred_cases {y : D 0} (hy : JoinIrred (D 0) y) :
     rw [SeedsDiffer.val_top]
     exact h
 
-/-- **Seed separation for `midInf`, at join-irreducibles, given the copy-`B`/`C`
-exclusion.** -/
+-- [D-1901] seedSeparates_midInf_ji
 theorem seedSeparates_midInf_ji (h : CopyBCExcluded) :
     ∀ (N : ℕ) (y : D N), JoinIrred (D N) y →
       Nonempty (JBelow (toD N y) ≃o JBelow midInf) → toD N y = midInf := by
@@ -290,10 +244,8 @@ theorem seedSeparates_midInf_ji (h : CopyBCExcluded) :
         exact ih q hq hqe
       · exact absurd he (h k y hA)
 
-/-! ## …and the consequence for `TwoPointFixed`'s `midInf` half -/
-
-/-- The join-irreducible-restricted form of `fixed_of_seedSeparates`: enough,
-because an automorphism carries a join-irreducible to a join-irreducible. -/
+-- [D-1902] §and-the-consequence-for-TwoPointFixed-s-midInf
+-- [D-1903] fixed_of_seedSeparates_ji
 theorem fixed_of_seedSeparates_ji {z : DInfty} (hz : JoinIrred DInfty z)
     (hsep : ∀ (N : ℕ) (y : D N), JoinIrred (D N) y →
       Nonempty (JBelow (toD N y) ≃o JBelow z) → toD N y = z)
@@ -308,7 +260,7 @@ theorem fixed_of_seedSeparates_ji {z : DInfty} (hz : JoinIrred DInfty z)
   rw [hy]
   exact hsep N y hjiy hiso
 
-/-- **Every automorphism fixes `midInf`, given the copy-`B`/`C` exclusion.** -/
+-- [D-1904] midInf_fixed
 theorem midInf_fixed (h : CopyBCExcluded) (θ : DInfty ≃o DInfty) : θ midInf = midInf :=
   fixed_of_seedSeparates_ji TwoPointHypothesis.joinIrred_midInf
     (seedSeparates_midInf_ji h) θ

@@ -1,52 +1,32 @@
 import Dinfty.Gasket
 
-/-!
-# The coding map `π : {A,B,C}^ℕ ↠ Γ`
-
-`CoreIFS`'s `rho` is, in the companion note, `ρ = π ∘ α⁻¹`: the address map `π`
-composed with a coding `α` of `D∞`'s attractor by addresses.  This module builds
-the first factor, `π`, and proves the three properties `TheoremAData` asks of
-`rho` that are about `π` alone:
-
-* `coding_mem` / `codeGamma` — `π` lands in `Γ`;
-* `continuous_codeGamma` — `π` is continuous;
-* `codeGamma_surjective` — `π` is onto;
-* `coding_cons` — `π` is equivariant: `π (j :: w) = f_j (π w)`.
-
-Nothing here is about `D∞`.  This is the classical half, and it is the half that
-can be checked without any of the tower machinery.
-
-The construction is the usual one: `π w` is the limit of
-`h_{w 0} ∘ ⋯ ∘ h_{w (n-1)}` applied to a basepoint.  Contraction makes the
-sequence Cauchy at rate `2⁻ⁿ`, which is also what gives continuity (agreeing
-prefixes ⇒ close images) and surjectivity (any gasket point has an address,
-obtained by peeling the self-similarity identity).
--/
-
+-- [D-2685] §The-coding-map-A-B-C
 open Metric Set Filter Topology
 
 namespace Gasket
 
-/-! ## 1.  The three maps, indexed -/
-
+-- [D-2686] §1-The-three-maps-indexed
+-- [D-2687] cw
 noncomputable def cw (j : Fin 3) : E := if j = 0 then cA else if j = 1 then cB else cC
 
+-- [D-2688] step
 noncomputable def step (j : Fin 3) : E → E := contract (cw j)
 
+-- [D-2689] step_lipschitz
 theorem step_lipschitz (j : Fin 3) : LipschitzWith (2⁻¹ : NNReal) (step j) :=
   contract_lipschitz _
 
+-- [D-2690] step_continuous
 theorem step_continuous (j : Fin 3) : Continuous (step j) := (step_lipschitz j).continuous
 
+-- [D-2691] step_mapsTo
 theorem step_mapsTo (j : Fin 3) : MapsTo (step j) gasketSet gasketSet := by
   fin_cases j
   · simpa [step, cw] using mapsTo_cA
   · simpa [step, cw] using mapsTo_cB
   · simpa [step, cw] using mapsTo_cC
 
-/-- `vA` is the origin, so `h_j vA = c_j`, and every `c_j` is within `2⁻¹` of
-it.  The sharp constant matters: it is what makes the gasket fit inside the unit
-ball, which is what separates the three sub-gaskets in `GasketNotOpen`. -/
+-- [D-2692] dist_step_vA_le
 theorem dist_step_vA_le (j : Fin 3) : dist vA (step j vA) ≤ 2⁻¹ := by
   have hv : step j vA = cw j := by
     simp [step, contract, vA, Prod.ext_iff]
@@ -54,17 +34,19 @@ theorem dist_step_vA_le (j : Fin 3) : dist vA (step j vA) ≤ 2⁻¹ := by
   fin_cases j <;>
     simp [cw, vA, cA, cB, cC, Prod.dist_eq, Real.dist_eq] <;> norm_num
 
-/-! ## 2.  Prefix maps -/
-
-/-- `pre w n = h_{w 0} ∘ ⋯ ∘ h_{w (n-1)}`. -/
+-- [D-2693] §2-Prefix-maps
+-- [D-2694] pre
 noncomputable def pre (w : ℕ → Fin 3) : ℕ → (E → E)
   | 0 => id
   | (n + 1) => pre w n ∘ step (w n)
 
+-- [D-2695] pre_zero
 @[simp] theorem pre_zero (w : ℕ → Fin 3) : pre w 0 = id := rfl
 
+-- [D-2696] pre_succ
 theorem pre_succ (w : ℕ → Fin 3) (n : ℕ) : pre w (n + 1) = pre w n ∘ step (w n) := rfl
 
+-- [D-2697] pre_lipschitz
 theorem pre_lipschitz (w : ℕ → Fin 3) (n : ℕ) :
     LipschitzWith ((2⁻¹ : NNReal) ^ n) (pre w n) := by
   induction n with
@@ -73,6 +55,7 @@ theorem pre_lipschitz (w : ℕ → Fin 3) (n : ℕ) :
       rw [pre_succ, pow_succ]
       exact ih.comp (step_lipschitz (w n))
 
+-- [D-2698] pre_mapsTo
 theorem pre_mapsTo (w : ℕ → Fin 3) (n : ℕ) : MapsTo (pre w n) gasketSet gasketSet := by
   induction n with
   | zero => intro x hx; exact hx
@@ -80,7 +63,7 @@ theorem pre_mapsTo (w : ℕ → Fin 3) (n : ℕ) : MapsTo (pre w n) gasketSet ga
       rw [pre_succ]
       exact ih.comp (step_mapsTo (w n))
 
-/-- Prefix maps depend only on the prefix. -/
+-- [D-2699] pre_congr
 theorem pre_congr {w w' : ℕ → Fin 3} {n : ℕ} (h : ∀ k < n, w k = w' k) :
     pre w n = pre w' n := by
   induction n with
@@ -89,13 +72,15 @@ theorem pre_congr {w w' : ℕ → Fin 3} {n : ℕ} (h : ∀ k < n, w k = w' k) :
       rw [pre_succ, pre_succ, ih (fun k hk => h k (Nat.lt_succ_of_lt hk)),
         h n (Nat.lt_succ_self n)]
 
-/-! ## 3.  The approximating sequence and its limit -/
-
+-- [D-2700] §3-The-approximating-sequence-and-its-limit
+-- [D-2701] xseq
 noncomputable def xseq (w : ℕ → Fin 3) (n : ℕ) : E := pre w n vA
 
+-- [D-2702] xseq_mem
 theorem xseq_mem (w : ℕ → Fin 3) (n : ℕ) : xseq w n ∈ gasketSet :=
   pre_mapsTo w n vA_mem
 
+-- [D-2703] dist_xseq_succ
 theorem dist_xseq_succ (w : ℕ → Fin 3) (n : ℕ) :
     dist (xseq w n) (xseq w (n + 1)) ≤ (2⁻¹ : ℝ) * (2⁻¹ : ℝ) ^ n := by
   have h1 : xseq w (n + 1) = pre w n (step (w n) vA) := by
@@ -113,20 +98,23 @@ theorem dist_xseq_succ (w : ℕ → Fin 3) (n : ℕ) :
         mul_le_mul_of_nonneg_left (dist_step_vA_le (w n)) h4
     _ = (2⁻¹ : ℝ) * (2⁻¹ : ℝ) ^ n := by ring
 
+-- [D-2704] xseq_cauchy
 theorem xseq_cauchy (w : ℕ → Fin 3) : CauchySeq (xseq w) :=
   cauchySeq_of_le_geometric (2⁻¹ : ℝ) (2⁻¹ : ℝ) (by norm_num) (dist_xseq_succ w)
 
-/-- **The address map.** -/
+-- [D-2705] coding
 noncomputable def coding (w : ℕ → Fin 3) : E := limUnder atTop (xseq w)
 
+-- [D-2706] coding_tendsto
 theorem coding_tendsto (w : ℕ → Fin 3) : Tendsto (xseq w) atTop (𝓝 (coding w)) :=
   (xseq_cauchy w).tendsto_limUnder
 
+-- [D-2707] coding_mem
 theorem coding_mem (w : ℕ → Fin 3) : coding w ∈ gasketSet :=
   isCompact_gasketSet.isClosed.mem_of_tendsto (coding_tendsto w)
     (Eventually.of_forall (xseq_mem w))
 
-/-- The rate: `π w` is within `2⁻ⁿ` of the `n`-th approximation. -/
+-- [D-2708] dist_xseq_coding
 theorem dist_xseq_coding (w : ℕ → Fin 3) (n : ℕ) :
     dist (xseq w n) (coding w) ≤ (2⁻¹ : ℝ) ^ n := by
   have h := dist_le_of_le_geometric_of_tendsto (2⁻¹ : ℝ) (2⁻¹ : ℝ) (by norm_num)
@@ -136,19 +124,18 @@ theorem dist_xseq_coding (w : ℕ → Fin 3) (n : ℕ) :
     field_simp
   rwa [e] at h
 
-/-- **The gasket sits in the unit ball.**  Immediate from the sharp rate, since
-`xseq w 0 = vA`. -/
+-- [D-2709] dist_vA_coding
 theorem dist_vA_coding (w : ℕ → Fin 3) : dist vA (coding w) ≤ 1 := by
   have h := dist_xseq_coding w 0
   simpa [xseq] using h
 
-/-! ## 4.  Equivariance -/
-
-/-- `cons j w` — prepend a symbol. -/
+-- [D-2710] §4-Equivariance
+-- [D-2711] cons
 def cons (j : Fin 3) (w : ℕ → Fin 3) : ℕ → Fin 3
   | 0 => j
   | (n + 1) => w n
 
+-- [D-2712] pre_cons
 theorem pre_cons (j : Fin 3) (w : ℕ → Fin 3) (n : ℕ) :
     pre (cons j w) (n + 1) = step j ∘ pre w n := by
   induction n with
@@ -157,11 +144,12 @@ theorem pre_cons (j : Fin 3) (w : ℕ → Fin 3) (n : ℕ) :
       rw [pre_succ, ih]
       rfl
 
+-- [D-2713] xseq_cons
 theorem xseq_cons (j : Fin 3) (w : ℕ → Fin 3) (n : ℕ) :
     xseq (cons j w) (n + 1) = step j (xseq w n) := by
   simp [xseq, pre_cons]
 
-/-- **`π` intertwines the shift with the IFS map.** -/
+-- [D-2714] coding_cons
 theorem coding_cons (j : Fin 3) (w : ℕ → Fin 3) :
     coding (cons j w) = step j (coding w) := by
   have h1 : Tendsto (fun n => xseq (cons j w) (n + 1)) atTop (𝓝 (coding (cons j w))) :=
@@ -171,8 +159,8 @@ theorem coding_cons (j : Fin 3) (w : ℕ → Fin 3) :
     simpa [Function.comp_def, xseq_cons] using this
   exact tendsto_nhds_unique h1 h2
 
-/-! ## 5.  Surjectivity -/
-
+-- [D-2715] §5-Surjectivity
+-- [D-2716] exists_pred
 theorem exists_pred {g : E} (hg : g ∈ gasketSet) :
     ∃ j : Fin 3, ∃ g' ∈ gasketSet, step j g' = g := by
   rw [gasketSet_eq] at hg
@@ -181,24 +169,29 @@ theorem exists_pred {g : E} (hg : g ∈ gasketSet) :
   · exact ⟨1, x, hx, by simpa [step, cw] using hxg⟩
   · exact ⟨2, x, hx, by simpa [step, cw] using hxg⟩
 
-/-- One peeling step, as a function on the gasket. -/
+-- [D-2717] peel
 noncomputable def peel (p : gasketSet) : Fin 3 × gasketSet :=
   let h := exists_pred p.2
   ⟨h.choose, ⟨h.choose_spec.choose, h.choose_spec.choose_spec.1⟩⟩
 
+-- [D-2718] peel_spec
 theorem peel_spec (p : gasketSet) : step (peel p).1 ((peel p).2 : E) = (p : E) :=
   (exists_pred p.2).choose_spec.choose_spec.2
 
+-- [D-2719] orbit
 noncomputable def orbit (p : gasketSet) : ℕ → gasketSet
   | 0 => p
   | (n + 1) => (peel (orbit p n)).2
 
+-- [D-2720] addr
 noncomputable def addr (p : gasketSet) : ℕ → Fin 3 := fun n => (peel (orbit p n)).1
 
+-- [D-2721] orbit_step
 theorem orbit_step (p : gasketSet) (n : ℕ) :
     step (addr p n) ((orbit p (n + 1) : gasketSet) : E) = ((orbit p n : gasketSet) : E) :=
   peel_spec (orbit p n)
 
+-- [D-2722] pre_orbit
 theorem pre_orbit (p : gasketSet) (n : ℕ) :
     pre (addr p) n ((orbit p n : gasketSet) : E) = (p : E) := by
   induction n with
@@ -208,7 +201,7 @@ theorem pre_orbit (p : gasketSet) (n : ℕ) :
       show pre (addr p) n (step (addr p n) ((orbit p (n + 1) : gasketSet) : E)) = (p : E)
       rw [orbit_step p n, ih]
 
-/-- The `n`-th approximation to the address of `p` is `2⁻ⁿ`-close to `p`. -/
+-- [D-2723] dist_xseq_addr
 theorem dist_xseq_addr {M : ℝ} (hM : gasketSet ⊆ closedBall vA M) (p : gasketSet) (n : ℕ) :
     dist (xseq (addr p) n) (p : E) ≤ (2⁻¹ : ℝ) ^ n * M := by
   have h1 : ((p : E)) = pre (addr p) n ((orbit p n : gasketSet) : E) := (pre_orbit p n).symm
@@ -222,7 +215,7 @@ theorem dist_xseq_addr {M : ℝ} (hM : gasketSet ⊆ closedBall vA M) (p : gaske
   refine mul_le_mul_of_nonneg_left ?_ h4
   exact mem_closedBall'.1 (hM (orbit p n).2)
 
-/-- **`π` is onto the gasket.** -/
+-- [D-2724] coding_surjOn
 theorem coding_surjOn : ∀ g ∈ gasketSet, ∃ w : ℕ → Fin 3, coding w = g := by
   intro g hg
   obtain ⟨M, hM⟩ := isCompact_gasketSet.isBounded.subset_closedBall vA
@@ -235,7 +228,7 @@ theorem coding_surjOn : ∀ g ∈ gasketSet, ∃ w : ℕ → Fin 3, coding w = g
     simpa using h.mul_const M
   exact tendsto_nhds_unique (coding_tendsto _) htend
 
-/-- **`Γ ⊆ closedBall vA 1`.** -/
+-- [D-2725] gasketSet_subset_closedBall
 theorem gasketSet_subset_closedBall : gasketSet ⊆ closedBall vA 1 := by
   intro g hg
   obtain ⟨w, hw⟩ := coding_surjOn g hg
@@ -244,15 +237,13 @@ theorem gasketSet_subset_closedBall : gasketSet ⊆ closedBall vA 1 := by
   rw [dist_comm] at h
   exact mem_closedBall.2 h
 
-/-! ## 6.  Continuity -/
-
+-- [D-2726] §6-Continuity
+-- [D-2727] coding_eq_of_prefix
 theorem coding_eq_of_prefix {w w' : ℕ → Fin 3} {n : ℕ} (h : ∀ k < n, w k = w' k) :
     xseq w n = xseq w' n := by
   rw [xseq, xseq, pre_congr h]
 
-/-- **The prefix estimate.**  Agreeing on the first `k` symbols pins the image to
-within `2 · 2⁻ᵏ`.  This is the whole content of continuity, and it is what any
-notion of continuity on the domain side has to reproduce. -/
+-- [D-2728] dist_coding_le_of_prefix
 theorem dist_coding_le_of_prefix {u v : ℕ → Fin 3} {k : ℕ} (h : ∀ i < k, u i = v i) :
     dist (coding u) (coding v) ≤ 2 * (2⁻¹ : ℝ) ^ k := by
   have hpre : xseq u k = xseq v k := coding_eq_of_prefix h
@@ -264,6 +255,7 @@ theorem dist_coding_le_of_prefix {u v : ℕ → Fin 3} {k : ℕ} (h : ∀ i < k,
         add_le_add (dist_xseq_coding u k) (dist_xseq_coding v k)
     _ = 2 * (2⁻¹ : ℝ) ^ k := by ring
 
+-- [D-2729] continuous_coding
 theorem continuous_coding : Continuous coding := by
   rw [continuous_iff_continuousAt]
   intro w
@@ -283,29 +275,33 @@ theorem continuous_coding : Continuous coding := by
   exact lt_of_le_of_lt
     (dist_coding_le_of_prefix (fun k hk => hw' k (Finset.mem_range.2 hk))) hn
 
-/-! ## 7.  …valued in `Γ` -/
-
-/-- **`π`, as a map into `Γ`.** -/
+-- [D-2730] §7-valued
+-- [D-2731] codeGamma
 noncomputable def codeGamma (w : ℕ → Fin 3) : Gamma := ⟨coding w, coding_mem w⟩
 
+-- [D-2732] continuous_codeGamma
 theorem continuous_codeGamma : Continuous codeGamma :=
   Continuous.subtype_mk continuous_coding _
 
+-- [D-2733] codeGamma_surjective
 theorem codeGamma_surjective : Function.Surjective codeGamma := by
   rintro ⟨g, hg⟩
   obtain ⟨w, hw⟩ := coding_surjOn g hg
   exact ⟨w, Subtype.ext hw⟩
 
+-- [D-2734] codeGamma_cons_zero
 theorem codeGamma_cons_zero (w : ℕ → Fin 3) :
     codeGamma (cons 0 w) = fA (codeGamma w) := by
   refine Subtype.ext ?_
   simpa [step, cw, fA, codeGamma] using coding_cons 0 w
 
+-- [D-2735] codeGamma_cons_one
 theorem codeGamma_cons_one (w : ℕ → Fin 3) :
     codeGamma (cons 1 w) = fB (codeGamma w) := by
   refine Subtype.ext ?_
   simpa [step, cw, fB, codeGamma] using coding_cons 1 w
 
+-- [D-2736] codeGamma_cons_two
 theorem codeGamma_cons_two (w : ℕ → Fin 3) :
     codeGamma (cons 2 w) = fC (codeGamma w) := by
   refine Subtype.ext ?_

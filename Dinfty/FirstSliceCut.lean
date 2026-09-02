@@ -6,57 +6,7 @@ import Dinfty.FirstSliceToColimit
 
 open GluingTowerLibrary SierpinskiApplication
 
-/-!
-# `FirstSliceB` for every level, by the cut obstruction
-
-The first slice asks whether a non-copy-`A` join-irreducible of `D (n+1)` can
-carry the seed `D n × Base n x` of a stage-`n` point.  For copy `B` the answer is
-**no, uniformly in `n`**, and the argument needs no enumeration at all.
-
-## The shape of a copy-`B` seed
-
-Write `Y = glueB (markedPt n) b` and `S = (LevelSeed (n+1) Y)ᵒᵈ`.  Two facts about
-the gluing decide everything:
-
-* every seed element is copy `A` or copy `B` (`seed_cases`, using `copyB_ne_top`);
-* a copy-`A` seed element lies below **every** copy-`B` one (`copyA_le_copyB`).
-
-So `S` is an **ordinal sum** — a *cut* — with the copy-`B` part below the copy-`A`
-part.  Stated order-theoretically, the cut is
-
-```lean
-cutB : Set S := {u | ¬ (u ≤ dMid (n+1))}
-```
-
-and its complement is literally `LevelSeed (n+1) (dMid (n+1))`, because
-`dMid (n+1) = glueA (markedPt n) (markedPt n)` by `rfl`.
-
-## Why the upper part is a product
-
-`copyAIsoGen` identifies that complement with
-`{f : EndP (D n) // JoinIrred f ∧ f ≤ markedPt n}`, and by
-`SeedParametrisation.stepMap_le_markedPt` the condition `stepMap q p ≤ markedPt n`
-is `q ≤ dMid n` — **it does not mention the threshold `p`**.  So the threshold
-coordinate is free and
-
-```
-card (Aᶜ) = card (D n) * card (JMid n).
-```
-
-## The contradiction
-
-`CutObstruction.no_iso_of_cut_bounds` now runs: a product of two bounded
-nondegenerate posets has only trivial cuts, the upper part is far too big to be
-the trivial one, so the *lower* part collapses to a single element and
-`card S = 1 + card (D n) * card (JMid n)`.  But an isomorphism
-`S ≃o D n × Base n x` makes `card (D n)` divide `card S`, hence divide `1`.
-
-The one degenerate case — `Base n x` a single point, i.e. `x = lamD n` — is
-disposed of by the existing bound `card_D_lt_card_seed_B`.
-
-Nothing here is special to any level, and nothing enumerates `J (D (n+1))`.
--/
-
+-- [D-3173] §FirstSliceB-for-every-level-by-the-cut
 open scoped Classical
 
 namespace FirstSliceCut
@@ -68,12 +18,15 @@ open TowerNoAbsorption SeedParametrisation SeedCardBound
 
 variable (k : ℕ)
 
+-- [D-3174] hmk'
 private theorem hmk' : (markedPt k) ≠ ⊥ := (D_marked_point_nondegenerate k).1
+-- [D-3175] hmtk'
 private theorem hmtk' : (markedPt k) ≠ ⊤ := (D_marked_point_nondegenerate k).2.1
+-- [D-3176] hbtk'
 private theorem hbtk' : (⊥ : EndP (D k)) ≠ ⊤ := (D_marked_point_nondegenerate k).2.2
 
-/-! ## Two small `Equiv` combinators -/
-
+-- [D-3177] §Two-small-Equiv-combinators
+-- [D-3178] subInter
 private def subInter {α : Type*} (p q : α → Prop) :
     {x : {a : α // p a} // q x.1} ≃ {a : α // p a ∧ q a} where
   toFun x := ⟨x.1.1, x.1.2, x.2⟩
@@ -81,6 +34,7 @@ private def subInter {α : Type*} (p q : α → Prop) :
   left_inv _ := rfl
   right_inv _ := rfl
 
+-- [D-3179] sndSub
 private def sndSub {α β : Type*} (p : β → Prop) :
     {s : α × β // p s.2} ≃ α × {b : β // p b} where
   toFun s := (s.1.1, ⟨s.1.2, s.2⟩)
@@ -88,8 +42,8 @@ private def sndSub {α β : Type*} (p : β → Prop) :
   left_inv _ := rfl
   right_inv _ := rfl
 
-/-! ## `lamD` is join-irreducible -/
-
+-- [D-3180] §lamD-is-join-irreducible
+-- [D-3181] joinIrred_lamD
 theorem joinIrred_lamD : JoinIrred (D k) (lamD k) := by
   refine ⟨lamD_ne_bot k, fun b c hbc => ?_⟩
   by_cases hb : b = (⊥ : D k)
@@ -98,23 +52,22 @@ theorem joinIrred_lamD : JoinIrred (D k) (lamD k) := by
     have hble : b ≤ lamD k := hbc ▸ le_sup_left
     exact le_antisymm (lamD_le k b hb) hble |>.symm ▸ rfl
 
-/-! ## The copy-`A` part below the marked point is a product -/
-
-/-- The join-irreducibles of `D k` below the marked value. -/
+-- [D-3182] §The-copy-A-part-below-the-marked-point
+-- [D-3183] JMid
 abbrev JMid : Type := {q : D k // JoinIrred (D k) q ∧ q ≤ dMid k}
 
+-- [D-3184] jMid_nonempty
 theorem jMid_nonempty : Nonempty (JMid k) :=
   ⟨⟨lamD k, joinIrred_lamD k, lamD_le k (dMid k) (dMid_ne_bot k)⟩⟩
 
-/-- **The membership condition is threshold-free.** -/
+-- [D-3185] jiOrderIso_le_markedPt
 theorem jiOrderIso_le_markedPt (z : (D k)ᵒᵈ × {q : D k // JoinIrred (D k) q}) :
     (jiOrderIso z).1 ≤ markedPt k ↔ z.2.1 ≤ dMid k := by
   have hz : (jiOrderIso z).1 = stepMap z.2.1 (OrderDual.ofDual z.1) := rfl
   rw [hz]
   exact stepMap_le_markedPt z.2.2.1
 
-/-- **So the copy-`A` part below the marked point is a product**: the threshold
-coordinate is free. -/
+-- [D-3186] markedSeedEquiv
 noncomputable def markedSeedEquiv :
     {f : EndP (D k) // JoinIrred (EndP (D k)) f ∧ f ≤ markedPt k}
       ≃ ((D k)ᵒᵈ × JMid k) :=
@@ -126,22 +79,22 @@ noncomputable def markedSeedEquiv :
           (Equiv.prodCongr (Equiv.refl _)
             (subInter (fun q : D k => JoinIrred (D k) q) (fun q => q ≤ dMid k)))))))
 
+-- [D-3187] card_markedSeed
 theorem card_markedSeed :
     Fintype.card {f : EndP (D k) // JoinIrred (EndP (D k)) f ∧ f ≤ markedPt k}
       = Fintype.card (D k) * Fintype.card (JMid k) := by
   rw [Fintype.card_congr (markedSeedEquiv k), Fintype.card_prod]
   congr 1
 
-/-! ## The cut -/
-
+-- [D-3188] §The-cut
 variable {k}
 variable {x : EndP (D k)} (hx : x ≠ ⊥)
 
-/-- The copy-`B` part of a copy-`B` seed, stated order-theoretically: the seed
-elements that the marked point does **not** bound. -/
+-- [D-3189] cutB
 def cutB (hx : x ≠ ⊥) : Set ((LevelSeed (k + 1) (glueB (markedPt k) x hx))ᵒᵈ) :=
   {u | ¬ ((OrderDual.ofDual u).1 ≤ dMid (k + 1))}
 
+-- [D-3190] cutB_isCut
 include hx in
 theorem cutB_isCut (hxt : x ≠ ⊤) : IsCut (cutB hx) := by
   intro a ha u hu
@@ -159,6 +112,7 @@ theorem cutB_isCut (hxt : x ≠ ⊤) : IsCut (cutB hx) := by
     rw [hwu, hv]
     exact copyA_le_copyB hwm hb
 
+-- [D-3191] cutB_nonempty
 include hx in
 theorem cutB_nonempty (hy : JoinIrred (D (k + 1)) (glueB (markedPt k) x hx)) :
     (cutB hx).Nonempty := by
@@ -168,7 +122,7 @@ theorem cutB_nonempty (hy : JoinIrred (D (k + 1)) (glueB (markedPt k) x hx)) :
   intro hcon
   exact dMid_ne_copyB hx (le_antisymm (dMid_le_glueB k hx) hcon)
 
-/-- **The complement of the cut is the seed of the marked point.** -/
+-- [D-3192] cutBComplEquiv
 def cutBComplEquiv (hx : x ≠ ⊥) :
     ↥((cutB hx)ᶜ) ≃ LevelSeed (k + 1) (dMid (k + 1)) where
   toFun u := ⟨(OrderDual.ofDual u.1).1, (OrderDual.ofDual u.1).2.1, not_not.mp u.2⟩
@@ -179,26 +133,23 @@ def cutBComplEquiv (hx : x ≠ ⊥) :
   left_inv _ := rfl
   right_inv _ := rfl
 
+-- [D-3193] card_cutBCompl
 theorem card_cutBCompl (hx : x ≠ ⊥) :
     Fintype.card ↥((cutB hx)ᶜ) = Fintype.card (D k) * Fintype.card (JMid k) := by
   rw [Fintype.card_congr (cutBComplEquiv hx)]
   rw [← card_markedSeed k]
   exact (Fintype.card_congr (copyAIsoGen k (markedPt k)).toEquiv).symm
 
-/-! ## The theorem -/
-
--- the `no_iso_of_cut_bounds` application carries large implicit tower types
+-- [D-3194] §The-theorem
+-- [D-3195] firstSliceB
 set_option maxHeartbeats 1000000 in
-/-- **`FirstSliceB` holds at every level.**
 
-No copy-`B` join-irreducible of `D (n+1)` carries the seed of a stage-`n` point,
-for any `n`.  The proof is the cut obstruction plus one degenerate case. -/
 theorem firstSliceB (n : ℕ) : FirstSliceB n := by
   intro x hx b hb hy
   refine ⟨fun e => ?_⟩
   have hbt : b ≠ ⊤ := copyB_ne_top n hb hy
   by_cases hxl : x = lamD n
-  · -- degenerate: the base seed is a single point, so the comparison is a count
+  ·
     have hsub : Subsingleton (LevelSeed n x) := by
       refine ⟨fun u v => Subtype.ext ?_⟩
       have hu : u.1 = lamD n := le_antisymm (hxl ▸ u.2.2) (lamD_le n u.1 u.2.1.1)
@@ -218,7 +169,7 @@ theorem firstSliceB (n : ℕ) : FirstSliceB n := by
     have hlt := card_D_lt_card_seed_B n hb hy
     rw [hone, Nat.mul_one] at hcard
     omega
-  · -- main case: the cut obstruction
+  ·
     have hcut : IsCut (cutB hb) := cutB_isCut hb hbt
     have hAne : (cutB hb).Nonempty := cutB_nonempty hb hy
     have hc : Fintype.card ↥((cutB hb)ᶜ)
@@ -240,35 +191,25 @@ theorem firstSliceB (n : ℕ) : FirstSliceB n := by
       (fun q => lamD_le n (OrderDual.ofDual q).1 (OrderDual.ofDual q).2.1.1)
       (Ne.symm (top_ne_bot_D n)) hQne hcut hAne hcne hdvd e
 
-/-! ## Copy `C` below the marked point
-
-`CopyCLow.seedC_cases` says that when `markedPt k ≰ c` there is **no copy-`B`
-element** in the seed, so the same argument runs with the boundary moved from
-`dMid (k+1) = glueA m m` up to `glueA m ⊤` — copy `A` reaches copy `C`
-unconditionally (`copyA_le_copyC`), so the whole of copy `A` is the upper part of
-the cut, and its size is `card (D k) * card (J (D k))`.
-
-For `markedPt k ≤ c` the copy-`B` elements *are* in the seed and no copy-`A`
-element above the marked point bounds them (`not_iotaD_top_le_glueB`): the cut
-does not exist, and that half is left open below. -/
-
+-- [D-3196] §Copy-C-below-the-marked-point
 section CopyC
 
 open CopyCLow
 
-/-- All join-irreducibles of `D k`. -/
+-- [D-3197] JAll
 abbrev JAll (k : ℕ) : Type := {q : D k // JoinIrred (D k) q}
 
+-- [D-3198] jAll_nonempty
 theorem jAll_nonempty (k : ℕ) : Nonempty (JAll k) := ⟨⟨lamD k, joinIrred_lamD k⟩⟩
 
-/-- The copy-`A` part of a copy-`C` seed is **all** of copy `A`, and that is a
-product. -/
+-- [D-3199] topSeedEquiv
 noncomputable def topSeedEquiv (k : ℕ) :
     {f : EndP (D k) // JoinIrred (EndP (D k)) f ∧ f ≤ (⊤ : EndP (D k))}
       ≃ ((D k)ᵒᵈ × JAll k) :=
   (Equiv.subtypeEquivRight (fun _ => ⟨fun h => h.1, fun h => ⟨h, le_top⟩⟩)).trans
     (jiOrderIso (P := D k)).toEquiv.symm
 
+-- [D-3200] card_topSeed
 theorem card_topSeed (k : ℕ) :
     Fintype.card {f : EndP (D k) // JoinIrred (EndP (D k)) f ∧ f ≤ (⊤ : EndP (D k))}
       = Fintype.card (D k) * Fintype.card (JAll k) := by
@@ -277,16 +218,12 @@ theorem card_topSeed (k : ℕ) :
 
 variable {k : ℕ} {c : EndP (D k)}
 
-/-- The cut for a copy-`C` point: the seed elements that the copy-`A` top does
-not bound.
-
-The boundary is written `iotaD k ⊤`, not `glueA (markedPt k) ⊤`: the two are
-equal (`iotaD_top_eq_glueA`) but only the former elaborates at `D (k+1)` rather
-than at the raw `GlueCar`, and `le_antisymm` needs the `D (k+1)` order. -/
+-- [D-3201] cutC
 def cutC (hc : c ≠ ⊥) (hcm : c ≠ markedPt k) :
     Set ((LevelSeed (k + 1) (glueC (markedPt k) c hc hcm))ᵒᵈ) :=
   {u | ¬ ((OrderDual.ofDual u).1 ≤ iotaD k (⊤ : D k))}
 
+-- [D-3202] cutC_isCut
 theorem cutC_isCut (hc : c ≠ ⊥) (hcm : c ≠ markedPt k)
     (hmc : ¬ (markedPt k ≤ c)) : IsCut (cutC hc hcm) := by
   intro a ha u hu
@@ -304,6 +241,7 @@ theorem cutC_isCut (hc : c ≠ ⊥) (hcm : c ≠ markedPt k)
     rw [hwu, hv]
     exact copyA_le_copyC w hc' hcm'
 
+-- [D-3203] cutC_nonempty
 theorem cutC_nonempty (hc : c ≠ ⊥) (hcm : c ≠ markedPt k)
     (hy : JoinIrred (D (k + 1)) (glueC (markedPt k) c hc hcm)) :
     (cutC hc hcm).Nonempty := by
@@ -315,7 +253,7 @@ theorem cutC_nonempty (hc : c ≠ ⊥) (hcm : c ≠ markedPt k)
   rw [iotaD_top_eq_glueA k] at heq
   exact glueA_ne_copyC hc hcm (⊤ : EndP (D k)) heq
 
-/-- The complement of the cut is the seed of the copy-`A` top. -/
+-- [D-3204] cutCComplEquiv
 def cutCComplEquiv (hc : c ≠ ⊥) (hcm : c ≠ markedPt k) :
     ↥((cutC hc hcm)ᶜ) ≃ LevelSeed (k + 1) (iotaD k (⊤ : D k)) where
   toFun u := ⟨(OrderDual.ofDual u.1).1, (OrderDual.ofDual u.1).2.1, not_not.mp u.2⟩
@@ -325,6 +263,7 @@ def cutCComplEquiv (hc : c ≠ ⊥) (hcm : c ≠ markedPt k) :
   left_inv _ := rfl
   right_inv _ := rfl
 
+-- [D-3205] card_cutCCompl
 theorem card_cutCCompl (hc : c ≠ ⊥) (hcm : c ≠ markedPt k) :
     Fintype.card ↥((cutC hc hcm)ᶜ) = Fintype.card (D k) * Fintype.card (JAll k) := by
   rw [Fintype.card_congr (cutCComplEquiv hc hcm), iotaD_top_eq_glueA k,
@@ -333,9 +272,8 @@ theorem card_cutCCompl (hc : c ≠ ⊥) (hcm : c ≠ markedPt k) :
 
 end CopyC
 
--- the `no_iso_of_cut_bounds` application carries large implicit tower types
+-- [D-3206] firstSliceC_low
 set_option maxHeartbeats 1000000 in
-/-- **Copy `C` below the marked point is excluded at every level.** -/
 theorem firstSliceC_low (n : ℕ) (x : D n) (hx : JoinIrred (D n) x)
     (c : EndP (D n)) (hc : c ≠ ⊥) (hcm : c ≠ markedPt n)
     (hmc : ¬ (markedPt n ≤ c))
@@ -384,13 +322,8 @@ theorem firstSliceC_low (n : ℕ) (x : D n) (hx : JoinIrred (D n) x)
       (fun q => lamD_le n (OrderDual.ofDual q).1 (OrderDual.ofDual q).2.1.1)
       (Ne.symm (top_ne_bot_D n)) hQne hcut hAne hcne hdvd e
 
-/-! ## What is left: copy `C` above the marked point -/
-
-/-- The copy-`C`-high half — the one case the cut does not reach.
-
-When `markedPt n ≤ c` the copy-`B` elements are in the seed too, and no copy-`A`
-element above the marked point bounds them (`not_iotaD_top_le_glueB`), so the
-seed is not an ordinal sum at either boundary. -/
+-- [D-3207] §What-is-left-copy-C-above-the-marked-point
+-- [D-3208] FirstSliceCHigh
 def FirstSliceCHigh (n : ℕ) : Prop :=
   ∀ (x : D n), JoinIrred (D n) x →
     ∀ (c : EndP (D n)) (hc : c ≠ ⊥) (hcm : c ≠ markedPt n), markedPt n ≤ c →
@@ -398,22 +331,18 @@ def FirstSliceCHigh (n : ℕ) : Prop :=
         IsEmpty ((LevelSeed (n + 1) (glueC (markedPt n) c hc hcm))ᵒᵈ
           ≃o (D n × (LevelSeed n x)ᵒᵈ))
 
+-- [D-3209] firstSliceC
 theorem firstSliceC (n : ℕ) (h : FirstSliceCHigh n) : FirstSliceC n := by
   intro x hx c hc hcm hy
   by_cases hmc : markedPt n ≤ c
   · exact h x hx c hc hcm hmc hy
   · exact firstSliceC_low n x hx c hc hcm hmc hy
 
-/-- **The first slice, at every level, modulo copy-`C`-high.** -/
+-- [D-3210] firstSlice
 theorem firstSlice (n : ℕ) (h : FirstSliceCHigh n) : FirstSlice n :=
   firstSlice_of (firstSliceB n) (firstSliceC n h)
 
-/-- **Pillar B now rests on copy-`C`-high alone.**
-
-Every other arrow from the first slice to `Subsingleton (DInfty ≃o DInfty)` is
-machine-checked: copy `B` and copy-`C`-low by the cut obstruction above, the
-first-slice reduction by `BaseShift`, and the restatement by
-`FirstSliceToColimit`. -/
+-- [D-3211] colimit_compat_of_firstSliceCHigh
 theorem colimit_compat_of_firstSliceCHigh (h : ∀ n, FirstSliceCHigh n) :
     Subsingleton (DInfty ≃o DInfty) :=
   FirstSliceToColimit.colimit_compat_of_firstSlice (fun n => firstSlice n (h n))

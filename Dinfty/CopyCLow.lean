@@ -2,47 +2,7 @@ import Dinfty.CopyBAtoms
 
 open GluingTowerLibrary SierpinskiApplication
 
-/-!
-# Copy `C`, the half where the copy-`B` part is absent
-
-§35 recorded copy `C` as needing a *different* argument, because a copy-`C` seed
-contains all of copy `A` — including `iotaD k ⊤ > dMid (k+1)` — so `t = dMid (k+1)`
-does not bound `factorPart`, and `t = iotaD k ⊤` fails too since copy-`B`
-elements are in the seed as well.
-
-**That second failure is conditional, and the condition is `m ≤ x`.**
-`leGlue_tagB_tagC_iff` says `glueB m b ≤ glueC m x ↔ m ≤ x`: when `m ≰ x` the
-copy-`B` part of the seed is *empty*, the seed really is the ordinal sum
-`J(EndP (D k)) ⊕ (copy C below x)`, and `t = iotaD k ⊤` **is** a valid witness —
-because `glueA m a ≤ glueC m c` holds unconditionally, so every copy-`A` element
-is below every copy-`C` one.
-
-So copy `C` splits on the *local `A`–`B` relation*, and this module closes the
-half where that relation is vacuous.  The argument is `CopyBAtoms` with
-`dMidSeed` replaced by `topSeedC = iotaD k ⊤`:
-
-* a copy-`A` atom must be `topSeedC` (`copyA_atom_eqC`) — because
-  `glueA m ⊤` is the greatest copy-`A` element of the seed, and it *is* in the
-  seed, since `⊤ : EndP (D k)` is join-irreducible (`joinIrred_endP_top`, from
-  `D_top_hasUniqueDownCover`);
-* if `topSeedC` is an atom it is the only one (`atom_uniqueC`);
-* so **≥ 2 atoms** ⟹ every atom is copy `C` ⟹ no copy-`A` element is in
-  `factorPart` ⟹ `factorPart` is bounded by `topSeedC`, with `dMid (k+1)`
-  strictly below it (`dMid_lt_iotaD_top`, §35) ⟹ `¬ GenByFactors`;
-* **exactly 1 atom** ⟹ counting, exactly as for copy `B`: the three thresholds
-  give three copy-`A` seed elements and `y` is a fourth, against
-  `Fintype.card (D 0) = 3`.
-
-`⊤` being join-irreducible in the base is not decoration: over `C₂ × C₂`, where
-it fails, `glueA m ⊤` is not in the seed at all and the witness disappears.  See
-`_archive/check_copyC_seed_generation.py`, which sweeps chains, products,
-products-with-a-top, `EndP (D 0)`, `EndP (C₄)` and `D 1`, and finds the claim
-holds exactly on the bases whose top is join-irreducible.
-
-**What is left of copy `C` is `m ≤ x`** — there the copy-`A` and copy-`B` parts
-genuinely interleave, `GenByFactors` can hold, and no witness exists.
--/
-
+-- [D-3076] §Copy-C-the-half-where-the-copy-B-part-is-absent
 open scoped Classical
 
 namespace CopyCLow
@@ -52,26 +12,27 @@ open SeedLevelStep WeakProductAbsorption AtomFactorGeneration WeakProdFactorizat
 open SeedSeparation MidAnchor SeedChain TwoPointHypothesis CopyBExclusion CopyBAtoms
 open TowerNoAbsorption TowerCardGrowth
 
+-- [D-3077] hmk'
 private theorem hmk' (k : ℕ) : (markedPt k) ≠ ⊥ := (D_marked_point_nondegenerate k).1
+-- [D-3078] hmtk'
 private theorem hmtk' (k : ℕ) : (markedPt k) ≠ ⊤ := (D_marked_point_nondegenerate k).2.1
+-- [D-3079] hbtk'
 private theorem hbtk' (k : ℕ) : (⊥ : EndP (D k)) ≠ ⊤ := (D_marked_point_nondegenerate k).2.2
 
-/-- **`⊤` is join-irreducible in `EndP (D k)`** — `D k`'s own top has a unique
-down-cover, and `constHom` reflects join-irreducibility. -/
+-- [D-3080] joinIrred_endP_top
 theorem joinIrred_endP_top (k : ℕ) : JoinIrred (EndP (D k)) (⊤ : EndP (D k)) := by
   letI := realUniqueAtomCoatom k
   rw [endP_top_eq_constHom_top, joinIrred_constHom_iff]
   exact (hasUniqueDownCover_iff_joinIrred (⊤ : D k)).mp (D_top_hasUniqueDownCover k)
 
-/-! ## The seed of a copy-`C` point with `m ≰ x` -/
-
+-- [D-3081] §The-seed-of-a-copy-C-point-with-m-x
 section Seed
 
 variable {k : ℕ} {x : EndP (D k)} (hx : x ≠ ⊥) (hxm : x ≠ markedPt k)
 variable (hmx : ¬ (markedPt k ≤ x))
 
+-- [D-3082] seedC_cases
 include hmx in
-/-- With `m ≰ x` there is **no copy-`B` element** below `y`. -/
 theorem seedC_cases (u : D (k + 1)) (hu : u ≤ glueC (markedPt k) x hx hxm) :
     (∃ v : EndP (D k), u = glueA (markedPt k) v)
       ∨ (∃ (c : EndP (D k)) (hc : c ≠ ⊥) (hcm : c ≠ markedPt k),
@@ -81,12 +42,13 @@ theorem seedC_cases (u : D (k + 1)) (hu : u ≤ glueC (markedPt k) x hx hxm) :
   · exact absurd ((leGlue_tagB_tagC_iff (markedPt k) b x).mp hu) hmx
   · exact Or.inr ⟨c, hc, hcm, rfl⟩
 
-/-- Copy `A` is below copy `C` unconditionally. -/
+-- [D-3083] copyA_le_copyC
 theorem copyA_le_copyC (v : EndP (D k)) {c : EndP (D k)} (hc : c ≠ ⊥)
     (hcm : c ≠ markedPt k) :
     (glueA (markedPt k) v : D (k + 1)) ≤ glueC (markedPt k) c hc hcm :=
   leGlue_tagA_tagC (markedPt k) v c
 
+-- [D-3084] glueA_ne_copyC
 theorem glueA_ne_copyC (v : EndP (D k)) :
     (glueA (markedPt k) v : D (k + 1)) ≠ glueC (markedPt k) x hx hxm := by
   intro hcon
@@ -94,18 +56,18 @@ theorem glueA_ne_copyC (v : EndP (D k)) :
     congrArg Subtype.val hcon
   simp at h2
 
-/-- The copy-`A` top, as an element of the seed: the witness that replaces
-`dMidSeed`. -/
+-- [D-3085] topSeedC
 noncomputable def topSeedC : LevelSeed (k + 1) (glueC (markedPt k) x hx hxm) :=
   ⟨glueA (markedPt k) (⊤ : EndP (D k)),
    (joinIrred_glueA_iff (markedPt k) (hmk' k) (hmtk' k) (hbtk' k)
      (⊤ : EndP (D k))).mpr (joinIrred_endP_top k),
    leGlue_tagA_tagC (markedPt k) (⊤ : EndP (D k)) x⟩
 
-/-- The marked point, as an element of the seed. -/
+-- [D-3086] midSeedC
 noncomputable def midSeedC : LevelSeed (k + 1) (glueC (markedPt k) x hx hxm) :=
   ⟨dMid (k + 1), D_mid_joinIrred (k + 1), dMid_le_glueC k hx hxm⟩
 
+-- [D-3087] midSeedC_lt_topSeedC
 theorem midSeedC_lt_topSeedC : midSeedC hx hxm < topSeedC hx hxm := by
   have h : dMid (k + 1) < glueA (markedPt k) (⊤ : EndP (D k)) := by
     have := dMid_lt_iotaD_top k
@@ -114,8 +76,7 @@ theorem midSeedC_lt_topSeedC : midSeedC hx hxm < topSeedC hx hxm := by
 
 end Seed
 
-/-! ## The atoms -/
-
+-- [D-3088] §The-atoms
 section Atoms
 
 variable {k : ℕ} {x : EndP (D k)} {hx : x ≠ ⊥} {hxm : x ≠ markedPt k}
@@ -127,6 +88,7 @@ variable (hbot : (OrderDual.ofDual
 
 include hbot
 
+-- [D-3089] le_topSeedC
 omit hbot in
 theorem le_topSeedC (u : LevelSeed (k + 1) (glueC (markedPt k) x hx hxm))
     {v : EndP (D k)} (hv : u.1 = glueA (markedPt k) v) : u ≤ topSeedC hx hxm := by
@@ -134,7 +96,7 @@ theorem le_topSeedC (u : LevelSeed (k + 1) (glueC (markedPt k) x hx hxm))
   rw [hv]
   exact (glueA_le_iff (markedPt k) (hmk' k) v (⊤ : EndP (D k))).mpr le_top
 
-/-- **A copy-`A` atom is the copy-`A` top.** -/
+-- [D-3090] copyA_atom_eqC
 theorem copyA_atom_eqC (α : (LevelSeed (k + 1) (glueC (markedPt k) x hx hxm))ᵒᵈ)
     (hα : IsAtom α) {v : EndP (D k)}
     (hv : (OrderDual.ofDual α).1 = glueA (markedPt k) v) :
@@ -151,8 +113,8 @@ theorem copyA_atom_eqC (α : (LevelSeed (k + 1) (glueC (markedPt k) x hx hxm))�
     exact glueA_ne_copyC hx hxm (⊤ : EndP (D k)) hb
   · exact heq.symm
 
+-- [D-3091] atom_uniqueC
 include hmx in
-/-- If the copy-`A` top is an atom it is the only one. -/
 theorem atom_uniqueC (hd : IsAtom (OrderDual.toDual (topSeedC hx hxm)))
     (β : (LevelSeed (k + 1) (glueC (markedPt k) x hx hxm))ᵒᵈ) (hβ : IsAtom β) :
     β = OrderDual.toDual (topSeedC hx hxm) := by
@@ -167,8 +129,8 @@ theorem atom_uniqueC (hd : IsAtom (OrderDual.toDual (topSeedC hx hxm)))
     · exact absurd (hd.2 _ hlt) hβ.1
     · exact heq
 
+-- [D-3092] atom_copyC_of_two
 include hmx in
-/-- With two distinct atoms, every atom is copy `C`. -/
 theorem atom_copyC_of_two
     (α₁ α₂ : (LevelSeed (k + 1) (glueC (markedPt k) x hx hxm))ᵒᵈ)
     (h1 : IsAtom α₁) (h2 : IsAtom α₂) (hne : α₁ ≠ α₂)
@@ -184,9 +146,8 @@ theorem atom_copyC_of_two
       (atom_uniqueC hmx hbot hd α₂ h2).symm)
   · exact h
 
+-- [D-3093] factorPart_le_topC
 include hmx in
-/-- **The factor part is bounded by the copy-`A` top**, once there are two
-distinct atoms. -/
 theorem factorPart_le_topC
     (α₁ α₂ : (LevelSeed (k + 1) (glueC (markedPt k) x hx hxm))ᵒᵈ)
     (h1 : IsAtom α₁) (h2 : IsAtom α₂) (hne : α₁ ≠ α₂)
@@ -212,8 +173,8 @@ theorem factorPart_le_topC
     rw [hv]
     exact copyA_le_copyC (⊤ : EndP (D k)) hc hcm
 
+-- [D-3094] not_genByFactors_of_two_atomsC
 include hmx in
-/-- **Two atoms defeat generation**, with `t = iotaD k ⊤` and `w = dMid (k+1)`. -/
 theorem not_genByFactors_of_two_atomsC
     (α₁ α₂ : (LevelSeed (k + 1) (glueC (markedPt k) x hx hxm))ᵒᵈ)
     (h1 : IsAtom α₁) (h2 : IsAtom α₂) (hne : α₁ ≠ α₂) :
@@ -225,12 +186,12 @@ theorem not_genByFactors_of_two_atomsC
 
 end Atoms
 
-/-! ## Four elements, again -/
-
+-- [D-3095] §Four-elements-again
 section Count
 
 variable (k : ℕ) {x : EndP (D k)} (hx : x ≠ ⊥) (hxm : x ≠ markedPt k)
 
+-- [D-3096] four_le_card_seedC
 theorem four_le_card_seedC
     (hy : JoinIrred (D (k + 1)) (glueC (markedPt k) x hx hxm)) :
     4 ≤ Fintype.card (LevelSeed (k + 1) (glueC (markedPt k) x hx hxm)) := by
@@ -288,8 +249,8 @@ theorem four_le_card_seedC
 
 end Count
 
-/-! ## The copy-`C` exclusion, on the `m ≰ x` half -/
-
+-- [D-3097] §The-copy-C-exclusion-on-the-m-x-half
+-- [D-3098] copyC_low_forces_false
 theorem copyC_low_forces_false {T : Type} [PartialOrder T] [OrderBot T] [IsAtomic T]
     (hT : GenByFactors T) (k : ℕ) {x : EndP (D k)} (hx : x ≠ ⊥)
     (hxm : x ≠ markedPt k) (hmx : ¬ (markedPt k ≤ x))
@@ -370,6 +331,7 @@ theorem copyC_low_forces_false {T : Type} [PartialOrder T] [OrderBot T] [IsAtomi
     have h4 := four_le_card_seedC 0 hx hxm hy
     omega
 
+-- [D-3099] copyC_excluded_low
 theorem copyC_excluded_low (z : DInfty) {T : Type} [PartialOrder T] [OrderBot T]
     [IsAtomic T] (hz : (JBelow z)ᵒᵈ ≃o (WeakProd (Fam 0) × T)) (hT : GenByFactors T)
     (k : ℕ) (x : EndP (D k)) (hx : x ≠ ⊥) (hxm : x ≠ markedPt k)
@@ -381,14 +343,13 @@ theorem copyC_excluded_low (z : DInfty) {T : Type} [PartialOrder T] [OrderBot T]
     (hz.symm.trans (e.dual.symm.trans
       (seedShape (k + 1) (glueC (markedPt k) x hx hxm) hji)))
 
-/-- **The remaining half of copy `C`**: the marked point below the copy-`C`
-index, where the copy-`B` part of the seed is present and the copy-`A` and
-copy-`B` parts interleave. -/
+-- [D-3100] CopyCHighExcludedFor
 def CopyCHighExcludedFor (z : DInfty) : Prop :=
   ∀ (k : ℕ) (x : EndP (D k)) (hx : x ≠ ⊥) (hxm : x ≠ markedPt k),
     markedPt k ≤ x → JoinIrred (D (k + 1)) (glueC (markedPt k) x hx hxm) →
     ¬ Nonempty (JBelow (toD (k + 1) (glueC (markedPt k) x hx hxm)) ≃o JBelow z)
 
+-- [D-3101] copyC_of_high
 theorem copyC_of_high (z : DInfty) {T : Type} [PartialOrder T] [OrderBot T]
     [IsAtomic T] (hz : (JBelow z)ᵒᵈ ≃o (WeakProd (Fam 0) × T)) (hT : GenByFactors T)
     (hH : CopyCHighExcludedFor z) : CopyCExcludedFor z := by
@@ -397,7 +358,7 @@ theorem copyC_of_high (z : DInfty) {T : Type} [PartialOrder T] [OrderBot T]
   · exact hH k x hx hxm hmx hji
   · exact copyC_excluded_low z hz hT k x hx hxm hmx hji
 
-/-- **`TwoPointFixed`, reduced to the `m ≤ x` half of copy `C`.** -/
+-- [D-3102] twoPointFixed_of_CHigh
 theorem twoPointFixed_of_CHigh (h₁ : CopyCHighExcludedFor midInf)
     (h₂ : CopyCHighExcludedFor (toD 0 (⊤ : D 0))) : TwoPointFixed :=
   twoPointFixed_of_C

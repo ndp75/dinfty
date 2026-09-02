@@ -2,99 +2,7 @@ import Dinfty.GenContinuityTransport
 
 open GluingTowerLibrary SierpinskiApplication
 
-/-!
-# Gap 2 of `GenContinuity`: the mixed-variance (`End`) half
-
-`GenContinuity` reduces local continuity of `Φ`'s morphism action to
-Scott-continuity of the three copy-inclusions, and `GenContinuityTransport`
-transports all three into `GlueCarGen`.  Its second recorded gap is the other
-factor of the composite:
-
-> **Mixed variance.**  This covers `Φ`'s action on hom-sets.  Ingredient 3 as
-> cited is local continuity of `Φ ∘ End` on an O-category, and `End` is
-> mixed-variance — contravariant in its first argument.  Nothing here touches
-> the `End` half.
-
-This module is the `End` half, and the composition step.
-
-## Why the variance is not the obstruction it looks like
-
-`End(D) = [D → D]` is the diagonal of the hom-bifunctor
-`(A, B) ↦ [A → B]`, contravariant in `A` and covariant in `B`, with action
-`(f, g) ↦ (h ↦ g ∘ h ∘ f)` for `f : A' → A` and `g : B → B'`.  Local continuity
-is continuity of that assignment in the pair `(f, g)` — and in that
-presentation *both* slots are covariant, the contravariance having been
-absorbed into `A'`.
-
-The reason this matters concretely: for an embedding-projection pair
-`(e, p)`, `e ⊑ e'` is equivalent to `p ⊒ p'`, so a family of ep-pairs that
-increases in its embeddings *decreases* in its projections, and
-`(e, p) ↦ e ∘ h ∘ p` is not monotone along it.  What ingredient 3 actually
-uses is not that family: it is the family of **deflations** `δ i = e i ∘ p i :
-D∞ → D∞`, which increases to `id`, and which occupies *both* slots at once
-(`deflation_isLUB`).  `comp_isLUB` is stated for independent families so that
-the hypothesis doing the work — the two families being directed *together* —
-is visible rather than hidden by the diagonal.
-
-## What is proved
-
-* `comp_isLUB` — the hom-bifunctor action `(f, g) ↦ g ∘ h ∘ f` preserves
-  directed suprema, over arbitrary preorders, stated pointwise so that no
-  function-space cpo structure is needed.  This is the `End` half.
-* `deflation_isLUB` — the diagonal instance, `F = G = δ`: the shape the
-  bilimit argument uses.
-* `isLUB_orderHom_of_pointwise` — pointwise suprema *are* suprema in the
-  pointwise-ordered hom-poset.  This is the bridge that turns the pointwise
-  output of `comp_isLUB` into the hypothesis `baseMapGen_isLUB_tagA` wants.
-* `endHom`, `endHom_isLUB` — the `End` action bundled as an `OrderHom`, and its
-  local continuity in the bundled form.
-* `baseMapGen_isLUB_tagA` / `_tagB` / `_tagC` — the `Φ` half, in `GlueCarGen`:
-  the morphism action preserves suprema of a pointwise-directed family of
-  morphisms, at points of each copy.  Copy `A` is unconditional; copies `B`
-  and `C` carry the canon-fixed side conditions on the family's values.
-* `phiEnd_isLUB_tagA` — the two halves composed.
-
-## What is NOT proved, and the mismatch this exposes
-
-1. **`ScottContinuous h` is a hypothesis, and it is discharged by the carrier,
-   not by this module.**  `comp_isLUB` needs the endomorphism being transported
-   to be Scott-continuous.  The *finite-level* tower is built on
-   `EndP P = P →o P`, all monotone self-maps; the *limit-side* instantiation is
-   already built on `ScottEndP`, where the hypothesis holds by construction —
-   `SierpinskiApplication.psiTargetOrder` instantiates `glueCarPartialOrderGen`
-   at `P := ScottEndP DBilimit`, with `scottEndPId`, `scottEndPId_ne_bot`,
-   `scottEndPId_ne_top` and `scottEndPBot_ne_top` supplying `m`, `hm`, `hmt`,
-   `hbt`.  At finite levels the two carriers coincide anyway: a monotone map on
-   a finite poset is Scott-continuous, since directed subsets attain their sups.
-   So this is an alignment between two constructions the project already has,
-   **not** a missing one.  (An earlier draft of this docstring called it a new
-   obligation on the grounds that "the tower is built on `EndP`".  That was
-   wrong: it read the finite-level carrier and missed `psiTargetOrder`.)
-2. **The tower's deflations — DISCHARGED in `Dinfty/DeflationContinuity.lean`,
-   after this module was written.**  Everything here is conditional on a family
-   with pointwise suprema and joint directedness.  The live tower supplies one:
-   `SierpinskiApplication.chainSet_isLUB` *is* the pointwise-suprema hypothesis
-   and `insertAtLevel_chain_mono` gives joint directedness, both already on
-   file.  The only piece that had to be proved was Scott-continuity of
-   `δ n = insertAtLevel n ∘ (· .1 n)`, from
-   `monotone_scottContinuous_of_finite_dom` (finite *level*, not finite
-   bilimit) and `IsLUB.dbilimit_apply`.  See `DeflationContinuity.end_defl_isLUB`
-   and, for why only copy `A` follows, `DeflationContinuity.endDefl_bot`.
-3. **Instance hygiene at the instantiation.**  `phiEnd_isLUB_tagA` keeps
-   `[DecidableEq P]` as a hypothesis rather than instantiating `P` at a hom-type
-   via `Classical.decEq`, deliberately: `canonGen` is defined by
-   `DecidableEq`-guarded branches, and freezing a classical instance into them
-   is the defect recorded for `stepMap`/`glueJoinRaw`.  A caller instantiating
-   at `ScottEndP D` must supply a `DecidableEq` that matches the one the
-   `GlueCarGen` side already uses.
-
-So: gap 2's `End` half is discharged, the composition step is proved, and
-(since `DeflationContinuity`) the family it is conditional on is supplied by the
-live tower.  Ingredient 3 remains open: what is missing is ingredient 2 and the
-identification of the `Gen`-layer morphism action with `Φ_tri_v2`, not the
-continuity content.
--/
-
+-- [D-1516] §Gap-2-of-GenContinuity-the-mixed-variance-End
 open scoped Classical
 
 open Set
@@ -103,30 +11,13 @@ universe u v
 
 namespace EndLocalContinuity
 
-/-! ## The mixed-variance core -/
-
+-- [D-1517] §The-mixed-variance-core
 section MixedVariance
 
 variable {ι : Type v} [Nonempty ι]
 variable {X Y Z W : Type u} [Preorder X] [Preorder Y] [Preorder Z] [Preorder W]
 
-/-- **The `End` half.**  The hom-bifunctor action `(f, g) ↦ g ∘ h ∘ f` preserves
-suprema of a jointly directed family, at every point.
-
-Stated pointwise on plain preorders: no dcpo instance, no function-space cpo,
-no finiteness, and no induction.  `fLim` and `gLim` are given only by their
-defining pointwise `IsLUB` properties, so neither has to be built.
-
-The two halves of the proof use different hypotheses, which is worth seeing:
-
-* the **upper bound** half needs only monotonicity — `F i x ≤ fLim x`, then `h`
-  and `G i` monotone, then `G i y ≤ gLim y`.  Directedness plays no role;
-* the **leastness** half is where both Scott-continuity and joint directedness
-  are spent.  `h` carries the sup of `{F i x}` (`hh`), `G j` carries the sup of
-  the image (`hGc j`), and then the double family `G j (h (F i x))` is
-  collapsed to its diagonal by choosing, for each `(i, j)`, a `k` dominating
-  `F i` and `G j` at once.  That last step is precisely where a family
-  increasing in one slot and decreasing in the other would fail. -/
+-- [D-1518] comp_isLUB
 theorem comp_isLUB
     (F : ι → X → Y) (G : ι → Z → W) (h : Y → Z) (fLim : X → Y) (gLim : Z → W)
     (hdir : ∀ i j : ι, ∃ k : ι, (∀ x, F i x ≤ F k x) ∧ (∀ x, F j x ≤ F k x)
@@ -163,13 +54,7 @@ theorem comp_isLUB
       _ ≤ G k (h (F k x)) := hGm k (hhm (hFik x))
       _ ≤ w := hw ⟨k, rfl⟩
 
-/-- **The diagonal instance — the shape ingredient 3 uses.**  Both slots of the
-hom-bifunctor receive the *same* increasing family of deflations `δ i`, so the
-joint-directedness hypothesis of `comp_isLUB` is just directedness of that one
-family, and the mixed variance costs nothing.
-
-This is the local-continuity step of the classical bilimit argument
-(`id = ⨆ δ i` pushed through the functor), with `dLim` left abstract. -/
+-- [D-1519] deflation_isLUB
 theorem deflation_isLUB {D : Type u} [Preorder D]
     (δ : ι → D → D) (dLim : D → D) (h : D → D)
     (hdir : ∀ i j : ι, ∃ k : ι, (∀ x, δ i x ≤ δ k x) ∧ (∀ x, δ j x ≤ δ k x))
@@ -182,27 +67,12 @@ theorem deflation_isLUB {D : Type u} [Preorder D]
 
 end MixedVariance
 
-/-! ## The variance fact itself, machine-checked
-
-The module docstring's claim about why the variance matters is not narrated
-here: it is proved.  `ep_le_iff` says that along embedding-projection pairs the
-two slots of the hom-bifunctor move in *opposite* directions, so a family of
-ep-pairs is never jointly directed unless it is constant.  That is precisely
-why `comp_isLUB` is applied at the deflations (`deflation_isLUB`), where one
-family occupies both slots, and not at the ep-pairs themselves. -/
-
+-- [D-1520] §The-variance-fact-itself-machine-checked
 section Variance
 
 variable {A B : Type u} [PartialOrder A] [PartialOrder B]
 
-/-- **Embeddings increase exactly when projections decrease.**
-
-For two ep-pairs `(e, p)`, `(e', p') : A ◁ B` — `p ∘ e = id`, `e ∘ p ≤ id` —
-the embeddings are ordered one way and the projections the other.
-
-Forward: `p' b = p (e (p' b)) ≤ p (e' (p' b)) ≤ p b`, using `p ∘ e = id`, then
-`e ≤ e'`, then `e' ∘ p' ≤ id`.  Backward is the adjunction `e a ≤ b ↔ a ≤ p b`
-run at `b = e' a`: `a = p' (e' a) ≤ p (e' a)`, hence `e a ≤ e (p (e' a)) ≤ e' a`. -/
+-- [D-1521] ep_le_iff
 theorem ep_le_iff (e e' : A →o B) (p p' : B →o A)
     (hpe : ∀ a, p (e a) = a) (hep : ∀ b, e (p b) ≤ b)
     (hpe' : ∀ a, p' (e' a) = a) (hep' : ∀ b, e' (p' b) ≤ b) :
@@ -218,19 +88,13 @@ theorem ep_le_iff (e e' : A →o B) (p p' : B →o A)
 
 end Variance
 
-/-! ## The bridge: pointwise suprema are hom-poset suprema -/
-
+-- [D-1522] §The-bridge-pointwise-suprema-are-hom-poset
 section Bridge
 
 variable {ι : Type v}
 variable {X Y : Type u} [Preorder X] [PartialOrder Y]
 
-/-- Pointwise `IsLUB` gives `IsLUB` in the pointwise order on `X →o Y`.
-
-This is what makes the two halves composable: `comp_isLUB` produces its
-conclusion one point at a time, while the `Φ` half consumes a family of
-morphisms.  Nothing here needs the supremum to be *constructed* — it is given
-as an `OrderHom` and only its pointwise property is used. -/
+-- [D-1523] isLUB_orderHom_of_pointwise
 theorem isLUB_orderHom_of_pointwise (u : ι → (X →o Y)) (s : X →o Y)
     (h : ∀ x, IsLUB (Set.range fun i => (u i) x) (s x)) :
     IsLUB (Set.range u) s := by
@@ -244,31 +108,22 @@ theorem isLUB_orderHom_of_pointwise (u : ι → (X →o Y)) (s : X →o Y)
 
 end Bridge
 
-/-! ## The `End` action, bundled -/
-
+-- [D-1524] §The-End-action-bundled
 section EndAction
 
 variable {ι : Type v} [Nonempty ι]
 variable {D D' : Type u} [PartialOrder D] [PartialOrder D']
 
-/-- The `End` functor's action on hom-sets, bundled: `h ↦ e ∘ h ∘ p`.
-
-Monotone in `h`, which is all the bundling needs; monotonicity in `(e, p)` is
-the *local* structure and is `comp_isLUB`'s subject, not this definition's. -/
+-- [D-1525] endHom
 def endHom (e : D →o D') (p : D' →o D) : (D →o D) →o (D' →o D') where
   toFun h := e.comp (h.comp p)
   monotone' _ _ hab := OrderHom.le_def.mpr fun x => e.monotone (OrderHom.le_def.mp hab (p x))
 
+-- [D-1526] endHom_apply
 @[simp] theorem endHom_apply (e : D →o D') (p : D' →o D) (h : D →o D) (x : D') :
     endHom e p h x = e (h (p x)) := rfl
 
-/-- **The `End` half in bundled form.**  For a family of ep-pair components that
-is directed jointly in both slots, the `End` action preserves suprema in the
-hom-poset `D' →o D'`.
-
-The supremum `gLim` is supplied as an `OrderHom` together with its pointwise
-property; `comp_isLUB` gives the pointwise statement and
-`isLUB_orderHom_of_pointwise` lifts it. -/
+-- [D-1527] endHom_isLUB
 theorem endHom_isLUB
     (e : ι → (D →o D')) (p : ι → (D' →o D)) (eLim : D →o D') (pLim : D' →o D)
     (h : D →o D) (gLim : D' →o D')
@@ -286,8 +141,7 @@ theorem endHom_isLUB
 
 end EndAction
 
-/-! ## The `Φ` half, in `GlueCarGen`, and the composite -/
-
+-- [D-1528] §The-half-in-GlueCarGen-and-the-composite
 section PhiSide
 
 open GenContinuity
@@ -296,6 +150,7 @@ variable {ι : Type v} [Nonempty ι]
 variable {P : Type u} [DecidableEq P] [PartialOrder P] [BoundedOrder P]
 variable {P' : Type u} [DecidableEq P'] [PartialOrder P'] [BoundedOrder P']
 
+-- [D-1529] image_range_eq
 theorem image_range_eq {α β γ : Type*} (f : α → β) (u : γ → α) :
     f '' (Set.range u) = Set.range fun i => f (u i) := by
   ext y
@@ -305,12 +160,7 @@ theorem image_range_eq {α β γ : Type*} (f : α → β) (u : γ → α) :
   · rintro ⟨i, rfl⟩
     exact ⟨_, ⟨i, rfl⟩, rfl⟩
 
-/-- **`Φ`'s morphism action is locally continuous at copy-`A` points**, as an
-`IsLUB` statement in `GlueCarGen m'`.
-
-`baseMapGen` is tagwise, so this is `tagAGen_isLUB` applied to the family's
-values at `a` — which is `GenContinuity`'s reduction (`baseMapGen_range_eq`)
-being cashed in.  Unconditional: copy `A` is the total inclusion. -/
+-- [D-1530] baseMapGen_isLUB_tagA
 theorem baseMapGen_isLUB_tagA (m' : P') (hm' : m' ≠ ⊥) (hmt' : m' ≠ ⊤)
     (hbt' : (⊥ : P') ≠ ⊤) (g : ι → (P →o P')) (gLim : P → P')
     (hg : ∀ a, IsLUB (Set.range fun i => (g i) a) (gLim a)) (a : P) :
@@ -320,8 +170,7 @@ theorem baseMapGen_isLUB_tagA (m' : P') (hm' : m' ≠ ⊥) (hmt' : m' ≠ ⊤)
   have hlub := tagAGen_isLUB m' hm' hmt' hbt' (hg a)
   rwa [image_range_eq] at hlub
 
-/-- **`Φ`'s morphism action is locally continuous at copy-`B` points.**  The
-side condition is copy `B`'s canon-fixed domain, on the family's values. -/
+-- [D-1531] baseMapGen_isLUB_tagB
 theorem baseMapGen_isLUB_tagB (m' : P') (hm' : m' ≠ ⊥) (hmt' : m' ≠ ⊤)
     (hbt' : (⊥ : P') ≠ ⊤) (g : ι → (P →o P')) (gLim : P → P')
     (hg : ∀ a, IsLUB (Set.range fun i => (g i) a) (gLim a)) (a : P)
@@ -334,10 +183,7 @@ theorem baseMapGen_isLUB_tagB (m' : P') (hm' : m' ≠ ⊥) (hmt' : m' ≠ ⊤)
     ⟨(g (Classical.arbitrary ι)) a, ⟨_, rfl⟩⟩ (by rintro _ ⟨i, rfl⟩; exact hb i)
   rwa [image_range_eq] at hlub
 
-/-- **`Φ`'s morphism action is locally continuous at copy-`C` points.**  The
-side conditions are copy `C`'s canon-fixed domain, on the family's values.
-There is **no** condition on the supremum: `GenContinuityTransport` absorbs the
-case `gLim a = m'` into the seam. -/
+-- [D-1532] baseMapGen_isLUB_tagC
 theorem baseMapGen_isLUB_tagC (m' : P') (hm' : m' ≠ ⊥) (hmt' : m' ≠ ⊤)
     (hbt' : (⊥ : P') ≠ ⊤) (g : ι → (P →o P')) (gLim : P → P')
     (hg : ∀ a, IsLUB (Set.range fun i => (g i) a) (gLim a)) (a : P)
@@ -351,15 +197,7 @@ theorem baseMapGen_isLUB_tagC (m' : P') (hm' : m' ≠ ⊥) (hmt' : m' ≠ ⊤)
     (by rintro _ ⟨i, rfl⟩; exact hb i) (by rintro _ ⟨i, rfl⟩; exact hm i)
   rwa [image_range_eq] at hlub
 
-/-- **The two halves composed, at copy-`A` points.**
-
-The hypothesis `hg` is exactly what `endHom_isLUB` produces (pointwise, before
-the bridge), so this is `Φ ∘ End` local continuity at copy `A` with the `End`
-half already discharged: the family `g i` is the `End` action of the `i`-th
-deflation, and its pointwise suprema come from `comp_isLUB`.
-
-`P` is kept abstract on purpose — see item 3 of the module docstring on why
-this is not instantiated at a hom-type here. -/
+-- [D-1533] phiEnd_isLUB_tagA
 theorem phiEnd_isLUB_tagA (m' : P') (hm' : m' ≠ ⊥) (hmt' : m' ≠ ⊤)
     (hbt' : (⊥ : P') ≠ ⊤) (g : ι → (P →o P')) (gLim : P →o P')
     (hg : ∀ a, IsLUB (Set.range fun i => (g i) a) (gLim a)) (a : P) :

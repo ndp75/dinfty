@@ -2,38 +2,7 @@ import Dinfty.HornBConjugation
 
 open GluingTowerLibrary SierpinskiApplication
 
-/-!
-# `Φ`'s morphism action under the `const_L` normalization
-
-`Meta/Finding - PsiIso tower mismatch (2026-08-26).md`, Updates 22–24.
-
-The gluing functor `Φ(P) = GlueCar(P, m)` never had its action on *morphisms*
-in Lean. `liftGen` was the attempt under the `m = id` convention and it failed:
-conjugation is not `id`-exact, and the `⊔ id` / `⊔ ⊤` repair destroys
-join-preservation (Finding Updates 2–3).
-
-Under the normalization the vault actually uses — `m` a **marked point that a
-tripointed map hits exactly** — the action is unproblematic. This file defines
-it and proves it well-defined and monotone, from exactly three hypotheses on
-`g`:
-
-  `g ⊥ = ⊥`,  `g m = m'`,  `g ⊤ = ⊤`   (tripointedness)
-
-plus injectivity of `g` (automatic for an ep-pair embedding, which is
-order-reflecting). Nothing else: no distributivity, no join-preservation, no
-finiteness beyond what `GlueCar` already assumes.
-
-`glueMap_bot` / `glueMap_mid` / `glueMap_top` then say `Φ(g)` is *itself*
-tripointed — which is the induction step
-
-  `ι` tripointed ⟹ `conj ι p` tripointed (`HornB.conj_tripointed`)
-                 ⟹ `Φ (conj ι p)` tripointed (here)
-
-that carries tripointedness up the whole F-tower from a tripointed `ι₀`. This
-was ingredient 4(c) of Claim 3(b)'s dependency chain (Update 23), previously
-recorded as "definitional but unformalized".
--/
-
+-- [D-1320] §s-morphism-action-under-the-const-L
 namespace NormalizedGlueMap
 
 universe u
@@ -41,8 +10,7 @@ universe u
 variable {P : Type u} [DecidableEq P] [Lattice P] [BoundedOrder P] [Fintype P]
 variable {P' : Type u} [DecidableEq P'] [Lattice P'] [BoundedOrder P'] [Fintype P']
 
-/-- The tagwise action on the raw three-copy base: apply `g` inside each copy,
-leaving the tag alone. -/
+-- [D-1321] baseMap
 def baseMap (g : P →o P') : GlueBase P → GlueBase P'
   | Sum.inl x => Sum.inl (g x)
   | Sum.inr (Sum.inl x) => Sum.inr (Sum.inl (g x))
@@ -52,17 +20,17 @@ section Reflect
 
 variable (g : P →o P')
 
-/-- `g a = ⊥ ↔ a = ⊥`, from `⊥`-exactness and injectivity. -/
+-- [D-1322] map_eq_bot
 theorem map_eq_bot (hginj : Function.Injective g) (hbot : g ⊥ = (⊥ : P')) (a : P) :
     g a = (⊥ : P') ↔ a = (⊥ : P) :=
   ⟨fun h => hginj (h.trans hbot.symm), fun h => h ▸ hbot⟩
 
-/-- `g a = ⊤ ↔ a = ⊤`, from `⊤`-exactness and injectivity. -/
+-- [D-1323] map_eq_top
 theorem map_eq_top (hginj : Function.Injective g) (htop : g ⊤ = (⊤ : P')) (a : P) :
     g a = (⊤ : P') ↔ a = (⊤ : P) :=
   ⟨fun h => hginj (h.trans htop.symm), fun h => h ▸ htop⟩
 
-/-- `g a = m' ↔ a = m`, from marked-point exactness and injectivity. -/
+-- [D-1324] map_eq_mid
 theorem map_eq_mid (m : P) (m' : P') (hginj : Function.Injective g) (hmid : g m = m')
     (a : P) : g a = m' ↔ a = m :=
   ⟨fun h => hginj (h.trans hmid.symm), fun h => h ▸ hmid⟩
@@ -73,9 +41,7 @@ section Tripointed
 
 variable (g : P →o P') (m : P) (m' : P')
 
-/-- **The well-definedness lemma.** The tagwise action commutes with `canon`,
-i.e. it respects all three glue identifications, exactly when `g` is
-tripointed. -/
+-- [D-1325] canon_baseMap
 theorem canon_baseMap (hginj : Function.Injective g)
     (hbot : g ⊥ = (⊥ : P')) (hmid : g m = m') (htop : g ⊤ = (⊤ : P'))
     (hm0 : m ≠ (⊥ : P)) (x : GlueBase P) :
@@ -99,8 +65,7 @@ theorem canon_baseMap (hginj : Function.Injective g)
             (map_eq_bot g hginj hbot a).not.mpr ha,
             (map_eq_mid g m m' hginj hmid a).not.mpr ham]
 
-/-- The tagwise action sends each point's occurrence list onto the image
-point's occurrence list, exactly. -/
+-- [D-1326] occs_baseMap
 theorem occs_baseMap (hginj : Function.Injective g)
     (hbot : g ⊥ = (⊥ : P')) (hmid : g m = m') (htop : g ⊤ = (⊤ : P'))
     (hmt : m ≠ (⊤ : P)) (x : GlueBase P) :
@@ -125,7 +90,7 @@ theorem occs_baseMap (hginj : Function.Injective g)
       · simp [baseMap, occs, hat, (ht a).not.mpr hat]
     | inr a => simp [baseMap, occs]
 
-/-- The tagwise action preserves the raw comparison rule. -/
+-- [D-1327] rawRule_baseMap
 theorem rawRule_baseMap (hmid : g m = m') {u v : GlueBase P}
     (h : rawRule m u v) : rawRule m' (baseMap g u) (baseMap g v) := by
   cases u with
@@ -153,7 +118,7 @@ theorem rawRule_baseMap (hmid : g m = m') {u v : GlueBase P}
         | inl b => exact h.elim
         | inr b => exact g.monotone h
 
-/-- **Monotonicity**, at the level of the raw glued order `leGlue`. -/
+-- [D-1328] leGlue_baseMap
 theorem leGlue_baseMap (hginj : Function.Injective g)
     (hbot : g ⊥ = (⊥ : P')) (hmid : g m = m') (htop : g ⊤ = (⊤ : P'))
     (hmt : m ≠ (⊤ : P)) {x y : GlueBase P} (h : leGlue m x y) :
@@ -165,20 +130,20 @@ theorem leGlue_baseMap (hginj : Function.Injective g)
   · rw [← occs_baseMap g m m' hginj hbot hmid htop hmt]
     exact List.mem_map_of_mem hv
 
-/-- **`Φ` on morphisms.**  The tagwise action, transported to the glued
-carriers.  Well-defined by `canon_baseMap`. -/
+-- [D-1329] glueMap
 def glueMap (hginj : Function.Injective g)
     (hbot : g ⊥ = (⊥ : P')) (hmid : g m = m') (htop : g ⊤ = (⊤ : P'))
     (hm0 : m ≠ (⊥ : P)) (x : GlueCar (P := P) m) : GlueCar (P := P') m' :=
   ⟨baseMap g x.val, by
     rw [canon_baseMap g m m' hginj hbot hmid htop hm0, x.property]⟩
 
+-- [D-1330] glueMap_val
 @[simp] theorem glueMap_val (hginj : Function.Injective g)
     (hbot : g ⊥ = (⊥ : P')) (hmid : g m = m') (htop : g ⊤ = (⊤ : P'))
     (hm0 : m ≠ (⊥ : P)) (x : GlueCar (P := P) m) :
     (glueMap g m m' hginj hbot hmid htop hm0 x).val = baseMap g x.val := rfl
 
-/-- `Φ(g)` is monotone. -/
+-- [D-1331] glueMap_monotone
 theorem glueMap_monotone (hginj : Function.Injective g)
     (hbot : g ⊥ = (⊥ : P')) (hmid : g m = m') (htop : g ⊤ = (⊤ : P'))
     (hmt : m ≠ (⊤ : P)) (hm0 : m ≠ (⊥ : P))
@@ -193,48 +158,31 @@ variable (hginj : Function.Injective g)
   (hbot : g ⊥ = (⊥ : P')) (hmid : g m = m') (htop : g ⊤ = (⊤ : P'))
   (hm0 : m ≠ (⊥ : P))
 
-/-- `Φ(g)` sends `Φ(P)`'s bottom corner `tag_A ⊥` to `Φ(P')`'s. -/
+-- [D-1332] glueMap_bot
 theorem glueMap_bot :
     glueMap g m m' hginj hbot hmid htop hm0 ⟨skelT m, rfl⟩ = ⟨skelT m', rfl⟩ := by
   apply Subtype.ext; simp [baseMap, skelT, hbot]
 
-/-- `Φ(g)` sends `tag_B m` to `tag_B m'`.
-**This is the step the `m = id` convention cannot supply** — it is exactly
-`g m = m'`, which conjugation gives for free when `m` is a constant
-(`HornB.conj_constHom`) and cannot give when `m` is `id`
-(`HornB.conj_id_eq_id_iff`).
-
-Since 2026-08-27 the tower's middle basepoint is `tag_A`, not `tag_B`, so the
-tower's own tripointedness step is `glueMap_midA` below.  This theorem stays:
-it is true, it is what `Φ_tri_v2`'s Ratnayake convention needs, and `baseMap`
-is tagwise so both hold from the same hypothesis. -/
+-- [D-1333] glueMap_mid
 theorem glueMap_mid (hmb : canon m (skelL m) = skelL m)
     (hmb' : canon m' (skelL m') = skelL m') :
     glueMap g m m' hginj hbot hmid htop hm0 ⟨skelL m, hmb⟩ = ⟨skelL m', hmb'⟩ := by
   apply Subtype.ext; simp [baseMap, skelL, hmid]
 
-/-- **`tag_A m` is Ratnayake's `a.L ~ b.T` seam.**  `canon`'s first rule *is*
-the source construction's glue relation identifying copy `a`'s `L`-corner with
-copy `b`'s `T`-corner, so the tower's `tag_A` basepoint is not a point outside
-the paper's scheme -- it is the seam between two of its copies.  This is why
-moving from `tag_B` to `tag_A` is a change of *which named glue point* is
-designated, not an abandonment of the construction's basepoint discipline. -/
+-- [D-1334] glueA_self_eq_glue_aL_bT
 theorem glueA_self_eq_glue_aL_bT (m : P) (hm0 : m ≠ (⊥ : P)) (hbt : (⊥ : P) ≠ ⊤) :
     glueA m m = incl m hm0 hbt (Sum.inr (Sum.inl (⊥ : P))) := by
   apply Subtype.ext
   show (Sum.inl m : GlueBase P) = canon m (Sum.inr (Sum.inl (⊥ : P)))
   rw [canon, if_pos rfl]
 
-/-- `Φ(g)` sends `Φ(P)`'s top corner `tag_C ⊤` to `Φ(P')`'s. -/
+-- [D-1335] glueMap_top
 theorem glueMap_top (hrt : canon m (skelR m) = skelR m)
     (hrt' : canon m' (skelR m') = skelR m') :
     glueMap g m m' hginj hbot hmid htop hm0 ⟨skelR m, hrt⟩ = ⟨skelR m', hrt'⟩ := by
   apply Subtype.ext; simp [baseMap, skelR, htop]
 
-/-- **`Φ(g)` sends `tag_A m` to `tag_A m'`** -- the tower's tripointedness step
-under the `tag_A` convention.  Same hypothesis `hmid : g m = m'` as
-`glueMap_mid`, and, unlike it, no `canon`-fixedness side-conditions: copy `A`
-is unconditionally canonical. -/
+-- [D-1336] glueMap_midA
 theorem glueMap_midA :
     glueMap g m m' hginj hbot hmid htop hm0 ⟨skelG1 m, rfl⟩ = ⟨skelG1 m', rfl⟩ := by
   apply Subtype.ext
@@ -244,88 +192,27 @@ end TripointedImage
 
 end Tripointed
 
-/-! ## The normalized tower
-
-`towerLevelSucc` (`SierpinskiApplication.lean`) glues at `m = id`. Obstruction
-(T) (`Dinfty/TripointedObstruction.lean`) says that choice admits no tagwise
-morphism action at all. The normalization is to glue at a marked point that is
-a **constant** — `const_L`, the constant at the previous level's own middle
-basepoint — which is what `Φ_tri_v2` does and what Claim 3(c)'s internal-IFS
-route requires (all three glue points must lie in `η`'s image).
-
-`TriLevel` carries that middle basepoint as data, so the marked point at each
-step is `constHom prev.mid` and the next middle basepoint is `tag_A` of it.
-Built in parallel with the live `TowerLevel` rather than replacing it, so the
-existing spine is untouched.
-
-**Basepoint convention: `tag_A`, changed from `tag_B` on 2026-08-27 (Noah).**
-`Phi_tri_v2` takes `L' = b.L = tag_B (L_H)` from Ratnayake et al. 2021 SS2.2.
-That choice is incompatible with the ep-pair layer: the reflection proof's
-downward obligation `hdown` (`mid <= y -> mu <= iota y`) is satisfiable ONLY by
-copy-`A` points, because copy `B` is never `<=` copy `A`
-(`GlueAAGenReflectM.tagA_of_hdown_at_mid`; the old convention's failure is
-recorded in `Dinfty/BasepointInvariant.lean`, which superseded the former
-`NextBasepointConflict.lean`).
-
-The change is smaller than it looks, and is not a departure from the source
-construction: `canon`'s first rule IS Ratnayake's glue relation `a.L ~ b.T`, so
-`tag_A m` is exactly the seam where copy `a`'s `L`-corner meets copy `b`'s
-`T`-corner (`glueA_self_eq_glue_aL_bT` below).  Both candidates are points the
-source gluing already names -- `b.L` and `a.L = b.T` -- and only the latter
-supports the ep-pair route (`Dinfty/BasepointInvariant.lean`).
-
-Tag-`A` is also cheaper everywhere tag-`B` was paid for: copy `A` is
-unconditionally `canon`-fixed, so `glueA m m` needs no `!= bot` side-condition
-to be a `GlueCar` point, and `glueMap_midA` needs none of `glueMap_mid`'s.
-
-NOT re-checked under the new convention, and NOT to be inferred from the fact
-that the mechanism generalises: Claim 3(b) ingredient 4 (`iota_0`'s
-verification script sends `L |-> tag_B (const_L)`), Claim 3(c)'s internal-IFS
-route, and any paper-side text quoting `L_(Phi H) = tag_B (L_H)`.
--/
-
-
-/-! ## Theorem B's up-transfer survives the normalization
-
-Update 25 flagged `D_deg_g2_ne_deg_l` as the migration's one blocker, on the
-grounds that its down-cover-degree separation of the skeleton points collapses
-when `m` is a constant. **That lemma has no consumers** — checked across every
-live module — so it was never on the critical path.
-
-The path that *is* load-bearing is `glue_rigid_of_incomparable`, and it is
-already parametric in the marked point: it needs only `m ≠ ⊥`, `m ≠ ⊤`,
-`⊥ ≠ ⊤`, rigidity of the base, and **one element incomparable to `m`**. Under
-the `id` convention that witness is a constant `constHom v`; under the
-normalization constants no longer work (two constants are comparable whenever
-their values are, and `D 0` is a chain) — but `OrderHom.id` does, for free, at
-every level. The two conventions simply swap roles.
--/
-
+-- [D-1337] §The-normalized-tower
+-- [D-1338] §Theorem-B-s-up-transfer-survives
 namespace UpTransfer
 
 variable {X : Type u} [Lattice X] [BoundedOrder X]
 
-/-- `id ≰ constHom mid` whenever `mid ≠ ⊤` — evaluate at `⊤`. -/
+-- [D-1339] id_not_le_constHom
 theorem id_not_le_constHom (mid : X) (hmt : mid ≠ (⊤ : X)) :
     ¬ (OrderHom.id : EndP X) ≤ constHom mid := fun h =>
   hmt (le_antisymm le_top (h ⊤))
 
-/-- `constHom mid ≰ id` whenever `mid ≠ ⊥` — evaluate at `⊥`. -/
+-- [D-1340] constHom_not_le_id
 theorem constHom_not_le_id (mid : X) (hm0 : mid ≠ (⊥ : X)) :
     ¬ (constHom mid : EndP X) ≤ (OrderHom.id : EndP X) := fun h =>
   hm0 (le_bot_iff.mp (h ⊥))
 
 end UpTransfer
 
+-- [D-1341] tri_up_transfer
 open scoped Classical in
-/-- **Theorem UP-TRANSFER, normalized.**  Rigidity of `EndP X` lifts to
-rigidity of the *normalized* glued level `GlueCar (EndP X) (constHom mid)`,
-for any `mid` strictly between `⊥` and `⊤`.
 
-Same statement and same proof route as `D_up_transfer`
-(`SierpinskiApplication.lean`), with the marked point `id` replaced by
-`constHom mid` and the incomparability witness `constHom v` replaced by
-`OrderHom.id`.  So Theorem B's up-transfer step costs nothing to migrate. -/
 theorem tri_up_transfer {X : Type u} [DecidableEq X] [Lattice X] [BoundedOrder X]
     [Fintype X] (mid : X) (hm0 : mid ≠ (⊥ : X)) (hmt : mid ≠ (⊤ : X))
     (hbt : (⊥ : X) ≠ (⊤ : X))
@@ -343,50 +230,31 @@ theorem tri_up_transfer {X : Type u} [DecidableEq X] [Lattice X] [BoundedOrder X
     (endP_bot_ne_top hbt) hAut OrderHom.id
     (UpTransfer.id_not_le_constHom mid hmt) (UpTransfer.constHom_not_le_id mid hm0)
 
-
+-- [D-1342] tri_level1_rigid
 open scoped Classical in
-/-- **The normalized level 1 is rigid** — the analogue of `D1_rigid`, from the
-same base fact `H0_rigid` through `tri_up_transfer`.  Confirms in Lean what
-`_archive/check_normalized_tower_rigidity_and_invariant.py` found by directly
-computing the 27-element automorphism group. -/
 theorem tri_level1_rigid :
     Subsingleton (GlueCar (P := EndP (Fin 3)) (constHom (1 : Fin 3))
       ≃o GlueCar (P := EndP (Fin 3)) (constHom (1 : Fin 3))) :=
   tri_up_transfer (1 : Fin 3) (by decide) (by decide) (by decide) H0_rigid
 
-
-/-! ## `D_down_transfer`'s inputs, normalized
-
-`D_down_transfer`'s *statement* mentions no marked point, so it is
-convention-agnostic by construction. What its proof consumes are level-`k`
-facts: `realUniqueAtomCoatom`, `D_J_connected`, `D_top_hasUniqueDownCover`
-(and `D_has_interior_point`, used by the first). This section re-establishes
-each for a constant marked point.
-
-Every one of them turns out to go through a library lemma that already takes
-the marked point as a parameter, so the only genuinely new content is
-`coatomOf_endP_ne_constHom` — and that is *easier* for a constant marked point
-than for `id`, which needed a case split on whether `coatomOf X = ⊥`.
--/
-
+-- [D-1343] §D-down-transfer-s-inputs-normalized
 namespace DownInputs
 
 variable {X : Type u} [Lattice X] [BoundedOrder X]
 
-/-- `constHom mid ≠ ⊥` in `EndP X`, from `mid ≠ ⊥`. -/
+-- [D-1344] constHom_ne_bot
 theorem constHom_ne_bot (mid : X) (hm0 : mid ≠ (⊥ : X)) :
     (constHom mid : EndP X) ≠ ⊥ := by
   intro h
   have hb : (⊥ : EndP X) = constHom (⊥ : X) := by ext x; rfl
   exact hm0 (constHom_injective (h.trans hb))
 
-/-- `constHom mid ≠ ⊤` in `EndP X`, from `mid ≠ ⊤`. -/
+-- [D-1345] constHom_ne_top
 theorem constHom_ne_top (mid : X) (hmt : mid ≠ (⊤ : X)) :
     (constHom mid : EndP X) ≠ ⊤ := fun h =>
   hmt (constHom_injective (h.trans endP_top_eq_constHom_top))
 
-/-- `⊥ ≠ coatomOf (EndP X)` — the first hypothesis of `glueUniqueAtomCoatom`.
-No marked point involved, so this is the existing argument verbatim. -/
+-- [D-1346] bot_ne_coatomOf_endP
 theorem bot_ne_coatomOf_endP [UniqueAtomCoatom X] (hbt : (⊥ : X) ≠ ⊤) :
     (⊥ : EndP X) ≠ coatomOf (EndP X) := by
   rw [coatomOf_endP_eq_cospikeHom]
@@ -396,15 +264,7 @@ theorem bot_ne_coatomOf_endP [UniqueAtomCoatom X] (hbt : (⊥ : X) ≠ ⊤) :
   rw [endPBot_apply, cospikeHom_apply_of_ne _ hbt.symm] at h1
   exact hbt h1
 
-/-- **The one genuinely new input**: a *constant* marked point is never the
-coatom of `EndP X`.  `coatomOf (EndP X) = cospikeHom (coatomOf X)` sends every
-`x ≠ ⊥` to `⊤`, while `constHom mid` sends everything to `mid ≠ ⊤`; evaluating
-at `⊤` separates them in one step.
-
-Compare the `m = id` version (`realUniqueAtomCoatom`, `SierpinskiApplication`),
-which needs a case split on whether `coatomOf X = ⊥` and an interior point of
-`X` to handle one branch. The normalization makes this input *easier*, not
-harder. -/
+-- [D-1347] coatomOf_endP_ne_constHom
 theorem coatomOf_endP_ne_constHom [UniqueAtomCoatom X] (mid : X)
     (hmt : mid ≠ (⊤ : X)) (hbt : (⊥ : X) ≠ ⊤) :
     coatomOf (EndP X) ≠ constHom mid := by
@@ -417,9 +277,8 @@ theorem coatomOf_endP_ne_constHom [UniqueAtomCoatom X] (mid : X)
 
 end DownInputs
 
+-- [D-1348] tri_uniqueAtomCoatom
 open scoped Classical in
-/-- **Lemma UAC, normalized** — the successor step of `realUniqueAtomCoatom`
-with a constant marked point. -/
 noncomputable def tri_uniqueAtomCoatom {X : Type u} [DecidableEq X] [Lattice X]
     [BoundedOrder X] [Fintype X] [UniqueAtomCoatom X] (mid : X)
     (hm0 : mid ≠ (⊥ : X)) (hmt : mid ≠ (⊤ : X)) (hbt : (⊥ : X) ≠ ⊤) :
@@ -435,10 +294,8 @@ noncomputable def tri_uniqueAtomCoatom {X : Type u} [DecidableEq X] [Lattice X]
     (DownInputs.bot_ne_coatomOf_endP hbt)
     (DownInputs.coatomOf_endP_ne_constHom mid hmt hbt)
 
+-- [D-1349] tri_J_connected
 open scoped Classical in
-/-- **Theorem J-CONN, normalized** — the successor step of `D_J_connected`.
-`hasse_hasUniqueDownCover_glueCar_connected` already takes the marked point as
-a parameter, so this costs nothing beyond `tri_uniqueAtomCoatom`. -/
 theorem tri_J_connected {X : Type u} [DecidableEq X] [Lattice X]
     [BoundedOrder X] [Fintype X] [UniqueAtomCoatom X] (mid : X)
     (hm0 : mid ≠ (⊥ : X)) (hmt : mid ≠ (⊤ : X)) (hbt : (⊥ : X) ≠ ⊤) :
@@ -451,26 +308,14 @@ theorem tri_J_connected {X : Type u} [DecidableEq X] [Lattice X]
     (DownInputs.constHom_ne_bot mid hm0) (DownInputs.constHom_ne_top mid hmt)
     (endP_bot_ne_top hbt)
 
-
 section TriCovers
 
 variable {X : Type u} [DecidableEq X] [Lattice X] [BoundedOrder X] [Fintype X]
   [UniqueAtomCoatom X] (mid : X) (hm0 : mid ≠ (⊥ : X)) (hmt : mid ≠ (⊤ : X))
   (hbt : (⊥ : X) ≠ ⊤)
 
-/- `tri_top_hasUniqueDownCover` / `tri_bot_hasUniqueUpCover` are stated after
-this section (Update 28).  Update 27 recorded them as attempted-and-abandoned
-on instance alignment; the fix is simply to supply `glueLattice` /
-`glueBoundedOrder` by `letI` in the *statement* as well as the proof, so that
-the `top`/`bot` in the statement and the ones `hasUniqueDownCover_top` builds
-from `tri_uniqueAtomCoatom` are the same instances.  Nothing mathematical
-changed. -/
-
+-- [D-1350] tri_has_interior_point
 open scoped Classical in
-/-- **`D_has_interior_point`, normalized**, and simpler: `tag_A` of the marked
-point is interior at every level.  `glueA m ⊥ = ⊥` gives the lower half from
-`m ≠ ⊥`, and `glueA_ne_top` (copy `A` is `Sum.inl`-shaped, `⊤` is not) gives
-the upper half unconditionally. -/
 theorem tri_has_interior_point :
     letI := glueCarPartialOrder (P := EndP X) (constHom mid)
       (DownInputs.constHom_ne_bot mid hm0) (DownInputs.constHom_ne_top mid hmt)
@@ -493,19 +338,9 @@ theorem tri_has_interior_point :
 
 end TriCovers
 
-/-! ### The two cover corollaries, landed
-
-Update 27 attempted `tri_top_hasUniqueDownCover` / `tri_bot_hasUniqueUpCover`
-and recorded them as unproved: stated standalone, the `top`/`bot` elaborated
-through instances that did not line up with the ones `hasUniqueDownCover_top`
-builds from its `UniqueAtomCoatom` argument.  The fix is to `letI` the glue
-`Lattice`/`BoundedOrder` in the *statement* as well as in the proof, so both
-sides speak of the same instances.  Purely plumbing, as Update 27 said — but
-now discharged rather than deferred.
--/
-
+-- [D-1351] §The-two-cover-corollaries-landed
+-- [D-1352] tri_top_hasUniqueDownCover
 open scoped Classical in
-/-- **`D_top_hasUniqueDownCover`, normalized.** -/
 theorem tri_top_hasUniqueDownCover {X : Type u} [DecidableEq X] [Lattice X]
     [BoundedOrder X] [Fintype X] [UniqueAtomCoatom X] (mid : X)
     (hm0 : mid ≠ (⊥ : X)) (hmt : mid ≠ (⊤ : X)) (hbt : (⊥ : X) ≠ ⊤) :
@@ -525,8 +360,8 @@ theorem tri_top_hasUniqueDownCover {X : Type u} [DecidableEq X] [Lattice X]
   letI := tri_uniqueAtomCoatom (X := X) mid hm0 hmt hbt
   exact hasUniqueDownCover_top
 
+-- [D-1353] tri_bot_hasUniqueUpCover
 open scoped Classical in
-/-- **`D_bot_hasUniqueUpCover`, normalized** — the dual, same recipe. -/
 theorem tri_bot_hasUniqueUpCover {X : Type u} [DecidableEq X] [Lattice X]
     [BoundedOrder X] [Fintype X] [UniqueAtomCoatom X] (mid : X)
     (hm0 : mid ≠ (⊥ : X)) (hmt : mid ≠ (⊤ : X)) (hbt : (⊥ : X) ≠ ⊤) :
@@ -546,39 +381,10 @@ theorem tri_bot_hasUniqueUpCover {X : Type u} [DecidableEq X] [Lattice X]
   letI := tri_uniqueAtomCoatom (X := X) mid hm0 hmt hbt
   exact hasUniqueUpCover_bot
 
-
-/-! ## `D_down_transfer` itself, level-parametric
-
-`D_down_transfer`s statement mentions no marked point, and its *proof*
-mentions the tower only through the three level-`k` facts re-established
-above.  So the honest port is not a copy with `constHom mid` substituted in --
-there is nothing to substitute -- but a restatement over an arbitrary finite
-lattice carrying those facts as hypotheses.  `general_down_transfer` below is
-`D_down_transfer`s proof verbatim, with `D k` replaced by the parameter `X`
-and the three tower lookups (`realUniqueAtomCoatom k`,
-`D_top_hasUniqueDownCover k`, `D_J_connected k`) turned into arguments.
-
-Every step it uses -- `jh_product_order_level_full`, `jiEquiv`, `tauHat` and
-its `_injective`/`_le_iff`/`_eq_of_joinIrred` lemmas,
-`orderIso_eq_of_joinIrred_eq` -- is already stated for an arbitrary `P` in
-`GluingTowerLibrary`, so the generalization costs nothing.
-
-`D_down_transfer` is then literally this theorem applied at `X := D k`, and
-the normalized tower gets its down-transfer step by applying it at the
-normalized levels instead: the inputs are `tri_uniqueAtomCoatom`,
-`tri_J_connected`, and the top-cover fact (see the `TriCovers` note above for
-why the standalone form of the last one is not stated here).
--/
-
+-- [D-1354] §D-down-transfer-itself-level-parametric
+-- [D-1355] general_down_transfer
 open scoped Classical in
-/-- **Theorem DOWN-TRANSFER, level-parametric.**  For any finite lattice `X`
-with a unique atom and coatom, whose top has a unique down-cover and whose
-join-irreducible Hasse graph is connected: rigidity of `X` lifts to rigidity
-of `EndP X`.
 
-This is `D_down_transfer` (`SierpinskiApplication.lean`) with the tower
-specialization removed.  It mentions no marked point, so it serves the `id`
-tower and the normalized tower alike. -/
 theorem general_down_transfer {X : Type u} [DecidableEq X] [Lattice X]
     [BoundedOrder X] [Fintype X] [UniqueAtomCoatom X]
     (hTop : HasUniqueDownCover (⊤ : X))
@@ -664,26 +470,16 @@ theorem general_down_transfer {X : Type u} [DecidableEq X] [Lattice X]
   show φ₀ q = q
   exact hφ_fix ⟨q, hq⟩
 
-
+-- [D-1356] general_down_transfer_recovers_D_down_transfer
 open scoped Classical in
-/-- **`general_down_transfer` recovers `D_down_transfer` exactly.**  Kept as a
-check that the generalization is faithful: the original theorem is this one
-applied at `X := D k` with the three tower facts supplied. -/
 theorem general_down_transfer_recovers_D_down_transfer (k : ℕ) :
     Subsingleton (D k ≃o D k) → Subsingleton (EndP (D k) ≃o EndP (D k)) := by
   letI := realUniqueAtomCoatom k
   exact general_down_transfer (D_top_hasUniqueDownCover k) (D_J_connected k)
 
+-- [D-1357] tri_down_transfer
 open scoped Classical in
-/-- **Theorem DOWN-TRANSFER, normalized.**  The successor step of
-`D_down_transfer` for a constant marked point: rigidity of the glued level
-`GlueCar (EndP X) (constHom mid)` lifts to rigidity of its own `EndP`.
 
-Assembled from `general_down_transfer` and the normalized inputs —
-`tri_uniqueAtomCoatom`, `tri_top_hasUniqueDownCover`, `tri_J_connected` (fed
-through `connected_of_pointwise_iff`, exactly as `D_J_connected`'s successor
-case does).  With `tri_up_transfer` this completes both transfer steps of
-Theorem B for the normalized tower. -/
 theorem tri_down_transfer {X : Type u} [DecidableEq X] [Lattice X]
     [BoundedOrder X] [Fintype X] [UniqueAtomCoatom X] (mid : X)
     (hm0 : mid ≠ (⊥ : X)) (hmt : mid ≠ (⊤ : X)) (hbt : (⊥ : X) ≠ ⊤) :
@@ -710,8 +506,7 @@ theorem tri_down_transfer {X : Type u} [DecidableEq X] [Lattice X]
 
 namespace NormalizedTower
 
-/-- A tower level, carrying its **middle basepoint** as data alongside the
-order structure — the tripointed `(⊥, mid, ⊤)` triple. -/
+-- [D-1358] TriLevel
 structure TriLevel : Type (u + 1) where
   carrier : Type u
   dec : DecidableEq carrier
@@ -719,12 +514,11 @@ structure TriLevel : Type (u + 1) where
   bdd : BoundedOrder carrier
   fin : Fintype carrier
   nontriv : Nontrivial carrier
-  /-- the middle basepoint `L`, with its two nondegeneracy facts -/
   mid : carrier
   mid_ne_bot : letI := lat; letI := bdd; mid ≠ (⊥ : carrier)
   mid_ne_top : letI := lat; letI := bdd; mid ≠ (⊤ : carrier)
 
-/-- Base level: the 3-chain `Fin 3`, middle basepoint `1`. -/
+-- [D-1359] triLevel0
 def triLevel0 : TriLevel where
   carrier := Fin 3
   dec := inferInstance
@@ -740,11 +534,11 @@ section Succ
 
 variable (prev : TriLevel)
 
-/-- The marked point of the successor step: the **constant** at `prev`'s
-middle basepoint. This is the normalization. -/
+-- [D-1360] markedPoint
 def markedPoint : letI := prev.lat; letI := prev.bdd; EndP prev.carrier :=
   letI := prev.lat; letI := prev.bdd; constHom prev.mid
 
+-- [D-1361] markedPoint_ne_bot
 theorem markedPoint_ne_bot :
     letI := prev.lat; letI := prev.bdd
     markedPoint prev ≠ (⊥ : EndP prev.carrier) := by
@@ -753,6 +547,7 @@ theorem markedPoint_ne_bot :
   have hb : (⊥ : EndP prev.carrier) = constHom (⊥ : prev.carrier) := by ext x; rfl
   exact prev.mid_ne_bot (constHom_injective (h.trans hb))
 
+-- [D-1362] markedPoint_ne_top
 theorem markedPoint_ne_top :
     letI := prev.lat; letI := prev.bdd
     markedPoint prev ≠ (⊤ : EndP prev.carrier) := by
@@ -762,13 +557,9 @@ theorem markedPoint_ne_top :
 
 end Succ
 
+-- [D-1363] triLevelSucc
 open scoped Classical in
-/-- **The normalized successor step.**  Glue `EndP prev` at the *constant*
-`markedPoint prev = constHom prev.mid`, and take the next middle basepoint to
-be `tag_B` of that marked point — the convention `L_(Phi H) = tag_B (L_H)`.
 
-Contrast `towerLevelSucc` (`SierpinskiApplication.lean`), which glues at `id`
-and is therefore obstructed by (T). -/
 noncomputable def triLevelSucc (prev : TriLevel) : TriLevel :=
   letI := prev.dec
   letI := prev.lat
@@ -808,14 +599,12 @@ noncomputable def triLevelSucc (prev : TriLevel) : TriLevel :=
       rw [if_neg (Ne.symm hbt), if_neg (Ne.symm hmt)] at hv
       exact absurd hv (by simp) }
 
-/-- The normalized tower. -/
+-- [D-1364] triLevel
 noncomputable def triLevel : ℕ → TriLevel
   | 0 => triLevel0
   | k + 1 => triLevelSucc (triLevel k)
 
-/-- **The basepoint convention, as a `rfl`-theorem.**  The successor's middle
-basepoint is copy-`A`-shaped.  `Dinfty/BasepointInvariant.lean` depends on this
-and will stop compiling if the convention is ever moved back. -/
+-- [D-1365] triLevelSucc_mid_val
 theorem triLevelSucc_mid_val (prev : TriLevel) :
     letI := prev.dec; letI := prev.lat; letI := prev.bdd
     letI := prev.fin; letI := prev.nontriv

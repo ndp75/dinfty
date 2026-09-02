@@ -2,67 +2,7 @@ import Dinfty.TwoPointAssembly
 
 open GluingTowerLibrary SierpinskiApplication
 
-/-!
-# `StageFixed`, reduced from an arbitrary base stage
-
-`TwoPointFixed` is only the `k = 0` slice of `StageFixed`, and `StageFixed` is
-what `colimit_compat` actually needs (`StageFixed → JoinIrredStagePreserved →
-colimit_compat`).  This module carries the `TwoPointAssembly` reduction from base
-stage `0` to an arbitrary base stage `n`, and runs it at every point.
-
-## What generalises for free
-
-`TwoPointAssembly`'s copy-`A` exclusion compares `WeakProd (Fam 0) × T` with
-`WeakProd (Fam (k+1)) × S_y` at the index `j = k`, so that `Fam 0 j` is `D k` and
-the two finite pieces — an up-set and a level seed — are both strictly smaller
-than it (`card_upSet_lt_D`, `card_levelSeed_lt`).  From base stage `n` the same
-argument wants `Fam n j = D k`, i.e. `j = k - n`, available exactly when `n ≤ k`.
-That is no restriction: the competitor sits at stage `k+1` and only stages
-**above** the base are ever compared.
-
-So `copyA_forces_bot_at` and `copyA_step_at` are the old proofs with `j = k`
-replaced by `j = k - n`.
-
-## `StageFixed` does not need the point pinned — only the stage
-
-The first draft of this module asked for `BaseSeparation`: distinct
-join-irreducibles of `D k` have non-isomorphic seeds.  **That is false**, already
-at `k = 1`: among the sixteen join-irreducibles of `D 1` the seeds of
-
-```
-tag_A 2 ≅ tag_A 3      tag_B 2 ≅ tag_B 3      tag_C 2 ≅ tag_C 3
-```
-
-are genuinely isomorphic — verified by a backtracking isomorphism search, not
-merely by an invariant (`_archive/check_base_separation_level1.py`).  `midInf`
-and `topJ` are *not* involved, so `base_midInf` / `base_topJ` are unaffected.
-
-The right observation is that `StageFixed` never needed it.  It asks only that
-`θ (toD k x)` **lie in stage `k`**, not that it equal `toD k x`; and the copy-`A`
-step already descends one stage at a time, so iterating it from `N` down to `k`
-lands the competitor inside stage `k` whoever it is.  Hence
-
-```lean
-stageFixed_of : (∀ k x, JoinIrred x → CopyBCExcludedAt k (toD k x)) → StageFixed
-```
-
-— **one** hypothesis family, and no base case at all.
-
-## What is left
-
-`CopyBCExcludedAt k (toD k x)` is the copy-`B`/`C` exclusion demanded at every
-stage-`k` join-irreducible rather than at the two special points.  It is strictly
-stronger than `TwoPointAssembly.CopyBCExcludedFor` (`copyBCExcludedAt_zero_iff`
-identifies the `k = 0` slice) and it is not proved.  What this module buys is
-that `StageFixed` now has the *same shape* as `TwoPointFixed` with one family
-instead of two, so the `PairFactor` / `TripleFactor` criteria — already stated
-for an arbitrary left-hand piece — apply to it verbatim.
-
-The stage comparison itself is free: `exists_stage` puts `θ (toD k x)` at some
-stage `N`; if `N ≤ k` it is already inside stage `k` (`toD_iotaLe`), and if
-`N > k` the descent brings it back.
--/
-
+-- [D-3128] §StageFixed-reduced-from-an-arbitrary-base-stage
 open scoped Classical
 
 namespace StageAssembly
@@ -72,12 +12,15 @@ open WeakProductAbsorption AtomFactorGeneration WeakProdFactorization
 open SeedSeparation MidAnchor SeedChain TwoPointHypothesis TowerNoAbsorption
 open TowerCardGrowth JoinIrredDInfty JSeedRecursion
 
+-- [D-3129] hmk
 private theorem hmk (k : ℕ) : (markedPt k) ≠ ⊥ := (D_marked_point_nondegenerate k).1
+-- [D-3130] hmtk
 private theorem hmtk (k : ℕ) : (markedPt k) ≠ ⊤ := (D_marked_point_nondegenerate k).2.1
+-- [D-3131] hbtk
 private theorem hbtk (k : ℕ) : (⊥ : EndP (D k)) ≠ ⊤ := (D_marked_point_nondegenerate k).2.2
 
-/-! ## The copy-`A` exclusion from an arbitrary base stage -/
-
+-- [D-3132] §The-copy-A-exclusion-from-an-arbitrary-base
+-- [D-3133] copyA_forces_bot_at
 theorem copyA_forces_bot_at {T : Type} [PartialOrder T] [OrderBot T] [IsAtomic T]
     (n k : ℕ) (hnk : n ≤ k) {p : D k} (hp : p ≠ ⊥)
     (q : {x : D k // JoinIrred (D k) x})
@@ -114,8 +57,8 @@ theorem copyA_forces_bot_at {T : Type} [PartialOrder T] [OrderBot T] [IsAtomic T
     (k - n) hsmall hA hB
   exact hempty.elim e'
 
-/-! ## The induction step from an arbitrary base stage -/
-
+-- [D-3134] §The-induction-step-from-an-arbitrary-base-stage
+-- [D-3135] copyA_step_at
 theorem copyA_step_at (n : ℕ) (z : DInfty) {T : Type} [PartialOrder T] [OrderBot T]
     [IsAtomic T] (hz : (JBelow z)ᵒᵈ ≃o (WeakProd (Fam n) × T))
     (k : ℕ) (hnk : n ≤ k) (F : EndP (D k)) (hF : JoinIrred (EndP (D k)) F)
@@ -153,30 +96,20 @@ theorem copyA_step_at (n : ℕ) (z : DInfty) {T : Type} [PartialOrder T] [OrderB
          iotaLe_self (le_refl k) aq.2.1] at h2
   exact ⟨aq.2.1, aq.2.2, hiota, ⟨hstep ▸ e⟩⟩
 
-/-! ## The two hypothesis families -/
-
-/-- The copy-`B`/`C` obligation, at base stage `n`. -/
+-- [D-3136] §The-two-hypothesis-families
+-- [D-3137] CopyBCExcludedAt
 def CopyBCExcludedAt (n : ℕ) (z : DInfty) : Prop :=
   ∀ (k : ℕ), n ≤ k → ∀ y : D (k + 1), JoinIrred (D (k + 1)) y →
     (¬ ∃ F : EndP (D k), y = glueA (markedPt k) F) →
     ¬ Nonempty (JBelow (toD (k + 1) y) ≃o JBelow z)
 
-/-- **Distinct join-irreducibles of a level have distinct seeds.**
-
-**This is FALSE**, already at `k = 1` — `tag_A 2`/`tag_A 3`, `tag_B 2`/`tag_B 3`
-and `tag_C 2`/`tag_C 3` have isomorphic seeds
-(`_archive/check_base_separation_level1.py`).  It is kept here only to record
-that the "pin the point" route is the wrong one for `StageFixed`, which needs
-the stage and not the point.  Nothing below uses it. -/
+-- [D-3138] BaseSeparation
 def BaseSeparation : Prop :=
   ∀ (k : ℕ) (x y : D k), JoinIrred (D k) x → JoinIrred (D k) y →
     Nonempty (JBelow (toD k y) ≃o JBelow (toD k x)) → toD k y = toD k x
 
-/-! ## The descent, from an arbitrary base stage -/
-
-/-- **A competitor with the same seed descends to the base stage.**  Not to the
-*point* — that is `BaseSeparation`, which is false — but into the stage, which is
-all `StageFixed` asks. -/
+-- [D-3139] §The-descent-from-an-arbitrary-base-stage
+-- [D-3140] stage_of_seed_iso
 theorem stage_of_seed_iso (n : ℕ) (z : DInfty) {T : Type} [PartialOrder T]
     [OrderBot T] [IsAtomic T] (hz : (JBelow z)ᵒᵈ ≃o (WeakProd (Fam n) × T))
     (h : CopyBCExcludedAt n z) :
@@ -209,11 +142,8 @@ theorem stage_of_seed_iso (n : ℕ) (z : DInfty) {T : Type} [PartialOrder T]
           exact ⟨r, hstep.trans hr⟩
         · exact absurd he (h k hge y hy hA)
 
-/-! ## `StageFixed` -/
-
-/-- **`StageFixed` from the copy-`B`/`C` family alone.**  `θ (toD k x)` lands at
-some stage `N`; if `N ≤ k` it is already inside stage `k`, and if `N > k` the
-descent brings it back. -/
+-- [D-3141] §StageFixed
+-- [D-3142] stageFixed_of
 theorem stageFixed_of
     (hc : ∀ (k : ℕ) (x : D k), JoinIrred (D k) x → CopyBCExcludedAt k (toD k x)) :
     StageFixed := by
@@ -236,15 +166,15 @@ theorem stageFixed_of
       N hkN y hyji hiso
     exact ⟨q, hNy.trans hq⟩
 
-/-- …and hence the whole pipe: `colimit_compat`. -/
+-- [D-3143] colimit_compat_of
 theorem colimit_compat_of
     (hc : ∀ (k : ℕ) (x : D k), JoinIrred (D k) x → CopyBCExcludedAt k (toD k x)) :
     Subsingleton (DInfty ≃o DInfty) :=
   ColimitCompatPipe.colimit_rigid_of_joinIrredStagePreserved
     (joinIrredStagePreserved_of_stageFixed (stageFixed_of hc))
 
-/-! ## The `k = 0` slice is the old statement -/
-
+-- [D-3144] §The-k-0-slice-is-the-old-statement
+-- [D-3145] copyBCExcludedAt_zero_iff
 theorem copyBCExcludedAt_zero_iff (z : DInfty) :
     CopyBCExcludedAt 0 z ↔ TwoPointAssembly.CopyBCExcludedFor z := by
   constructor

@@ -6,27 +6,7 @@ import Dinfty.TowerNoAbsorption
 
 open GluingTowerLibrary SierpinskiApplication
 
-/-!
-# Paying the bookkeeping debt: shifting the base
-
-§66 argued that a comparison at `(base n, level k+1)` is a first-slice instance at
-base `k`, and §68 recorded the wiring as the one gap between `FirstSlice` and
-`colimit_compat`.  This file closes the first half of it.
-
-The shift needs **no index arithmetic**.  Both sides are `seedShape` of the *same*
-`DInfty` point:
-
-```
-WeakProd (Fam n) × Base n x  ≅  (JBelow (toD n x))ᵒᵈ
-                             =  (JBelow (toD (n+1) (iotaD n x)))ᵒᵈ   -- toD_iotaD
-                             ≅  WeakProd (Fam (n+1)) × Base (n+1) (iotaD n x)
-```
-
-so one `rw [← toD_iotaD]` between two applications of `seedShape` does it.  That
-is much cheaper than reindexing `WeakProd` along `n + (j+1) = (n+1) + j`, which is
-not definitional.
--/
-
+-- [D-3119] §Paying-the-bookkeeping-debt-shifting-the-base
 open scoped Classical
 
 universe u
@@ -36,18 +16,19 @@ namespace BaseShift
 open SeedLevelStep JSeedRecursion WeakProductAbsorption AtomFactorGeneration
 open WeakProdFactorization SeedShapeProof SeedSeparation JoinIrredLevelStable
 
-/-- Push a point up the tower by `m` levels. -/
+-- [D-3120] push
 noncomputable def push (n : ℕ) : (m : ℕ) → D n → D (n + m)
   | 0, x => x
   | (m + 1), x => iotaD (n + m) (push n m x)
 
+-- [D-3121] joinIrred_push
 theorem joinIrred_push (n m : ℕ) {x : D n} (hx : JoinIrred (D n) x) :
     JoinIrred (D (n + m)) (push n m x) := by
   induction m with
   | zero => exact hx
   | succ m ih => exact (joinIrred_iotaD_iff (n + m) (push n m x)).mpr ih
 
-/-- **One base shift, free from `seedShape`.** -/
+-- [D-3122] shiftStep
 noncomputable def shiftStep (n : ℕ) (x : D n) (hx : JoinIrred (D n) x) :
     (WeakProd (Fam n) × Base n x)
       ≃o (WeakProd (Fam (n + 1)) × Base (n + 1) (iotaD n x)) := by
@@ -55,8 +36,7 @@ noncomputable def shiftStep (n : ℕ) (x : D n) (hx : JoinIrred (D n) x) :
   rw [← toD_iotaD n x]
   exact seedShape (n + 1) (iotaD n x) ((joinIrred_iotaD_iff n x).mpr hx)
 
-/-- **The base shifts all the way up.**  A comparison stated at base `n` is the
-same comparison stated at base `n + m`, for the point pushed up. -/
+-- [D-3123] shiftMany
 noncomputable def shiftMany (n : ℕ) (x : D n) (hx : JoinIrred (D n) x) :
     (m : ℕ) → ((WeakProd (Fam n) × Base n x)
       ≃o (WeakProd (Fam (n + m)) × Base (n + m) (push n m x)))
@@ -65,21 +45,14 @@ noncomputable def shiftMany (n : ℕ) (x : D n) (hx : JoinIrred (D n) x) :
       (shiftMany n x hx m).trans
         (shiftStep (n + m) (push n m x) (joinIrred_push n m hx))
 
-/-! ## The other half: only the bottom factor survives
-
-At base `k` against level `k + 1`, the truncation threshold `N = card S` admits
-exactly one left-hand axis: `card (D k) < card S` (`card_D_lt_card_seed_notA`) and
-`card S < card (D (k+1))` (`card_levelSeed_lt`).  So `weakBelow` collapses to a
-single factor, and no product-over-a-finset bookkeeping is needed. -/
-
+-- [D-3124] §The-other-half-only-the-bottom-factor-survives
 section Singleton
 
 variable {E : ℕ → Type u} [∀ j, PartialOrder (E j)] [∀ j, OrderBot (E j)]
 
 open Truncation
 
-/-- **One surviving axis.**  If every factor above the bottom exceeds the
-threshold and the bottom one does not, `weakBelow` is that bottom factor. -/
+-- [D-3125] weakBelowSingletonIso
 def weakBelowSingletonIso (N : ℕ) (h0 : Nat.card (E 0) ≤ N)
     (h1 : ∀ i, N < Nat.card (E (i + 1))) :
     ↥(weakBelow E N) ≃o E 0 where
@@ -117,17 +90,13 @@ def weakBelowSingletonIso (N : ℕ) (h0 : Nat.card (E 0) ≤ N)
 
 end Singleton
 
-/-! ## The assembly: `FirstSlice` closes every comparison
-
-Shift the base up to `k`, truncate at `N = card S` — where exactly one left axis
-survives — and read off a `FirstSlice k` instance.  This is the wiring §68 listed
-as the remaining bookkeeping gap. -/
-
+-- [D-3126] §The-assembly-FirstSlice-closes-every-comparison
 section Assembly
 
 open FinishLine Truncation TowerCardGrowth SeedCardBound TwoPointAssembly
 open CopyAClassification TowerNoAbsorption
 
+-- [D-3127] no_comparison_of_firstSlice
 theorem no_comparison_of_firstSlice (n k : ℕ) (hnk : n ≤ k)
     (x : D n) (hx : JoinIrred (D n) x)
     (y : D (k + 1)) (hy : JoinIrred (D (k + 1)) y)
