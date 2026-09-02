@@ -1,24 +1,3 @@
--- The root, and the default `lake build` target.
---
--- Every module in `Dinfty/` is reachable from here, so a bare `lake build`
--- compiles the whole project.  It used to import only `Dinfty.Formalization`,
--- which meant `lake build` compiled one module out of a hundred and seventy --
--- and that one the frozen legacy monolith that nothing else imports.
---
--- The two lists are exactly the roots of the import DAG; everything else is
--- pulled in transitively.  (A module docstring cannot go here: `/-! -/` is a
--- command, and commands may not precede `import`.)
-
--- NOT imported: Dinfty.Formalization.  The frozen legacy monolith is not merely
--- dead (nothing imports it) -- it is INCOMPATIBLE with the live split: it and
--- Dinfty.SierpinskiApplication both declare instPartialOrderScottEndPDBilimit,
--- so importing both fails with "environment already contains".  That is why the
--- root used to import the monolith and nothing else.  It is also the only module
--- in the project that declares axioms.  Build it on its own:
---     lake build Dinfty.Formalization
-
--- Result modules.
-
 import Dinfty.EscapeAnalysis
 import Dinfty.EscapeProof
 import Dinfty.GasketCoreIFS
