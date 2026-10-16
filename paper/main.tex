@@ -45,8 +45,8 @@
 \newcommand{\J}{\mathcal{J}}
 \newcommand{\cst}[1]{c_{#1}}
 \newcommand{\tg}[2]{\langle #1\rangle_{\mathsf{#2}}}
-\newcommand{\Dc}{D_\infty}
-\newcommand{\Db}{\overline{D}_\infty}
+\newcommand{\Dc}{D_\omega}
+\newcommand{\Db}{\overline{D}_\omega}
 \newcommand{\BB}{\mathcal{B}}
 \newcommand{\GG}{\Gamma}
 \newcommand{\id}{\mathrm{id}}
@@ -212,7 +212,18 @@ Two features differ from the classical setting. The gluing identifies points,
 so its action on morphisms is only defined on maps preserving the three
 distinguished points, and the tower has to be built so that its embeddings do.
 And the function-space step must be taken over Scott-continuous maps for the
-colimit argument to go through.
+colimit argument to go through. In this analogy it is $\BB$, not $\Dc$, that
+plays the role of Scott's $D_\infty$; we write $\Dc$ and $\Db$ with a subscript
+$\omega$ to avoid the clash (the Lean names \lean{SierpinskiApplication.DInfty} and
+\lean{SierpinskiApplication.DBilimit} predate this choice). Scott's $D_\infty$ has been formalized in Agda, in
+constructive and predicative univalent foundations, by de~Jong
+\cite{deJong2024DInfty}, and de~Jong and Escard\'o show that it has a small
+compact basis, obtained by embedding compact bases of the levels, and so is
+algebraic \cite{deJongEscardo2024Continuous}. \Cref{thm:compacts} is the
+analogous statement for $\Db$, in a classical setting and sharpened: the
+embedded levels are exactly the compact elements. In the category of dcpos the
+bilimit of an ep-pair tower is also its colimit \cite{deJong2024DInfty}; $\Dc$
+is the colimit in posets, and \cref{thm:compacts} measures the gap.
 
 \emph{Fractals as fixed points.} Freyd's theorem \cite{Freyd2008}, Leinster's
 general theory \cite{Leinster2011}, and Hasuo, Jacobs and Niqui's coalgebraic
@@ -329,7 +340,7 @@ coincides with the library's own gluing map
 
 \section{Three limit objects}\label{sec:objects}
 
-\subsection{The constant tower: \texorpdfstring{$\Dc$}{D-infinity} and \texorpdfstring{$\Db$}{its bilimit}}
+\subsection{The constant tower: \texorpdfstring{$\Dc$}{D-omega} and \texorpdfstring{$\Db$}{its bilimit}}
 
 The \emph{constant embedding} is $\iota_k\colon D_k\to D_{k+1}$,
 $\iota_k(x)=\tg{\cst x}A$ (\lean{SierpinskiApplication.iotaD}). It has an
@@ -466,7 +477,7 @@ $\BB\not\iso\Dc$ (\lean{BilimitGap.no_orderIso_DInfty}).
 An isomorphism $\BB\iso\Db$ would have transported Theorem~B to $\BB$
 (\lean{BilimitGap.rigid_of_orderIso}); \cref{thm:gap} closes that route.
 
-\section{Theorem B: rigidity of \texorpdfstring{$\Dc$}{D-infinity} and \texorpdfstring{$\Db$}{its bilimit}}\label{sec:B}
+\section{Theorem B: rigidity of \texorpdfstring{$\Dc$}{D-omega} and \texorpdfstring{$\Db$}{its bilimit}}\label{sec:B}
 
 \begin{theorem}\label{thm:B}
 $\Aut(\Dc,\le)=\{\id\}$ and $\Aut(\Db,\le)=\{\id\}$.
@@ -529,7 +540,7 @@ argument proceeds in five steps.
 
 \begin{enumerate}[label=\textbf{\arabic*.},leftmargin=2em]
 \item \emph{Reduction to two points.} If every automorphism of $\Dc$ fixes the
-  seam point $\mu_\infty$ and the image of the top of $D_0$, then it fixes the
+  seam point $\mu_\omega$ and the image of the top of $D_0$, then it fixes the
   whole image of $D_0$ (\lean{TwoPointHypothesis}); by re-indexing (step~4) the
   same applies at every base level, which gives the theorem. This fixed-point claim is equivalent to a
   definability claim: the two points admit an order-theoretic description
