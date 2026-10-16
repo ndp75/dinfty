@@ -1,0 +1,44 @@
+name: Verify
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      # Installs elan and the pinned toolchain, fetches the Mathlib cache,
+      # and builds the default target (all 116 modules).
+      - uses: leanprover/lean-action@v1
+        with:
+          use-mathlib-cache: true
+          build: true
+
+      # Rebuilds the acceptance target (cached, so this replays its messages)
+      # and checks the 195 axiom reports.
+      - name: Acceptance check
+        run: bash scripts/acceptance.sh
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: build-log
+          path: build.log
+
+  paper:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: xu-cheng/latex-action@v3
+        with:
+          root_file: main.tex
+          working_directory: paper
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper
+          path: paper/main.pdf

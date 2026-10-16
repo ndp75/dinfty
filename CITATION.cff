@@ -1,0 +1,20 @@
+cff-version: 1.2.0
+message: "If you use this development, please cite it as below."
+title: "Dinfty: rigidity and self-similarity in a three-copy gluing tower of finite lattices, machine-checked in Lean 4"
+authors:
+  - family-names: Pinto
+    given-names: Noah
+    affiliation: Independent researcher
+    email: ndpinto1@gmail.com
+version: 1.0.0
+date-released: 2026-10-16
+license: Apache-2.0
+repository-code: "https://github.com/ndp75/dinfty"
+keywords:
+  - domain theory
+  - bilimit
+  - rigidity
+  - Sierpinski gasket
+  - Lean 4
+  - Mathlib
+  - formalized mathematics

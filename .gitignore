@@ -1,2 +1,17 @@
 .lake/
 build/
+build.log
+
+# Vault-side notes that are not part of the public release
+DEVIATIONS.md
+PAPER.md
+
+# LaTeX build products
+paper/*.aux
+paper/*.bbl
+paper/*.blg
+paper/*.log
+paper/*.out
+paper/*.fdb_latexmk
+paper/*.fls
+paper/*.pdf

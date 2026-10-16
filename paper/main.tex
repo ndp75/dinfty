@@ -1,0 +1,867 @@
+\documentclass[11pt]{amsart}
+
+\usepackage[utf8]{inputenc}
+
+\usepackage{amssymb,amsmath,amsthm,mathtools}
+\usepackage{enumitem}
+\usepackage{booktabs,longtable,array}
+\usepackage[margin=1.15in]{geometry}
+\usepackage{xcolor}
+\usepackage{url}
+\usepackage[colorlinks=true,linkcolor=blue!50!black,citecolor=green!35!black,urlcolor=blue!50!black]{hyperref}
+\usepackage[capitalise,nameinlink]{cleveref}
+
+% ---------------------------------------------------------------------------
+% Repository location. Every Lean name in the text refers to this tagged tree.
+\newcommand{\repourl}{https://github.com/ndp75/dinfty}
+\newcommand{\repotag}{v1.0.0}
+% ---------------------------------------------------------------------------
+
+% Lean declaration names: typewriter, breakable at dots.
+\DeclareUrlCommand\lean{\urlstyle{tt}}
+\makeatletter\g@addto@macro\UrlBreaks{\do\_}\makeatother
+\emergencystretch=3em
+
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem*{theoremA}{Theorem A}
+\newtheorem*{theoremB}{Theorem B}
+\newtheorem*{theoremS}{Theorem}
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{remark}[theorem]{Remark}
+\newtheorem{example}[theorem]{Example}
+
+% Notation
+\newcommand{\End}{\operatorname{End}}
+\newcommand{\SEnd}{\operatorname{End}_\sigma}
+\newcommand{\Glue}{\operatorname{Glue}}
+\newcommand{\Aut}{\operatorname{Aut}}
+\newcommand{\Fix}{\operatorname{Fix}}
+\newcommand{\J}{\mathcal{J}}
+\newcommand{\cst}[1]{c_{#1}}
+\newcommand{\tg}[2]{\langle #1\rangle_{\mathsf{#2}}}
+\newcommand{\Dc}{D_\infty}
+\newcommand{\Db}{\overline{D}_\infty}
+\newcommand{\BB}{\mathcal{B}}
+\newcommand{\GG}{\Gamma}
+\newcommand{\id}{\mathrm{id}}
+\newcommand{\iso}{\cong}
+
+\title[Rigidity and self-similarity in a gluing tower]{Rigidity and self-similarity in a three-copy gluing tower of finite lattices, machine-checked in Lean~4}
+
+\author{Noah Pinto}
+\address{Independent researcher}
+\email{ndpinto1@gmail.com}
+
+\subjclass[2020]{Primary 06B35; Secondary 06A06, 28A80, 68V20}
+\keywords{domain theory, bilimit, rigidity, order automorphism, self-similarity, Sierpi\'nski gasket, iterated function system, Lean, formalized mathematics}
+
+\begin{document}
+
+\begin{abstract}
+We study a tower of finite lattices $(D_k)_{k\ge 0}$ built by an order-theoretic
+analogue of the three-copy gluing that presents the Sierpi\'nski gasket in
+categories of metric spaces: $D_{k+1}$ is obtained by gluing three copies of the
+lattice $\End(D_k)$ of monotone self-maps of $D_k$ at three seams. The levels
+$D_k$ carry two towers of embedding--projection pairs, which give rise to three
+limit objects: the colimit $\Dc$ of the constant embeddings, the bilimit $\Db$
+of the same embeddings, and the bilimit $\BB$ of a second tower whose
+embeddings are obtained by applying the gluing functor to the previous one.
+
+We prove that $\Dc$ and $\Db$ are \emph{rigid}: each has the identity as its only
+order automorphism (Theorem~B). We prove that $\BB$ is a fixed point of the
+gluing built from its own Scott-continuous self-maps, $\Phi_\sigma(\BB)\iso\BB$
+(Theorem~A). We show that $\Dc$ is exactly the poset of compact elements of
+$\Db$, and that $\BB$ is order-isomorphic to neither $\Dc$ nor $\Db$, so the two
+theorems are about genuinely different objects. On $\BB$ we build an internal
+iterated function system with injective maps and relate its attractor to the
+Sierpi\'nski gasket; here several natural expectations fail, and we prove the
+failures: the comparison map onto the gasket is surjective and chain-continuous
+but neither injective nor continuous for any topology with upward-closed open
+sets, and the address coding map onto the gasket is a quotient map but not an
+open map.
+
+Every result is formalized in Lean~4 with Mathlib. The development has 116
+modules and about 37{,}000 lines, and contains no \texttt{sorry}, no
+\texttt{native\_decide} and no axioms beyond Lean's three standard ones.
+\end{abstract}
+
+\maketitle
+
+\section{Introduction}\label{sec:intro}
+
+Scott's construction of a non-trivial domain $D$ with $D\iso[D\to D]$
+\cite{Scott1972} is the prototype for a broad family of results in which a
+space is obtained as the limit of a tower of approximations and then shown to
+be a fixed point of the functor that generates the tower
+\cite{SmythPlotkin1982,AbramskyJung1994}. A different line of work presents
+fractals as fixed points: Freyd showed that the unit interval is a final
+coalgebra on bipointed sets \cite{Freyd2008}, Leinster gave a general theory of
+self-similar spaces \cite{Leinster2011}, and Moss, Ratnayake and coauthors
+presented the Sierpi\'nski gasket in categories of tripointed metric spaces by
+completing the initial algebra of a three-copy gluing functor
+$X\mapsto M\otimes X$ \cite{MossRatnayakeRose2014,RatnayakeEtAl2024}.
+
+This paper combines the two. We take the gasket's three-copy, three-seam gluing
+pattern and apply it not to a metric space but to the lattice of monotone
+self-maps of a finite lattice. Iterating from the three-element chain gives a
+tower of finite lattices $D_0, D_1, D_2,\dots$ that grows extremely fast, and
+whose structure mixes Scott's function-space recursion with the gasket's
+combinatorics. We ask two questions about its limits: are they
+\emph{self-similar}, in the sense of being fixed points of the gluing; and are
+they \emph{rigid}, in the sense of having no non-trivial order automorphisms?
+
+\subsection*{Results}
+The levels $D_k$ carry two towers of embedding--projection pairs (ep-pairs),
+described in \cref{sec:objects}. They give three limit objects:
+\begin{itemize}[leftmargin=2em]
+\item $\Dc$, the colimit of the $D_k$ along the \emph{constant embeddings}
+  $x\mapsto\tg{\cst x}{A}$;
+\item $\Db$, the ep-pair bilimit of the same tower;
+\item $\BB$, the ep-pair bilimit of the \emph{$\Phi$-iterate tower}, whose
+  $(n{+}1)$-st embedding is the image under the gluing functor of the $n$-th.
+\end{itemize}
+
+\begin{theoremB}[\cref{thm:B}]
+$\Aut(\Dc,\le)=\{\id\}$ and $\Aut(\Db,\le)=\{\id\}$. Moreover every level is
+rigid, and every monotone injection $D_k\to D_k$ is the identity.
+\end{theoremB}
+
+\begin{theoremA}[\cref{thm:A}]
+Let $\Phi_\sigma(\BB)$ be the three-copy gluing of the lattice of
+Scott-continuous self-maps of $\BB$, at the constant map with value the
+interior point of $\BB$. Then $\Phi_\sigma(\BB)\iso\BB$ as posets.
+\end{theoremA}
+
+\begin{theoremS}[\cref{thm:compacts,thm:gap}]
+The canonical map $\Dc\to\Db$ is an order embedding onto exactly the compact
+elements of $\Db$, and every element of $\Db$ is the directed supremum of the
+compact elements below it; in particular $\Dc\not\iso\Db$. Further,
+$\BB\not\iso\Db$ and $\BB\not\iso\Dc$.
+\end{theoremS}
+
+So Theorem~A and Theorem~B concern different objects, and neither transfers to
+the other. Whether $\BB$ is rigid remains open; \cref{sec:Brigid} records the
+reductions and refutations we do prove about it.
+
+Finally, Theorem~A yields an iterated function system $(\sigma_A,\sigma_B,\sigma_C)$
+of injective maps on $\BB$, and an address map whose image, the
+\emph{attractor}, maps onto the geometric gasket $\GG$. The comparison is
+instructive mainly for what fails. A first candidate system has the wrong
+fixed-point set; a repaired one has the expected $\Fix(\sigma_A)=\{\bot\}$. The
+map $\rho$ from the attractor onto $\GG$ is surjective, intertwining and
+chain-continuous, but it is not injective, because the copies of $\BB$ meet at
+no seam while those of $\GG$ do, and it is not continuous for any topology on
+the attractor whose open sets are upward closed (in particular the Scott
+topology). The standard address coding map onto $\GG$ is a quotient map but
+not an open map. Each of these negative statements is a theorem
+(\cref{sec:ifs}).
+
+\subsection*{Formalization}
+Every statement in this paper, apart from one clearly marked interpretive
+remark, is a Lean~4 \cite{Lean4} declaration checked against Mathlib
+\cite{Mathlib2020}. The release has 116 modules and 37{,}109 lines. A single
+file, \lean{Dinfty/Verify.lean}, restates each headline result as an anonymous
+\texttt{example} against the proved declaration, and prints the axioms it
+depends on; all 195 reports are subsets of
+$\{\texttt{propext},\texttt{Classical.choice},\texttt{Quot.sound}\}$.
+Throughout, a Lean name in typewriter font, such as
+\lean{CopyCHigh.colimit_compat}, refers to the tagged release at
+\url{\repourl} (tag \texttt{\repotag}); \cref{app:lean} collects them.
+\Cref{sec:formal} describes the development and how to check it.
+
+\subsection*{Contributions}
+\begin{enumerate}[leftmargin=2em]
+\item An order-theoretic gluing construction modelled on the gasket's functor
+  $M\otimes-$, with $\End$ in place of the metric factor, and the tower of
+  finite lattices it generates (\cref{sec:glue}).
+\item Rigidity of the colimit and of the bilimit of that tower (Theorem~B).
+  The colimit step is the main technical work; it replaces a level-detecting
+  invariant, which cannot exist (\cref{prop:nofootholds}), by an exact
+  combinatorial comparison of principal ideals.
+\item A second ep-tower on the same levels whose bilimit is a fixed point of
+  the Scott-continuous gluing (Theorem~A), together with proofs that it differs
+  from the first tower's limits.
+\item An internal IFS on that bilimit, and machine-checked negative results
+  delimiting how far it can be identified with the geometric gasket.
+\item A complete, axiom-audited Lean~4 formalization of all of the above.
+\end{enumerate}
+
+\subsection*{Organization}
+\Cref{sec:related} discusses related work. \Cref{sec:glue} defines the gluing
+and the tower. \Cref{sec:objects} defines the three limit objects and proves
+they are pairwise distinct. \Cref{sec:B,sec:A} prove Theorems~B and~A.
+\Cref{sec:ifs} treats the internal IFS and the gasket, and \cref{sec:Brigid}
+what is known about automorphisms of $\BB$. \Cref{sec:formal} describes the
+formalization.
+
+\section{Related work}\label{sec:related}
+
+\emph{Fixed points of domain constructors.} Scott's $D_\infty$
+\cite{Scott1972} and its categorical reformulation via limit--colimit
+coincidence \cite{SmythPlotkin1982} are standard; see
+\cite{AbramskyJung1994,GierzEtAl2003}. Our Theorem~A follows the same pattern
+for a mixed constructor: a function-space step followed by a three-copy gluing.
+Two features differ from the classical setting. The gluing identifies points,
+so its action on morphisms is only defined on maps preserving the three
+distinguished points, and the tower has to be built so that its embeddings do.
+And the function-space step must be taken over Scott-continuous maps for the
+colimit argument to go through.
+
+\emph{Fractals as fixed points.} Freyd's theorem \cite{Freyd2008}, Leinster's
+general theory \cite{Leinster2011}, and Hasuo, Jacobs and Niqui's coalgebraic
+representation theory of fractals \cite{HasuoJacobsNiqui2010} present
+self-similar spaces as terminal coalgebras on categories of sets, topological
+spaces or metric spaces. Moss, Ratnayake and Rose \cite{MossRatnayakeRose2014}
+and Ratnayake, Manokaran, Jayewardene, Noquez and Moss \cite{RatnayakeEtAl2024}
+obtain the gasket by Cauchy-completing the initial algebra of the gluing functor
+$M\otimes-$ on tripointed metric spaces; Noquez and Moss treat the carpet
+\cite{NoquezMoss2021}. We use their gluing pattern (three copies $a,b,c$; seams
+$a.L\sim b.T$, $a.R\sim c.T$, $b.R\sim c.L$ in their notation) but replace the
+metric factor by a function-space lattice, and ask order-theoretic rather than
+metric questions.
+
+\emph{Domain theory and IFS.} Edalat \cite{Edalat1996} represents IFS attractors
+in power domains and upper spaces, following Hutchinson's construction
+\cite{Hutchinson1981}. Our internal IFS on $\BB$ is in this spirit, but the
+underlying domain is not a hyperspace of the plane; its relation to $\GG$ is
+established through an explicit comparison map, and the negative results of
+\cref{sec:ifs} show that this map is much weaker than an isomorphism.
+
+\emph{Rigidity.} Rigidity of product-like structures is classically handled by
+unique factorization: Sabidussi and Vizing's theorem for the Cartesian product of
+connected graphs \cite{Sabidussi1960,Vizing1963}. The finite-level step of
+Theorem~B has this shape, but we do not use it: the needed splitting follows from
+counting atoms and cardinalities (\cref{lem:prodaut}).
+
+\section{The gluing construction and the tower}\label{sec:glue}
+
+All lattices are bounded. For a finite lattice $P$, write $\End(P)$ for the
+lattice of monotone maps $P\to P$ under the pointwise order, and $\cst x$ for
+the constant map with value $x$. When $P$ is a dcpo, $\SEnd(P)\subseteq\End(P)$
+is the subposet of Scott-continuous maps (\lean{GluingTowerLibrary.ScottEndP}).
+
+\begin{definition}[Three-copy gluing]\label{def:glue}
+Let $Q$ be a finite lattice and $m\in Q$ with $\bot<m<\top$. Let $\Glue(Q,m)$ be
+the set of three tagged copies $\tg{x}{A},\tg{x}{B},\tg{x}{C}$ ($x\in Q$),
+modulo the three seam identifications
+\[
+  \tg{\bot}{B}=\tg{m}{A},\qquad \tg{\bot}{C}=\tg{\top}{A},\qquad \tg{m}{C}=\tg{\top}{B}.
+\]
+Define a relation $R$ on tagged points by
+\begin{gather*}
+  \tg xI\mathrel R\tg yI \iff x\le y\quad(I\in\{A,B,C\}),\qquad
+  \tg xA\mathrel R\tg yB\iff x\le m,\\
+  \tg xA\mathrel R\tg yC\ \text{always},\qquad
+  \tg xB\mathrel R\tg yC\iff m\le y,
+\end{gather*}
+and no other instances. For $u,v\in\Glue(Q,m)$ put $u\le v$ if some
+representative of $u$ is $R$-related to some representative of $v$.
+\end{definition}
+
+In the formalization the carrier is the set of canonical representatives
+(\lean{GluingTowerLibrary.GlueCarGen}), each point has at most two
+representatives, and the order is \lean{GluingTowerLibrary.leGlue}, with rule
+\lean{GluingTowerLibrary.rawRule}. The library proves that $\Glue(Q,m)$ is a
+finite lattice with bottom $\tg\bot A$ and top $\tg\top C$, and that each copy
+inclusion $x\mapsto\tg xI$ is an order embedding. Copy $A$ sits at the bottom,
+copy $C$ at the top, and copy $B$ is attached between them only through the
+seams. The three distinguished points of $\Glue(Q,m)$ are
+\[
+  \bot=\tg\bot A,\qquad \tg mA,\qquad \top=\tg\top C .
+\]
+
+\begin{remark}
+\Cref{def:glue} is the poset version of the gasket functor $M\otimes X$ of
+\cite[Section~2.2]{RatnayakeEtAl2024}: three copies glued at three seams, each seam
+identifying a distinguished point of one copy with a distinguished point of
+another. What is new is the factor being glued (a lattice of self-maps rather
+than a metric space) and the order (\cref{def:glue}) in place of a metric.
+\end{remark}
+
+\begin{definition}[The tower]\label{def:tower}
+Let $D_0=\{\bot<\mu_0<\top\}$ be the three-element chain. Given a finite lattice
+$D_k$ with an interior point $\mu_k$, set
+\[
+  D_{k+1}:=\Glue\bigl(\End(D_k),\,\cst{\mu_k}\bigr),\qquad
+  \mu_{k+1}:=\tg{\cst{\mu_k}}{A}.
+\]
+\end{definition}
+
+So the marked point at each level is the constant map at the previous interior
+point, and the next interior point is that constant map seen in copy $A$
+(\lean{SierpinskiApplication.markedPt}, \lean{SierpinskiApplication.dMid},
+\lean{PhiTriTower.dMid_succ_eq}). The marked point satisfies
+$\bot<\cst{\mu_k}<\top$ at every level
+(\lean{SierpinskiApplication.D_marked_point_nondegenerate}), so the recursion is
+well defined, and $\bigl|D_k\bigr|$ is strictly increasing in $k$
+(\lean{TowerCardGrowth.card_D_strictMono}). The identity $D_{k+1}=
+\Glue(\End(D_k),\cst{\mu_k})$ holds definitionally in the formalization
+(\lean{PhiTriTower.D_succ_eq}).
+
+\begin{remark}[Why a constant marked point]
+On the two-element chain, $\End$ has exactly three elements and the identity
+\emph{is} the middle one, so ``glue at $\id$'' and ``glue at a constant'' cannot
+be told apart there. On the three-element chain they differ. We use the
+constant throughout; it is the choice under which the gluing functor's action
+on the tower's own maps preserves all three distinguished points
+(\cref{sec:objects}).
+\end{remark}
+
+\begin{definition}[Tripointed maps; the action of $\Phi$]\label{def:phi}
+A monotone map $f\colon(Q,m)\to(Q',m')$ is \emph{tripointed} if $f(\bot)=\bot$,
+$f(m)=m'$ and $f(\top)=\top$. For such $f$ let $\Phi(f)\colon\Glue(Q,m)\to
+\Glue(Q',m')$ act tagwise, $\tg xI\mapsto\tg{f(x)}I$.
+\end{definition}
+
+The tagwise action respects the seams precisely because $f$ is tripointed, and
+$\Phi(f)$ is again tripointed. On tripointed maps $\Phi$ is a functor
+(\lean{PhiTriFunctor.phiFun_id}, \lean{PhiTriFunctor.phiFun_comp},
+\lean{PhiTriFunctor.phi_functor_laws}); on injective tripointed maps its action
+coincides with the library's own gluing map
+(\lean{PhiTriTower.phiFun_eq_glueMap}), with no further hypothesis.
+
+\section{Three limit objects}\label{sec:objects}
+
+\subsection{The constant tower: \texorpdfstring{$\Dc$}{D-infinity} and \texorpdfstring{$\Db$}{its bilimit}}
+
+The \emph{constant embedding} is $\iota_k\colon D_k\to D_{k+1}$,
+$\iota_k(x)=\tg{\cst x}A$ (\lean{SierpinskiApplication.iotaD}). It has an
+explicit upper adjoint $p_k\colon D_{k+1}\to D_k$ with $p_k\iota_k=\id$ and
+$\iota_kp_k\le\id$ (\lean{SierpinskiApplication.pD},
+\lean{SierpinskiApplication.pD_iotaD},
+\lean{SierpinskiApplication.pD_deflation}), so $(\iota_k,p_k)_k$ is a tower of
+ep-pairs.
+
+\begin{definition}
+$\Dc$ is the colimit of $D_0\xrightarrow{\iota_0}D_1\xrightarrow{\iota_1}\cdots$
+in posets: the quotient of $\coprod_kD_k$ identifying $x$ with $\iota_k(x)$
+(\lean{SierpinskiApplication.DInfty}). $\Db$ is the limit along the projections:
+sequences $(x_k)_k$ with $p_k(x_{k+1})=x_k$, ordered pointwise
+(\lean{SierpinskiApplication.DBilimit}).
+\end{definition}
+
+The canonical map $\Dc\to\Db$ sends $x\in D_k$ to the sequence obtained by
+projecting $x$ down to lower levels and embedding it into higher ones
+(\lean{SierpinskiApplication.toDBilimit}).
+
+\begin{theorem}\label{thm:compacts}
+The map $\Dc\to\Db$ is an order embedding whose image is exactly the set of
+compact elements of $\Db$. For every $y\in\Db$, the compact elements below $y$
+form a directed set with supremum $y$. The top element of $\Db$, the sequence of
+tops, is not in the image.
+\end{theorem}
+
+\begin{proof}[Lean]
+\lean{SierpinskiApplication.toDBilimitEmb},
+\lean{SierpinskiApplication.mem_range_toDBilimit_iff_isCompactElement},
+\lean{SierpinskiApplication.DBilimit_compacts_le_directedOn},
+\lean{SierpinskiApplication.DBilimit_isLUB_compacts_le},
+\lean{SierpinskiApplication.topSeq_notMem_range_toDBilimit}.
+\end{proof}
+
+\begin{remark}
+In classical terms $\Db$ is an algebraic domain whose basis of compact elements
+is a copy of $\Dc$, i.e.\ the ideal completion of $\Dc$. We prove the four
+facts of \cref{thm:compacts} but do not state the isomorphism
+$\Db\iso\operatorname{Idl}(\Dc)$ as a separate theorem; this remark is the one
+statement in the paper that is not itself a Lean declaration.
+\end{remark}
+
+\begin{proposition}[$\Dc$ has no footholds]\label{prop:nofootholds}
+$\Dc$ has no atom and no maximal element: every $z$ has some $w>z$.
+\end{proposition}
+\begin{proof}[Lean]
+\lean{DInftyNoFootholds.no_isAtom}, \lean{DInftyNoFootholds.no_top},
+\lean{DInftyNoFootholds.no_footholds}.
+\end{proof}
+
+\Cref{prop:nofootholds} is what makes the colimit step of Theorem~B hard: any
+invariant anchored at the bottom or at the top (heights, ranks, down-set
+counts) works at each finite level and fails to detect levels in $\Dc$.
+
+\subsection{The \texorpdfstring{$\Phi$}{Phi}-iterate tower and \texorpdfstring{$\BB$}{B}}
+
+The constant embedding is not tripointed: $\iota_k(\top)=\tg{\cst\top}A\neq
+\top$. So $\Phi$ cannot be applied to it, and the constant tower is not
+generated by $\Phi$. We therefore build a second ep-tower on the levels
+$D_1,D_2,\dots$ whose embeddings are tripointed.
+
+\emph{Base step.} Define $e_0\colon D_1\to D_2$ tagwise on copies,
+\[
+  e_0\tg fA=\tg{\iota_0\circ f\circ p_0}A,\qquad
+  e_0\tg fB=\tg{\lambda f}B,\qquad e_0\tg fC=\tg{\lambda f}C,
+\]
+where $\lambda f\in\End(D_1)$ is the explicit lift
+\[
+  (\lambda f)(w)=\iota_0\bigl(f(p_0w)\bigr)\ \vee\
+  [\cst{\mu_0}\le f]\,\mu_1\ \vee\ [\top\le f]\,\top
+\]
+(Iverson brackets: the term is present if the condition holds and is $\bot$
+otherwise). This is \lean{SierpinskiApplication.glueAA} at level $0$, with the
+lift \lean{GlueAAJoin.liftT}. It is tripointed and preserves binary joins
+(\lean{GlueAAJoin.glueAA_sup}); join preservation uses join-primality of the
+marked point at every level (\lean{JoinPrimality.markedPt_joinPrime}), proved by
+induction on $k$, since at level $k{+}1$ the interior point lies below every
+point represented in copy $B$ or $C$. Its upper adjoint $q_0$ is constructed
+explicitly, as a greatest element, and satisfies the
+Galois condition $e_0(y)\le z\iff y\le q_0(z)$
+(\lean{QAAExplicit.qAA_isGreatest}, \lean{QAAExplicit.glueAA_le_iff_le_qAA}).
+
+\emph{Inductive step.} Given a tripointed ep-pair $(e_n,q_n)$ from $D_{n+1}$ to
+$D_{n+2}$, conjugation $h\mapsto e_n\circ h\circ q_n$ and $h\mapsto q_n\circ h
+\circ e_n$ are tripointed maps between the $\End$ lattices, and
+\[
+  e_{n+1}:=\Phi(h\mapsto e_nhq_n),\qquad q_{n+1}:=\Phi(h\mapsto q_nhe_n)
+\]
+is again a tripointed ep-pair, by functoriality of $\Phi$
+(\lean{PhiIterateTower.phiStep}, \lean{PhiIterateTower.emb_succ}).
+
+\begin{definition}
+$\BB$ is the ep-pair bilimit of $(e_n,q_n)_n$: sequences $(x_n)_n$ with $x_n\in
+D_{n+1}$ and $q_n(x_{n+1})=x_n$, ordered pointwise
+(\lean{PhiIterateTower.phiTowerEP}, \lean{PhiBilimit.B}). It has three
+distinguished points: $\bot$, the sequence $\mu_\BB$ of interior points, and the
+sequence $\top_\BB$ of tops (\lean{PhiBilimit.midB}, \lean{PhiBilimit.topB}).
+\end{definition}
+
+\begin{remark}[How the towers meet]\label{rem:tripointed}
+The constant tower is carried inside the $\Phi$-iterate tower:
+$e_k\circ\iota_k=\iota_{k+1}\circ\iota_k$
+(\lean{StageRigidity.legacy_subtower}). But no $\Phi$-iterate embedding of a top
+is ever a constant-tower point: $e_n(\top)\neq\iota_{n+1}(x)$ for every $x$
+(\lean{StageRigidity.phi_emb_top_not_legacy}). The two towers share their
+finite stages and differ in how they glue them together.
+\end{remark}
+
+\subsection{The three objects are distinct}
+
+Call $x$ in a poset \emph{$\omega$-compact} if whenever $c$ is a monotone
+sequence with supremum $s\ge x$, already $x\le c_n$ for some $n$
+(\lean{BilimitGap.OmegaCompact}). Order isomorphisms preserve
+$\omega$-compactness.
+
+\begin{theorem}\label{thm:gap}
+$\BB\not\iso\Db$ and $\BB\not\iso\Dc$.
+\end{theorem}
+
+\begin{proof}
+Every $e_n$ preserves $\top$, so a point of $\BB$ whose level-$0$ component is
+the top of $D_1$ is $\top_\BB$; since the level-$0$ components of a chain in
+$\BB$ eventually stabilize ($D_1$ is finite), $\top_\BB$ is $\omega$-compact
+(\lean{BilimitGap.topB_omegaCompact}). The top of $\Db$ is the limit of its
+own finite-stage approximants and is not $\omega$-compact
+(\lean{BilimitGap.topSeq_not_omegaCompact}). An isomorphism sends top to top,
+so $\BB\not\iso\Db$ (\lean{BilimitGap.no_orderIso}). And $\BB$ has a greatest
+element while $\Dc$ has no maximal element (\cref{prop:nofootholds}), so
+$\BB\not\iso\Dc$ (\lean{BilimitGap.no_orderIso_DInfty}).
+\end{proof}
+
+An isomorphism $\BB\iso\Db$ would have transported Theorem~B to $\BB$
+(\lean{BilimitGap.rigid_of_orderIso}); \cref{thm:gap} closes that route.
+
+\section{Theorem B: rigidity of \texorpdfstring{$\Dc$}{D-infinity} and \texorpdfstring{$\Db$}{its bilimit}}\label{sec:B}
+
+\begin{theorem}\label{thm:B}
+$\Aut(\Dc,\le)=\{\id\}$ and $\Aut(\Db,\le)=\{\id\}$.
+\end{theorem}
+
+\begin{proof}[Lean]
+\lean{CopyCHigh.colimit_compat}, \lean{CopyCHigh.DBilimit_rigid}.
+\end{proof}
+
+The bilimit statement follows from the colimit one through \cref{thm:compacts}
+(\lean{SierpinskiApplication.DBilimit_rigid_of_DInfty_rigid}). An automorphism
+$g$ of $\Db$ preserves compactness, so it maps the image of $\Dc$ onto itself;
+its restriction is an automorphism of $\Dc$, hence the identity. Then $g$ fixes
+every compact element, and every element is the directed supremum of the compact
+elements below it, so $g=\id$. The rest of this section sketches the rigidity of
+$\Dc$.
+
+\subsection{Finite levels}
+
+\begin{theorem}\label{thm:finite}
+Every $D_k$ is rigid. Consequently every monotone injection $D_k\to D_k$ is the
+identity.
+\end{theorem}
+
+\begin{proof}[Sketch]
+Induction on $k$ (\lean{SierpinskiApplication.D_all_rigid}). In the step, the
+copy partition of $D_{k+1}$ is order-definable, so an automorphism restricts to
+each copy, and each copy is isomorphic to $\End(D_k)$; it remains to show
+$\End(P)$ is rigid when $P$ is. A finite-lattice automorphism is determined by
+its action on join-irreducibles \cite{DaveyPriestley2002}, and the
+join-irreducibles of $\End(P)$ form a poset isomorphic to
+$P^{\mathrm{op}}\times\J(P)$ (\lean{GluingTowerLibrary.jiOrderIso}). Every
+automorphism of this product splits as a product of automorphisms of the
+factors (\cref{lem:prodaut}), each of which is the identity by rigidity of $P$
+(\lean{EndPRigid.endP_rigid}). For a finite poset, rigidity implies that a
+monotone injection, being a permutation with a monotone inverse power, is an
+automorphism (\lean{MonotoneInjectionRigid.D_monotone_injection_eq_id}).
+\end{proof}
+
+\begin{lemma}\label{lem:prodaut}
+Let $X,Y$ be finite atomic posets with bottom, such that $X$ has a unique atom
+and $0<|Y|<|X|$. Then every automorphism $\varphi$ of $X\times Y$ splits:
+$\varphi(a,b)=\bigl(\varphi(a,\bot)_1,\ \varphi(\bot,b)_2\bigr)$.
+\end{lemma}
+
+\begin{proof}[Comment]
+This is \lean{ProdAut.prod_decomposition_of_card}. The proof counts atoms and up-sets: an automorphism cannot
+exchange axes, because the factors are separated by cardinality and $X$ has a
+unique atom. In the application $X=P^{\mathrm{op}}$ and $Y=\J(P)$. This is where
+one might expect to invoke Sabidussi--Vizing unique factorization
+\cite{Sabidussi1960,Vizing1963}; the order-theoretic setting makes it
+unnecessary.
+\end{proof}
+
+\subsection{The colimit step}
+
+The obstacle is \cref{prop:nofootholds}: $\Dc$ has no atom and no top, so no
+invariant anchored at either end can tell which level a point comes from. The
+argument proceeds in five steps.
+
+\begin{enumerate}[label=\textbf{\arabic*.},leftmargin=2em]
+\item \emph{Reduction to two points.} If every automorphism of $\Dc$ fixes the
+  seam point $\mu_\infty$ and the image of the top of $D_0$, then it fixes the
+  whole image of $D_0$ (\lean{TwoPointHypothesis}); by re-indexing (step~4) the
+  same applies at every base level, which gives the theorem. This fixed-point claim is equivalent to a
+  definability claim: the two points admit an order-theoretic description
+  exactly when every automorphism fixes them (\lean{Definability}).
+\item \emph{Exact shape of principal ideals.} The principal ideal of each
+  join-irreducible point has an explicit product shape
+  (\lean{SeedShapeProof.seedShape}). Comparing two points' ideals becomes a
+  question about products of pairwise non-isomorphic finite factors, which no
+  longer mentions the tower.
+\item \emph{Truncation, not cancellation.} The comparison is settled by deleting
+  the large factors with an order-theoretic predicate rather than cancelling a
+  common infinite tail (\lean{Truncation}). This forces exact finite equations
+  on a competitor's ideal: its cardinality, its atom count and an additive
+  height must all match. The height is a natural-number-valued height proved
+  additive on products, $\mathrm{ht}(a,b)=\mathrm{ht}(a)+\mathrm{ht}(b)$
+  (\lean{Height}), since Mathlib's $\mathbb N_\infty$-valued height has no such
+  lemma.
+\item \emph{Re-indexing.} A comparison at a higher level is the same
+  comparison at a shifted base, so the whole family reduces to one statement
+  $\mathrm{FirstSlice}(n)$ for every base level $n$ (\lean{FinishLine}).
+\item \emph{Three cases by copy.} $\mathrm{FirstSlice}(n)$ splits by the copy
+  of the competing element. For copy $B$, and for the part of copy $C$ not above
+  the marked point, the competitor's ideal is a non-trivial cut, while a
+  product has only trivial cuts (\lean{CutObstruction}, \lean{FirstSliceCut}).
+  In the remaining case, copy $C$ above the marked point, the competitor is
+  necessarily a constant map $\cst q$ (\lean{CopyCHigh.copyCHigh_shape}), and
+  its ideal splits by tag into three parts of sizes $|D_n|a$, $|D_n|a-1$ and
+  $|D_n|b-1$ (\lean{CopyCHigh.card_partA}, \lean{CopyCHigh.card_partB},
+  \lean{CopyCHigh.card_partC}). So the total is $\equiv-2\pmod{|D_n|}$. A
+  product shape $D_n\times S$ would make it divisible by $|D_n|$, forcing
+  $|D_n|\mid2$; but $|D_n|\ge3$ (\lean{CopyCHigh.three_le_card_D},
+  \lean{CopyCHigh.not_card_dvd}). This closes the theorem.
+\end{enumerate}
+
+\section{Theorem A: \texorpdfstring{$\BB$}{B} is a fixed point of the gluing}\label{sec:A}
+
+\begin{definition}
+Let $\SEnd(\BB)$ be the poset of Scott-continuous self-maps of $\BB$, and
+$\cst{\mu_\BB}$ the constant map at the interior point. Set
+$\Phi_\sigma(\BB):=\Glue\bigl(\SEnd(\BB),\cst{\mu_\BB}\bigr)$, i.e.\
+\cref{def:glue} with Scott-continuous maps in place of monotone ones
+(\lean{PhiBilimit.markedB}, \lean{PhiBilimit.phiB}).
+\end{definition}
+
+\begin{theorem}\label{thm:A}
+$\Phi_\sigma(\BB)\iso\BB$.
+\end{theorem}
+
+\begin{proof}[Lean]
+\lean{PhiSurjective.theoremA_orderIso}.
+\end{proof}
+
+\begin{proof}[Sketch]
+The argument is limit--colimit coincidence \cite{SmythPlotkin1982} adapted to
+the gluing.
+\begin{enumerate}[leftmargin=2em]
+\item By construction $e_{n+1}=\Phi(\text{conjugation by }e_n)$ for all $n$, and
+  $\Phi$ is a functor on tripointed maps (\cref{def:phi}). So the stages of
+  $\Phi_\sigma(\BB)$ obtained by applying $\Phi$ to the stages of $\BB$ form a
+  cocone, and three of the four colimit-cocone conditions are functoriality
+  (\lean{PhiCocone}).
+\item The fourth condition is that the images $\Phi(\delta_n)$ of the
+  deflations $\delta_n$ of $\BB$ have supremum the identity. It follows from two
+  general facts: composition preserves directed suprema in each argument, for
+  Scott-continuous maps (\lean{EndLocalContinuity.comp_isLUB}); and the three
+  copy inclusions into the glued carrier preserve least upper bounds with no
+  side condition (\lean{GenContinuityTransport}, \lean{PhiCoconeLUB}).
+\item The cocone yields the isomorphism once the relevant directed families in
+  $\Phi_\sigma(\BB)$ have suprema and the cocone's projections preserve them.
+  Both follow from a single explicit construction of the supremum together with
+  its projections (\lean{PhiSurjective.exists_lub_with_proj},
+  \lean{PhiSurjective.phiSupExists}, \lean{PhiSurjective.phiProjContinuous}).
+\end{enumerate}
+\end{proof}
+
+\begin{remark}[Why Scott-continuous maps]
+Step~2 uses Scott continuity essentially: for a monotone self-map $h$ that is
+not Scott-continuous, the supremum of the approximants $\delta_nh\delta_n$ can
+lie strictly below $h$. Taking the function-space step over $\SEnd$ rather than
+$\End$ is what makes the identity $\bigvee_n\Phi(\delta_n)=\id$ available. At
+finite levels the two coincide.
+\end{remark}
+
+\begin{remark}[A twisted action]
+A variant action applies $f$ on copy $A$ and a second map $\psi$ on copies $B$
+and $C$. It agrees with $\Phi(f)$ exactly when $\psi$ and $f$ agree away from
+$\bot$ (\lean{PhiTriIdentification.phiTwist_eq_phiFun_iff}). For injective
+tripointed self-maps of $\End(D_k)$ the two always agree, because $\End(D_k)$
+is rigid and so its only monotone injection is the identity
+(\lean{PhiTriIdentification.phiTwist_eq_phiFun_of_rigid},
+\lean{PhiTriTower.phiTower_unique}). So on the tower the action of $\Phi$ on
+morphisms is forced.
+\end{remark}
+
+Theorem~A says nothing about topology, about the gasket, or about $\Dc$ and
+$\Db$.
+
+\section{An internal IFS on \texorpdfstring{$\BB$}{B}, and the gasket}\label{sec:ifs}
+
+Let $s\colon\Phi_\sigma(\BB)\to\BB$ be the isomorphism of Theorem~A
+(\lean{InternalIFSInstance.sec}). For $j\in\{A,B,C\}$ put
+$\sigma_j(x):=s\bigl(\tg{\cst x}j\bigr)$: embed $x$ as a constant map, include it
+into copy $j$, and return to $\BB$. Each $\sigma_j$ is injective
+(\lean{InternalIFSInstance.ifsB}).
+
+\begin{proposition}\label{prop:escape}
+$\Fix(\sigma_A)$ is not a singleton: $\sigma_A$ fixes both $\bot$ and
+$\mu_\BB$, and $\sigma_B(\bot)=\mu_\BB$.
+\end{proposition}
+\begin{proof}[Lean]
+\lean{EscapeAnalysis.fix_sigmaA_not_singleton}, \lean{EscapeAnalysis.sigmaA_mid},
+\lean{EscapeAnalysis.sigmaB_bot}.
+\end{proof}
+
+So this system cannot underlie a coding map with one fixed point per copy. A
+second system $(\sigma'_A,\sigma'_B,\sigma'_C)$ on the same carrier uses a
+\emph{strict} constant map in place of $\cst x$, which keeps $\bot$ at $\bot$; it
+has the same injectivity properties and $\mu_\BB\notin\Fix(\sigma'_A)$
+(\lean{SigmaRebuild.ifsS}, \lean{SigmaRebuild.strictConst},
+\lean{SigmaRebuild.mid_not_mem_fix}).
+
+\begin{theorem}
+$\Fix(\sigma'_A)=\{\bot\}$.
+\end{theorem}
+\begin{proof}[Lean]
+\lean{EscapeProof.fix_sigmaA}.
+\end{proof}
+
+\subsection{The gasket and its coding map}
+$\GG\subseteq[0,1]^2$ is constructed as the attractor of three just-touching
+similarities, not assumed (\lean{Gasket.gasketSet_eq}). The address coding map
+$\kappa\colon\{0,1,2\}^{\mathbb N}\to\GG$ is continuous and surjective, is the
+unique map intertwining the shifts with the three similarities, and is a
+quotient map (\lean{Gasket.continuous_codeGamma},
+\lean{Gasket.codeGamma_surjective}, \lean{Gasket.coding_unique},
+\lean{Gasket.isQuotientMap_codeGamma}).
+
+\begin{proposition}
+$\kappa$ is not an open map: the image of a single copy is not open in $\GG$.
+\end{proposition}
+\begin{proof}[Lean]
+\lean{Gasket.not_isOpen_imageA}, \lean{Gasket.notOpen}.
+\end{proof}
+
+This concerns $\kappa$ only; we do not claim that every coding map onto $\GG$
+fails to be open. It is the reason the interface for coding constructions in
+the development (\lean{CoreIFS.TheoremAData}) asks only for a quotient map.
+
+\subsection{Addresses in \texorpdfstring{$\BB$}{B} and the comparison map}
+Using the repaired system, the address map $\beta\colon\{0,1,2\}^{\mathbb N}\to
+\BB$ sends an address to the supremum of the chain it generates. It is
+injective and intertwines the shift with the $\sigma'_j$; its image is the
+\emph{attractor} $\mathcal A\subseteq\BB$. The comparison map
+$\rho\colon\mathcal A\to\GG$ is defined by $\rho(\beta(w))=\kappa(w)$
+(\lean{CodeB.codeB}, \lean{CodeB.codeB_injective}, \lean{CodeB.rho}).
+
+\begin{theorem}
+$\rho$ is surjective, it is the unique map $\mathcal A\to\GG$ intertwining the
+$\sigma'_j$ with the three similarities, and it is chain-continuous: along a
+monotone sequence in $\mathcal A$ with supremum $c$, the images converge to
+$\rho(c)$.
+\end{theorem}
+\begin{proof}[Lean]
+\lean{CodeB.rho_surjective}, \lean{AddressConvergence.rho_chainContinuous}.
+\end{proof}
+
+\begin{theorem}\label{thm:rhoneg}
+$\rho$ is not injective. No topology on $\mathcal A$ whose open sets are upward
+closed (in particular the Scott topology) makes $\rho$ continuous.
+\end{theorem}
+\begin{proof}[Lean]
+\lean{SeamTriangle.rho_not_injective},
+\lean{RhoContinuity.no_continuous_rho_of_upwardClosed}.
+\end{proof}
+
+The reason for non-injectivity is structural. Two addresses that name the same
+seam point of $\GG$ reach different points of $\BB$: the address system of $\BB$
+is \emph{seamless}, its copies meeting at no point
+(\lean{SeamTriangle.codeB_seamless}), whereas the copies of $\GG$ meet at three
+seams. Chain continuity is the form of continuity that survives.
+
+\section{Automorphisms of \texorpdfstring{$\BB$}{B}: what is proved}\label{sec:Brigid}
+
+We do not know whether $\BB$ is rigid. \Cref{thm:gap} rules out transporting
+Theorem~B. We prove the following.
+
+\begin{itemize}[leftmargin=2em]
+\item An automorphism of $\BB$ that fixes every stage image pointwise is the
+  identity (\lean{StageRigidity.eq_refl_of_fixes_stages}), and every level of the
+  $\Phi$-iterate tower is maximally rigid
+  (\lean{StageRigidity.levels_maximally_rigid}).
+\item The $\omega$-compact elements of $\BB$ are exactly the stage images
+  (\lean{PhiStagePipe.omegaCompact_iff_stage}). So every automorphism maps each
+  stage image into some stage image and fixes the stage copies of $\bot$ and
+  $\top$ (\lean{PhiStagePipe.stages_union_preserved},
+  \lean{PhiStagePipe.apply_insD_top}).
+\item $\BB$ has no atom (\lean{AtomlessBilimit.no_isAtom}).
+\end{itemize}
+
+\emph{Conditional rigidity.} Each of the following implies $\Aut(\BB)=\{\id\}$:
+that every automorphism maps each stage image into the same stage
+(\lean{StageRigidity.B_rigid_of_stageDefinable}); the same for cofinally many
+stages (\lean{StageCofinal.B_rigid_of_cofinal}); and two uniqueness statements
+for the level-to-level embeddings
+(\lean{StageEmbedding.B_rigid_of_levelEmbUnique},
+\lean{EmbDImage.B_rigid_of_levelImageStableJI}).
+
+\emph{Refutations.} Both uniqueness statements are false. The constant inclusion
+patched to send $\top$ to $\top$ is a second monotone, order-reflecting,
+join-preserving, bound-preserving level embedding
+(\lean{PatchedEmbedding.patched}, \lean{PatchedEmbedding.not_levelEmbUnique},
+\lean{PatchedEmbedding.not_levelImageStableJI}); it does not extend to an
+automorphism of $\BB$ (\lean{StageCover.no_patched_automorphism}). Stage
+definability and its cofinal form remain open.
+
+\emph{The seam point.} The canonical seam point $\chi$ of $\BB$ satisfies
+$\mu_\BB<\chi<\top_\BB$. Whether every automorphism fixes it is equivalent to
+stability of its principal ideal under all automorphisms
+(\lean{SeamCut.cSeamFixed_iff_ideal_stable}), and follows if no other point has
+an isomorphic principal ideal (\lean{IdealInvariant.cSeamFixed_of_ideal_pins}).
+This too is open.
+
+\section{The formalization}\label{sec:formal}
+
+\subsection{Scope and size}
+The release consists of 116 Lean modules, 37{,}109 lines, built against Lean
+\texttt{v4.32.2} and Mathlib \texttt{v4.32.2}; the toolchain and every
+dependency are pinned. The general order theory (gluing, $\End$,
+join-irreducibles, products) is in \lean{GluingTowerLibrary} (10{,}386 lines);
+the concrete tower and the constant-tower limits are in
+\lean{SierpinskiApplication} (4{,}858 lines). The import graph is deep and
+narrow, with a longest chain of 54 imports ending at \lean{Dinfty.Verify}, which
+is imported by nothing. Pillar~A reuses Pillar~B's machinery:
+\lean{PhiIterateTower} imports \lean{SeedShapeProof}, so the two theorems are
+independent as statements but not as code.
+
+\subsection{Trust base}
+\lean{Dinfty/Verify.lean} restates each result of this paper as an anonymous
+\texttt{example} whose proof is the named declaration, so a stated type cannot
+drift from the proved one; any mismatch is a build error. It then runs
+\texttt{\#print axioms} 195 times. In a clean build the reports are:
+\begin{center}
+\begin{tabular}{lr}
+\toprule
+axioms reported & count\\
+\midrule
+\texttt{propext}, \texttt{Classical.choice}, \texttt{Quot.sound} & 177\\
+\texttt{propext}, \texttt{Quot.sound} & 9\\
+\texttt{propext} & 6\\
+none & 3\\
+\midrule
+total & 195\\
+\bottomrule
+\end{tabular}
+\end{center}
+No report contains \texttt{sorryAx} or \texttt{Lean.ofReduceBool}; the
+development uses neither \texttt{sorry} nor \texttt{native\_decide}, and
+declares no axioms of its own.
+
+\subsection{Checking it}
+With \texttt{elan} installed, the repository is checked by
+\begin{center}
+\texttt{lake exe cache get \&\& lake build Dinfty.Verify}
+\end{center}
+which takes roughly 15--20 minutes on a warm Mathlib cache. The repository
+README gives an acceptance script that checks the build outcome and the axiom
+distribution above, and the repository's continuous integration runs it on
+every commit.
+
+\subsection{Remarks on the development}
+\begin{itemize}[leftmargin=2em]
+\item \emph{Decidability.} The $\End$ lattices are finite but their order is
+  decided classically, so tower levels cannot be enumerated by \texttt{decide};
+  statements about the tower are proved structurally, uniformly in $k$, rather
+  than by evaluation.
+\item \emph{Negative results as theorems.} Each refutation in
+  \cref{sec:ifs,sec:Brigid} is a Lean theorem with a negated conclusion, and the
+  first IFS of \cref{prop:escape} is retained alongside the repaired one.
+\item \emph{Reference labels.} Every declaration carries a stable label
+  \texttt{[D-NNNN]}; \texttt{REFERENCE\_INDEX.md} in the repository maps labels
+  to declarations and files.
+\end{itemize}
+
+\section{Conclusion}
+
+A three-copy gluing of function-space lattices, iterated from the three-element
+chain, yields limits with sharply different behaviour depending on how the
+levels are glued together. Along the constant embeddings the colimit and bilimit
+are rigid; along the embeddings generated by the gluing functor itself the
+bilimit is a fixed point of the Scott-continuous gluing. The two limits are not
+isomorphic, and the fixed point carries an internal IFS whose comparison with the
+Sierpi\'nski gasket is surjective and chain-continuous but no better.
+
+Two questions are left open: whether $\BB$ is rigid, and whether the
+stage-definability hypothesis of \cref{sec:Brigid} holds. A positive answer to
+the latter would settle the former.
+
+\appendix
+\section{Lean correspondence}\label{app:lean}
+
+Module names are relative to \lean{Dinfty}; declaration names are as in the
+release at \url{\repourl}, tag \texttt{\repotag}.
+
+\begin{longtable}{>{\raggedright\arraybackslash}p{0.34\textwidth}>{\raggedright\arraybackslash}p{0.58\textwidth}}
+\toprule
+Paper & Lean\\
+\midrule
+\endhead
+$\Glue(Q,m)$, its order & \lean{GluingTowerLibrary.GlueCarGen}, \lean{GluingTowerLibrary.leGlue}, \lean{GluingTowerLibrary.rawRule}\\
+$\End(P)$, $\SEnd(P)$ & \lean{GluingTowerLibrary.EndP}, \lean{GluingTowerLibrary.ScottEndP}\\
+$D_k$, $\mu_k$, $\cst{\mu_k}$ & \lean{SierpinskiApplication.D}, \lean{SierpinskiApplication.dMid}, \lean{SierpinskiApplication.markedPt}\\
+$\iota_k$, $p_k$ & \lean{SierpinskiApplication.iotaD}, \lean{SierpinskiApplication.pD}\\
+$\Dc$, $\Db$ & \lean{SierpinskiApplication.DInfty}, \lean{SierpinskiApplication.DBilimit}\\
+$\Phi$ on tripointed maps & \lean{PhiTriFunctor.phiFun}\\
+$e_0$, $q_0$, $\lambda$ & \lean{SierpinskiApplication.glueAA}, \lean{GlueAAEpPartner.qAA}, \lean{GlueAAJoin.liftT}\\
+$(e_n,q_n)$, $\BB$ & \lean{PhiIterateTower.iter}, \lean{PhiIterateTower.phiTowerEP}, \lean{PhiBilimit.B}\\
+$\mu_\BB$, $\top_\BB$, $\Phi_\sigma(\BB)$ & \lean{PhiBilimit.midB}, \lean{PhiBilimit.topB}, \lean{PhiBilimit.phiB}\\
+\cref{thm:compacts} & \lean{SierpinskiApplication.mem_range_toDBilimit_iff_isCompactElement}\\
+\cref{prop:nofootholds} & \lean{DInftyNoFootholds.no_footholds}\\
+\cref{thm:gap} & \lean{BilimitGap.no_orderIso}, \lean{BilimitGap.no_orderIso_DInfty}\\
+Theorem B (\cref{thm:B}) & \lean{CopyCHigh.colimit_compat}, \lean{CopyCHigh.DBilimit_rigid}\\
+\cref{thm:finite} & \lean{SierpinskiApplication.D_all_rigid}, \lean{MonotoneInjectionRigid.D_monotone_injection_eq_id}\\
+\cref{lem:prodaut} & \lean{ProdAut.prod_decomposition_of_card}\\
+Theorem A (\cref{thm:A}) & \lean{PhiSurjective.theoremA_orderIso}\\
+$\sigma_j$; \cref{prop:escape} & \lean{InternalIFSInstance.ifsB}; \lean{EscapeAnalysis.fix_sigmaA_not_singleton}\\
+$\sigma'_j$; $\Fix(\sigma'_A)=\{\bot\}$ & \lean{SigmaRebuild.ifsS}; \lean{EscapeProof.fix_sigmaA}\\
+$\GG$, $\kappa$ & \lean{Gasket.Gamma}, \lean{Gasket.codeGamma}\\
+$\kappa$ not open & \lean{Gasket.notOpen}\\
+$\beta$, $\mathcal A$, $\rho$ & \lean{CodeB.codeB}, \lean{CodeB.Attractor}, \lean{CodeB.rho}\\
+\cref{thm:rhoneg} & \lean{SeamTriangle.rho_not_injective}, \lean{RhoContinuity.no_continuous_rho_of_upwardClosed}\\
+\bottomrule
+\end{longtable}
+
+\bibliographystyle{amsplain}
+\bibliography{refs}
+
+\end{document}
