@@ -2,6 +2,7 @@
 
 [![Verify](https://github.com/ndp75/dinfty/actions/workflows/ci.yml/badge.svg)](https://github.com/ndp75/dinfty/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23423879.svg)](https://doi.org/10.5281/zenodo.23423879)
 
 **Paper:** [`paper/main.tex`](paper/) — *Rigidity and self-similarity in a
 three-copy gluing tower of finite lattices, machine-checked in Lean 4*

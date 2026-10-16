@@ -7,9 +7,17 @@ authors:
     affiliation: Independent researcher
     email: ndpinto1@gmail.com
 version: 1.0.0
+doi: 10.5281/zenodo.23423880
 date-released: 2026-10-16
 license: Apache-2.0
 repository-code: "https://github.com/ndp75/dinfty"
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.23423879
+    description: "Concept DOI (all versions)"
+  - type: doi
+    value: 10.5281/zenodo.23423880
+    description: "Version 1.0.0"
 keywords:
   - domain theory
   - bilimit
