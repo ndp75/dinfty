@@ -115,4 +115,13 @@ theorem rigid_of_orderIso (e : B ≃o DBilimit) : Subsingleton (B ≃o B) := by
   simp only [OrderIso.trans_apply, OrderIso.symm_apply_apply] at hx
   exact e.injective hx
 
+-- [D-3752] no_orderIso_DInfty
+theorem no_orderIso_DInfty : ¬ Nonempty (B ≃o DInfty) := by
+  rintro ⟨e⟩
+  obtain ⟨w, hw⟩ := DInftyNoFootholds.no_top (e topB)
+  have h : w ≤ e topB := by
+    have := e.monotone (le_topB (e.symm w))
+    rwa [e.apply_symm_apply] at this
+  exact lt_irrefl _ (lt_of_lt_of_le hw h)
+
 end BilimitGap

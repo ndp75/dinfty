@@ -254,6 +254,9 @@ example : BilimitGap.OmegaCompact (PhiBilimit.topB : PhiBilimit.B) := BilimitGap
 -- [D-3652] example
 example : ¬ Nonempty (PhiBilimit.B ≃o DBilimit) := BilimitGap.no_orderIso
 
+-- [D-3753] example
+example : ¬ Nonempty (PhiBilimit.B ≃o DInfty) := BilimitGap.no_orderIso_DInfty
+
 -- [D-3653] example
 example (k : ℕ) :
     (∀ x : D k, iotaD k x ∈ CopyIdeal.CopyA (markedPt k)
@@ -330,6 +333,7 @@ end TwoObjects
 #print axioms BilimitGap.topSeq_not_omegaCompact
 #print axioms BilimitGap.topB_omegaCompact
 #print axioms BilimitGap.no_orderIso
+#print axioms BilimitGap.no_orderIso_DInfty
 #print axioms BilimitGap.rigid_of_orderIso
 #print axioms CopyIdeal.copyA_isLowerSet
 #print axioms CopyIdeal.legacy_confined_phi_not

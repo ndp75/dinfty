@@ -1,4 +1,15 @@
-# D∞ — a machine-checked Lean 4 development
+# Rigidity and self-similarity in a three-copy gluing tower — Lean 4
+
+[![Verify](https://github.com/ndp75/dinfty/actions/workflows/ci.yml/badge.svg)](https://github.com/ndp75/dinfty/actions/workflows/ci.yml)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+
+**Paper:** [`paper/main.tex`](paper/) — *Rigidity and self-similarity in a
+three-copy gluing tower of finite lattices, machine-checked in Lean 4*
+(arXiv: to appear). It gives the definitions, theorem statements and proof
+sketches in ordinary mathematical notation; its Appendix A maps every notion to
+the Lean declaration that proves it. Read that first if you want the
+mathematics; read on here for the build.
+
 
 This directory is a **self-contained release**: 116 Lean modules whose import
 closure is exactly what the headline theorems depend on. Nothing here is
@@ -11,12 +22,12 @@ Lean's three standard axioms.
 | | |
 |---|---|
 | Modules | 116 |
-| Lines of Lean | 44,118 |
+| Lines of Lean | 37,109 |
 | Toolchain | `leanprover/lean4:v4.32.2` |
 | Mathlib | `v4.32.2` (rev `905b95818eb3`) |
 | Entry point | `Dinfty.Verify` |
-| Axiom checks | 194 |
-| Status | builds clean; verified 2026-09-02 |
+| Axiom checks | 195 |
+| Status | builds clean; verified 2026-09-21 |
 
 ---
 
@@ -34,8 +45,8 @@ noncomputable example : PhiBilimit.phiB ≃o PhiIterateTower.phiTowerEP.Bilim :=
   PhiSurjective.theoremA_orderIso
 ```
 
-`Φ(D∞^Φ) ≃o D∞^Φ`: the bilimit of the Φ-iterate tower is a fixed point of `Φ`
-up to order-isomorphism.
+`Φ_σ(B) ≃o B`: the bilimit `B` of the Φ-iterate tower is a fixed point, up to
+order-isomorphism, of the gluing built from Scott-continuous self-maps.
 
 ### Theorem B — rigidity
 
@@ -44,16 +55,31 @@ example : Subsingleton (DInfty ≃o DInfty) := CopyCHigh.colimit_compat
 example : Subsingleton (DBilimit ≃o DBilimit) := CopyCHigh.DBilimit_rigid
 ```
 
-`D∞` has no non-identity order-automorphism, in both the colimit and the
-bilimit presentation.
+Two different objects are rigid: `DInfty`, the colimit of the constant-embedding
+tower, and `DBilimit`, the ep-pair bilimit of the same tower. They are **not**
+two presentations of one object: `toDBilimit : DInfty ↪o DBilimit` is an order
+embedding whose image is exactly the compact elements of `DBilimit`
+(`mem_range_toDBilimit_iff_isCompactElement`), and `topSeq` is not in it.
+Rigidity of `DBilimit` is derived from rigidity of `DInfty` through that fact.
+
+### Theorem A and Theorem B are about different objects
+
+```lean
+example : ¬ Nonempty (PhiBilimit.B ≃o DBilimit) := BilimitGap.no_orderIso
+example : ¬ Nonempty (PhiBilimit.B ≃o DInfty) := BilimitGap.no_orderIso_DInfty
+```
+
+`B`'s top is ω-compact and `DBilimit`'s is not; `DInfty` has no top at all. Rigidity of `B` itself is not
+proved; `Verify.lean`'s `*Check` sections record the conditional reductions and
+the refutations that are.
 
 ### The internal IFS, and two refutations
 
 The development also builds an honest internal IFS on the carrier with all
 three copy-maps **injective**, and machine-checks two *negative* results — that
-`Fix σ_A = {⊥}` fails for the first IFS, and that no coding map onto the
-Sierpiński gasket can be an open map, so that field of the interface must be
-weakened to `IsQuotientMap`. Negative results are stated as theorems, not as
+`Fix σ_A = {⊥}` fails for the first IFS, and that the address coding map
+`codeGamma` onto the Sierpiński gasket is not an open map, so that field of the
+interface is weakened to `IsQuotientMap`. Negative results are stated as theorems, not as
 absent lemmas.
 
 ---
@@ -160,21 +186,21 @@ A clean run satisfies all five:
 | 2 | `error:` lines | **0** |
 | 3 | `declaration uses 'sorry'` | **0** |
 | 4 | `sorryAx` / `Lean.ofReduceBool` | **0** |
-| 5 | `#print axioms` results | **194**, all standard |
+| 5 | `#print axioms` results | **195**, all standard |
 
 ### The exact expected output
 
-The 194 `#print axioms` commands do **not** all produce the same form. Three of
-them report no axioms at all, so only 191 lines contain the phrase
+The 195 `#print axioms` commands do **not** all produce the same form. Three of
+them report no axioms at all, so only 192 lines contain the phrase
 `depends on axioms`. A clean run gives exactly this distribution:
 
 | Result | Count | Meaning |
 |---|---:|---|
-| `depends on axioms: [propext, Classical.choice, Quot.sound]` | 176 | all three standard axioms |
+| `depends on axioms: [propext, Classical.choice, Quot.sound]` | 177 | all three standard axioms |
 | `depends on axioms: [propext, Quot.sound]` | 9 | choice-free |
 | `depends on axioms: [propext]` | 6 | choice- and quotient-free |
 | `does not depend on any axioms` | 3 | fully axiom-free |
-| **total** | **194** | |
+| **total** | **195** | |
 
 Every one of these is acceptable: `propext`, `Classical.choice` and
 `Quot.sound` are Lean's three standard axioms, and the last three rows are
@@ -208,7 +234,7 @@ Capture the build output, then check it:
 lake build Dinfty.Verify 2>&1 | tee build.log
 ```
 
-Lake replays cached messages, so the 194 axiom results are re-emitted on every
+Lake replays cached messages, so the 195 axiom results are re-emitted on every
 run — you do not need a clean rebuild to re-check them.
 
 Then summarise every axiom result:
@@ -221,7 +247,7 @@ grep -c "does not depend on any axioms" build.log
 Expected output — these four numbers and nothing else:
 
 ```
-    176 depends on axioms: [propext, Classical.choice, Quot.sound]
+    177 depends on axioms: [propext, Classical.choice, Quot.sound]
       9 depends on axioms: [propext, Quot.sound]
       6 depends on axioms: [propext]
 3
@@ -233,53 +259,18 @@ Expected output — these four numbers and nothing else:
 > truncate one — so a bad line may read as clean. Redirect to a file first, as
 > above, or pipe through `tr '\n' ' '` before grepping.
 
-<details>
-<summary><b>One-shot acceptance script</b> (click to expand)</summary>
+### One-shot acceptance script
+
+[`scripts/acceptance.sh`](scripts/acceptance.sh) runs the build and all five
+checks above, prints the axiom distribution, and exits non-zero on any failure:
 
 ```bash
-#!/usr/bin/env bash
-# Run from this directory. Exits non-zero on any failure.
-set -o pipefail
-fail=0
-
-lake build Dinfty.Verify 2>&1 | tee build.log
-
-grep -q "Build completed successfully" build.log \
-  || { echo "FAIL: build did not complete"; fail=1; }
-
-for pat in "^error:" "declaration uses 'sorry'"; do
-  n=$(grep -c "$pat" build.log)
-  [ "$n" -eq 0 ] || { echo "FAIL: $n occurrences of '$pat'"; fail=1; }
-done
-
-# Every axiom result, one per line. Join wrapped lines first: harmless on a
-# redirected log, essential if the output came from a terminal.
-axioms=$(tr '\n' ' ' < build.log \
-         | grep -o -e "depends on axioms: \[[^]]*\]" -e "does not depend on any axioms")
-
-total=$(wc -l <<<"$axioms")
-[ "$total" -eq 194 ] || { echo "FAIL: $total axiom results, expected 194"; fail=1; }
-
-# Scoped to the axiom results. Neither marker appears anywhere in a clean log,
-# but scoping keeps the check exact if prose ever mentions one.
-bad=$(grep -e sorryAx -e "Lean.ofReduceBool" <<<"$axioms")
-[ -z "$bad" ] || { echo "FAIL: sorry or native_decide reached the kernel:"; \
-                   echo "$bad"; fail=1; }
-
-# Accept any SUBSET of the three standard axioms, including the empty set.
-nonstd=$(grep -v \
-  -e "^depends on axioms: \[propext, Classical.choice, Quot.sound\]$" \
-  -e "^depends on axioms: \[propext, Quot.sound\]$" \
-  -e "^depends on axioms: \[propext\]$" \
-  -e "^does not depend on any axioms$" <<<"$axioms" | sort -u)
-[ -z "$nonstd" ] || { echo "FAIL: non-standard axioms:"; echo "$nonstd"; fail=1; }
-
-[ "$fail" -eq 0 ] && echo "PASS: 194 axiom results, all standard, no sorry."
-exit $fail
+bash scripts/acceptance.sh
 ```
-</details>
 
-### What the 194 checks cover
+The same script runs in CI on every push ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)).
+
+### What the 195 checks cover
 
 `Verify.lean` is organised into 25 sections. Each re-states a result as an
 anonymous `example` — so the statement in `Verify.lean` is type-checked against
@@ -287,7 +278,7 @@ the real theorem and cannot drift from it — and then prints its axioms.
 
 | Section | What it pins down |
 |---|---|
-| `PillarA` | Theorem A: `Φ(D∞^Φ) ≃o D∞^Φ` |
+| `PillarA` | Theorem A: `Φ_σ(B) ≃o B` |
 | `PillarB` | Theorem B: rigidity of `DInfty` and `DBilimit` |
 | `InternalIFS` | The internal IFS exists; all three σ-maps injective |
 | `Escape` | **Refutation**: `Fix σ_A = {⊥}` is false for this IFS |
@@ -295,8 +286,9 @@ the real theorem and cannot drift from it — and then prints its axioms.
 | `Projection` | `qAA` is explicit — a greatest element, never a `choice` |
 | `EscapeHolds` | `Fix σ_A = {⊥}` for the rebuilt σ_A |
 | `Gasket` | Γ is constructed, not assumed; the coding map is a quotient map |
-| | **Refutation**: no coding map is open |
-| `Link`, `Continuity`, `TwoObjects` | The bridge between the two pillars |
+| | **Refutation**: `codeGamma` is not an open map |
+| `Link`, `Continuity` | The address map into `B` and the map `rho` onto Γ |
+| `TwoObjects` | `B ≄o DBilimit` and `B ≄o DInfty`: the two pillars are about different objects |
 | 14 further `*Check` sections | Stage, embedding, seam, cover, chain and ideal invariants |
 
 An `example` that failed to typecheck would be a build error, so criterion 2
@@ -319,8 +311,8 @@ by another.
 graph TD
   subgraph Core["Core — the gluing tower"]
     ProdAut[ProdAut]
-    GTL["GluingTowerLibrary<br/>10,975 ln"]
-    SA["SierpinskiApplication<br/>4,954 ln"]
+    GTL["GluingTowerLibrary<br/>10,386 ln"]
+    SA["SierpinskiApplication<br/>4,858 ln"]
     NGM[NormalizedGlueMap]
     GC[GenContinuity]
   end
@@ -351,7 +343,7 @@ graph TD
     EP[EscapeProof]
   end
 
-  V(["<b>Verify</b><br/>194 axiom checks"])
+  V(["<b>Verify</b><br/>195 axiom checks"])
 
   ProdAut --> GTL --> SA --> NGM --> GC
   GC --> ELC --> CCP --> SSP --> FSC --> CCH
@@ -397,7 +389,7 @@ To recompute the shape directly from the sources, without building:
 
 ```bash
 ls Dinfty/*.lean | wc -l                           # modules ........... 116
-cat Dinfty/*.lean | wc -l                          # lines ........... 44118
+cat Dinfty/*.lean | wc -l                          # lines ........... 37109
 grep -h '^import Dinfty\.' Dinfty/*.lean | wc -l   # import statements .. 189
 ```
 
@@ -408,27 +400,67 @@ grep -h '^import Dinfty\.' Dinfty/*.lean | wc -l   # import statements .. 189
 ```
 .
 ├── README.md              this file
+├── LICENSE                Apache-2.0
+├── CITATION.cff           how to cite this repository
 ├── lean-toolchain         pins Lean v4.32.2 (read by elan)
 ├── lakefile.toml          pins Mathlib v4.32.2; defaultTargets = ["Dinfty"]
 ├── lake-manifest.json     pins the exact Mathlib revision (905b95818eb3)
+├── REFERENCE_INDEX.md     [D-NNNN] label → declaration and file
+├── reference_index.json   the same index, machine-readable
 ├── Dinfty.lean            root module — imports all 116, the default target
-└── Dinfty/                the 116 release modules
-    ├── Verify.lean               start here: both theorems + 194 axiom checks
-    ├── GluingTowerLibrary.lean   the general theory (10,975 ln)
-    ├── SierpinskiApplication.lean  the concrete tower (4,954 ln)
-    └── ...
+├── Dinfty/                the 116 release modules
+│   ├── Verify.lean               start here: every headline result + 195 axiom checks
+│   ├── GluingTowerLibrary.lean   the general theory (10,386 ln)
+│   ├── SierpinskiApplication.lean  the concrete tower (4,858 ln)
+│   └── ...
+├── paper/                 LaTeX source of the paper (main.tex, refs.bib)
+├── scripts/acceptance.sh  build + axiom acceptance check
+└── .github/workflows/     CI: build, acceptance check, paper PDF
 ```
+
+### Reading guide
+
+The sources carry no prose comments, only `-- [D-NNNN] name` labels, so this is
+the map. Each row is one module; read them in this order.
+
+| Module | What it contains | Paper |
+|---|---|---|
+| `Verify` | Every headline result restated as an `example`, with `#print axioms` | all |
+| `GluingTowerLibrary` | Gluing `GlueCarGen`, its order (`rawRule`, `leGlue`), `EndP`, `ScottEndP`, join-irreducibles, `jiOrderIso` | §3 |
+| `SierpinskiApplication` | The tower `D`, `dMid`, `markedPt`, `iotaD`/`pD`, `DInfty`, `DBilimit`, `D_all_rigid`, compact elements | §3–§5 |
+| `PhiTriFunctor`, `PhiTriTower` | `Φ` on tripointed maps; functor laws; `D (k+1) = Φ(D k)` by `rfl` | §3 |
+| `GlueAAJoin`, `QAAExplicit` | The first Φ-iterate embedding `glueAA`, its lift, its explicit upper adjoint | §4.2 |
+| `PhiIterateTower`, `PhiBilimit` | The Φ-iterate tower and its bilimit `B`, `midB`, `topB`, `phiB` | §4.2, §6 |
+| `BilimitGap` | `B ≄o DBilimit`, `B ≄o DInfty` | §4.3 |
+| `DInftyNoFootholds` | `DInfty` has no atom and no top | §4.1 |
+| `ProdAut`, `EndPRigid` | Product automorphisms split; `EndP` of a rigid lattice is rigid | §5.1 |
+| `SeedShapeProof`, `Truncation`, `Height`, `FinishLine`, `CutObstruction`, `FirstSliceCut` | The colimit step of Theorem B | §5.2 |
+| `CopyCHigh` | The divisibility case, and **Theorem B**: `colimit_compat`, `DBilimit_rigid` | §5.2 |
+| `PhiCocone`, `PhiCoconeLUB`, `PhiSurjective` | The colimit cocone and **Theorem A**: `theoremA_orderIso` | §6 |
+| `InternalIFSInstance`, `EscapeAnalysis`, `SigmaRebuild`, `EscapeProof` | The internal IFS, its refutation, the repair | §7 |
+| `Gasket`, `GasketCoding`, `GasketCoreIFS`, `GasketNotOpen` | The gasket `Γ`, `codeGamma`, not an open map | §7.1 |
+| `CodeB`, `AddressConvergence`, `SeamTriangle`, `RhoContinuity` | Addresses in `B`, `rho`, and the refutations about it | §7.2 |
+| `StageRigidity`, `PhiStagePipe`, `StageCofinal`, `StageEmbedding`, `EmbDImage`, `PatchedEmbedding`, `StageCover`, `SeamCut`, `IdealInvariant` | What is proved about automorphisms of `B` | §8 |
 
 ### A note on scope
 
-This directory is the release closure only. The wider research repository also
-contains `AxChecks.lean` — a 752-line axiom audit of 325 further declarations,
-on top of the 194 acceptance checks here — plus 34 archived research modules
-recording refutations, measurements and abandoned routes. None of that is
-required to check the theorems above, and none of it is imported here.
+This repository is the release closure only. The research history (a further
+axiom audit of 325 declarations, and archived modules recording refutations,
+measurements and abandoned routes) is not included; none of it is needed to
+check the theorems above.
 
 ## Reproducibility
 
 `lean-toolchain` and `lake-manifest.json` pin the compiler and every dependency
 to an exact revision, so this build is reproducible: a peer running the two
-commands in §2 gets the same 194 axiom reports.
+commands in §2 gets the same 195 axiom reports.
+
+## Citing
+
+If you use this development, please cite the paper (arXiv identifier to follow)
+or the repository; [`CITATION.cff`](CITATION.cff) has the details, and GitHub's
+"Cite this repository" button reads it.
+
+## License
+
+Apache License 2.0 — see [`LICENSE`](LICENSE). This is the license Mathlib uses.

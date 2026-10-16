@@ -6,7 +6,7 @@ Every top-level declaration and every section of `Release/Dinfty/*.lean` carries
 -- [D-NNNN] name
 ```
 
-immediately above it. `D-NNNN` is a stable, globally unique citation key; the labels are the only comments in the source. Section labels are marked `§`. Modules are listed in topological (import) order, which is also the order the reference numbers run in.
+immediately above it. `D-NNNN` is a stable, globally unique citation key; the labels are the only comments in the source. Section labels are marked `§`. Modules are listed in topological (import) order, which is also the order the reference numbers run in — except for labels added after the numbering was fixed (`D-3752` onward), which are appended at the end so that no existing key changes.
 
 | ref | kind | name | module |
 |---|---|---|---|
@@ -3761,3 +3761,5 @@ immediately above it. `D-NNNN` is a stable, globally unique citation key; the la
 | `D-3749` | example | `example` | `Dinfty.Verify` |
 | `D-3750` | example | `example-D` | `Dinfty.Verify` |
 | `D-3751` | example | `example-D` | `Dinfty.Verify` |
+| `D-3752` | theorem | `no_orderIso_DInfty` | `Dinfty.BilimitGap` |
+| `D-3753` | example | `example` | `Dinfty.Verify` |

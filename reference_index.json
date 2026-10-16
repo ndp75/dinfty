@@ -26255,5 +26255,19 @@
   "name": "example-D",
   "heading": "",
   "module": "Verify"
+ },
+ {
+  "ref": "D-3752",
+  "kind": "theorem",
+  "name": "no_orderIso_DInfty",
+  "heading": "",
+  "module": "BilimitGap"
+ },
+ {
+  "ref": "D-3753",
+  "kind": "example",
+  "name": "example",
+  "heading": "",
+  "module": "Verify"
  }
 ]
